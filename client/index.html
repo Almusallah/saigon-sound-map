@@ -1,0 +1,770 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Saigon Sound Map</title>
+  <link href="https://api.mapbox.com/mapbox-gl-js/v2.14.1/mapbox-gl.css" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    /* ── Variables ──────────────────────────────────────────────────── */
+    :root {
+      --primary: #FF6B6B;
+      --primary-dark: #EE5A5A;
+      --secondary: #4ECDC4;
+      --accent: #FFE66D;
+      --purple: #A78BFA;
+      --blue: #60A5FA;
+      --bg: #FFF8F0;
+      --card: #FFFFFF;
+      --text: #2D3436;
+      --text-light: #636E72;
+      --shadow: 0 4px 20px rgba(0,0,0,.08);
+      --shadow-lg: 0 8px 32px rgba(0,0,0,.12);
+      --radius: 16px;
+      --radius-sm: 10px;
+    }
+
+    /* ── Reset ──────────────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Nunito', -apple-system, BlinkMacSystemFont, sans-serif;
+      display: flex; flex-direction: column; height: 100vh;
+      background: var(--bg); color: var(--text);
+      overflow: hidden;
+    }
+
+    /* ── Header ─────────────────────────────────────────────────────── */
+    header {
+      background: linear-gradient(135deg, var(--primary), #FF8E8E);
+      padding: 14px 20px;
+      display: flex; align-items: center; justify-content: space-between;
+      box-shadow: 0 2px 12px rgba(255,107,107,.3);
+      z-index: 100;
+    }
+    .logo {
+      display: flex; align-items: center; gap: 10px;
+    }
+    .logo-icon {
+      width: 36px; height: 36px; background: rgba(255,255,255,.25);
+      border-radius: 10px; display: flex; align-items: center; justify-content: center;
+      font-size: 20px;
+    }
+    header h1 {
+      font-size: 20px; font-weight: 800; color: #fff;
+      letter-spacing: -0.3px;
+    }
+    header h1 span { color: var(--accent); }
+    .header-actions { display: flex; gap: 8px; }
+    .header-btn {
+      background: rgba(255,255,255,.2); border: none; border-radius: var(--radius-sm);
+      padding: 8px 14px; color: #fff; font-size: 13px; font-weight: 700;
+      font-family: inherit; cursor: pointer; transition: all .2s;
+      backdrop-filter: blur(4px);
+    }
+    .header-btn:hover { background: rgba(255,255,255,.35); transform: translateY(-1px); }
+    .header-btn.active { background: #fff; color: var(--primary); }
+    .badge {
+      background: var(--accent); color: var(--text); font-size: 11px; font-weight: 800;
+      padding: 1px 7px; border-radius: 20px; margin-left: 4px;
+    }
+
+    /* ── Map ────────────────────────────────────────────────────────── */
+    .map-wrap { flex: 1; position: relative; overflow: hidden; }
+    #map { position: absolute; inset: 0; }
+
+    /* ── Custom markers ────────────────────────────────────────────── */
+    .marker {
+      width: 32px; height: 32px; border-radius: 50% 50% 50% 0;
+      transform: rotate(-45deg); cursor: pointer;
+      border: 3px solid #fff; box-shadow: 0 2px 8px rgba(0,0,0,.25);
+      transition: transform .2s, box-shadow .2s;
+      position: relative;
+    }
+    .marker::after {
+      content: attr(data-icon); position: absolute; inset: 0;
+      display: flex; align-items: center; justify-content: center;
+      transform: rotate(45deg); font-size: 14px;
+    }
+    .marker:hover {
+      transform: rotate(-45deg) scale(1.2);
+      box-shadow: 0 4px 16px rgba(0,0,0,.3);
+    }
+    .temp-marker {
+      width: 24px; height: 24px; border-radius: 50%;
+      background: var(--primary); border: 3px solid #fff;
+      box-shadow: 0 0 0 4px rgba(255,107,107,.3);
+      cursor: pointer; animation: pulse 1.5s infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { box-shadow: 0 0 0 4px rgba(255,107,107,.3); }
+      50% { box-shadow: 0 0 0 10px rgba(255,107,107,.1); }
+    }
+
+    /* ── Popups ─────────────────────────────────────────────────────── */
+    .mapboxgl-popup-content {
+      padding: 0 !important; border-radius: var(--radius) !important;
+      overflow: hidden; box-shadow: var(--shadow-lg) !important;
+      min-width: 260px; max-width: 320px;
+    }
+    .mapboxgl-popup-close-button {
+      font-size: 20px; color: var(--text-light); right: 8px; top: 8px;
+    }
+    .popup-inner { padding: 16px; }
+    .popup-inner h3 { font-size: 16px; font-weight: 700; margin-bottom: 4px; color: var(--text); }
+    .popup-inner p { font-size: 13px; color: var(--text-light); margin-bottom: 10px; line-height: 1.4; }
+    .popup-tag {
+      display: inline-block; padding: 3px 10px; border-radius: 20px;
+      font-size: 11px; font-weight: 700; color: #fff; margin-bottom: 10px;
+    }
+    .popup-inner audio {
+      width: 100%; border-radius: 8px; margin-top: 4px;
+    }
+
+    /* ── FAB (record) ──────────────────────────────────────────────── */
+    .fab {
+      position: absolute; bottom: 28px; left: 50%; transform: translateX(-50%);
+      z-index: 10; height: 56px; border-radius: 28px;
+      background: linear-gradient(135deg, var(--primary), #FF8E8E);
+      color: #fff; border: none; font-size: 15px; font-weight: 700;
+      font-family: inherit; cursor: pointer;
+      box-shadow: 0 4px 20px rgba(255,107,107,.4);
+      display: flex; align-items: center; gap: 8px; padding: 0 24px;
+      transition: all .2s;
+    }
+    .fab:hover { transform: translateX(-50%) translateY(-2px); box-shadow: 0 6px 28px rgba(255,107,107,.5); }
+    .fab-icon { font-size: 22px; }
+
+    /* ── Filter bar ────────────────────────────────────────────────── */
+    .filter-bar {
+      position: absolute; top: 12px; left: 50%; transform: translateX(-50%);
+      z-index: 10; display: flex; gap: 6px; padding: 6px;
+      background: var(--card); border-radius: 28px;
+      box-shadow: var(--shadow); max-width: 90vw; overflow-x: auto;
+      scrollbar-width: none;
+    }
+    .filter-bar::-webkit-scrollbar { display: none; }
+    .filter-chip {
+      white-space: nowrap; padding: 7px 14px; border-radius: 20px;
+      border: 2px solid transparent; background: var(--bg);
+      font-size: 12px; font-weight: 700; font-family: inherit;
+      color: var(--text-light); cursor: pointer; transition: all .2s;
+    }
+    .filter-chip:hover { border-color: var(--primary); color: var(--primary); }
+    .filter-chip.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+
+    /* ── Overlay / Form ────────────────────────────────────────────── */
+    .overlay {
+      display: none; position: fixed; inset: 0;
+      background: rgba(45,52,54,.5); backdrop-filter: blur(4px);
+      z-index: 1000; justify-content: center; align-items: center;
+    }
+    .overlay.open { display: flex; }
+    .form-card {
+      background: var(--card); border-radius: var(--radius);
+      padding: 28px; width: 92%; max-width: 480px; max-height: 88vh;
+      overflow-y: auto; position: relative; box-shadow: var(--shadow-lg);
+    }
+    .form-card h2 {
+      font-size: 22px; font-weight: 800; margin-bottom: 4px;
+      background: linear-gradient(135deg, var(--primary), var(--purple));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .form-subtitle { font-size: 13px; color: var(--text-light); margin-bottom: 20px; }
+    .form-close {
+      position: absolute; top: 16px; right: 16px; background: var(--bg);
+      border: none; width: 32px; height: 32px; border-radius: 50%;
+      font-size: 18px; cursor: pointer; color: var(--text-light);
+      display: flex; align-items: center; justify-content: center;
+      transition: all .2s;
+    }
+    .form-close:hover { background: #fee; color: var(--primary); }
+    .fg { margin-bottom: 16px; }
+    .fg label {
+      display: block; font-size: 13px; font-weight: 700;
+      margin-bottom: 6px; color: var(--text);
+    }
+    .fg input, .fg textarea, .fg select {
+      width: 100%; padding: 10px 14px; border: 2px solid #E8E8E8;
+      border-radius: var(--radius-sm); font-size: 14px;
+      font-family: inherit; color: var(--text);
+      transition: border-color .2s;
+    }
+    .fg input:focus, .fg textarea:focus, .fg select:focus {
+      outline: none; border-color: var(--primary);
+    }
+    .fg textarea { resize: vertical; min-height: 70px; }
+    .form-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; }
+    .btn {
+      padding: 11px 22px; border: none; border-radius: var(--radius-sm);
+      cursor: pointer; font-size: 14px; font-weight: 700; font-family: inherit;
+      transition: all .2s;
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, var(--primary), #FF8E8E);
+      color: #fff; box-shadow: 0 2px 12px rgba(255,107,107,.3);
+    }
+    .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 4px 16px rgba(255,107,107,.4); }
+    .btn-cancel { background: var(--bg); color: var(--text-light); }
+    .btn-cancel:hover { background: #eee; }
+
+    /* ── Recorder ───────────────────────────────────────────────────── */
+    .recorder {
+      background: var(--bg); border-radius: var(--radius-sm);
+      padding: 14px; margin-bottom: 16px;
+    }
+    .recorder-label { font-size: 13px; font-weight: 700; margin-bottom: 10px; display: flex; align-items: center; gap: 6px; }
+    .rec-controls { display: flex; gap: 8px; flex-wrap: wrap; }
+    .rec-btn {
+      padding: 8px 16px; border: none; border-radius: 20px;
+      cursor: pointer; font-size: 13px; font-weight: 700;
+      font-family: inherit; color: #fff; transition: all .2s;
+    }
+    .rec-btn.record { background: #EF4444; }
+    .rec-btn.record:hover { background: #DC2626; }
+    .rec-btn.stop { background: #6B7280; }
+    .rec-btn.play { background: var(--blue); }
+    .rec-btn:disabled { opacity: .4; cursor: not-allowed; }
+    .rec-status {
+      font-size: 12px; color: var(--text-light); margin-top: 8px;
+      display: flex; align-items: center; gap: 6px;
+    }
+    .rec-dot {
+      width: 8px; height: 8px; border-radius: 50%; background: #EF4444;
+      animation: blink 1s infinite; display: none;
+    }
+    .rec-dot.active { display: inline-block; }
+    @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: .3; } }
+
+    /* ── Archive panel ─────────────────────────────────────────────── */
+    .archive {
+      position: fixed; top: 0; right: -400px; width: 400px; height: 100%;
+      background: var(--card); z-index: 999; transition: right .35s cubic-bezier(.4,0,.2,1);
+      overflow-y: auto; box-shadow: -4px 0 24px rgba(0,0,0,.1);
+    }
+    .archive.open { right: 0; }
+    .archive-head {
+      position: sticky; top: 0; background: var(--card);
+      padding: 20px; display: flex; justify-content: space-between;
+      align-items: center; border-bottom: 2px solid var(--bg); z-index: 1;
+    }
+    .archive-head h2 { font-size: 20px; font-weight: 800; }
+    .archive-close {
+      background: var(--bg); border: none; width: 36px; height: 36px;
+      border-radius: 50%; font-size: 20px; cursor: pointer;
+      color: var(--text-light); display: flex; align-items: center;
+      justify-content: center; transition: all .2s;
+    }
+    .archive-close:hover { background: #fee; color: var(--primary); }
+    .archive-search {
+      padding: 0 20px; margin-top: 16px;
+    }
+    .archive-search input {
+      width: 100%; padding: 10px 14px 10px 38px;
+      border: 2px solid #E8E8E8; border-radius: 28px;
+      font-size: 14px; font-family: inherit; color: var(--text);
+      background: var(--bg) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='%23636E72' viewBox='0 0 16 16'%3E%3Cpath d='M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85zm-5.242.156a5 5 0 1 1 0-10 5 5 0 0 1 0 10z'/%3E%3C/svg%3E") no-repeat 14px center;
+      transition: border-color .2s;
+    }
+    .archive-search input:focus { outline: none; border-color: var(--primary); }
+    .archive-filter { padding: 12px 20px; }
+    .archive-filter select {
+      width: 100%; padding: 10px 14px; border: 2px solid #E8E8E8;
+      border-radius: var(--radius-sm); font-size: 13px; font-weight: 600;
+      font-family: inherit; color: var(--text); background: var(--bg);
+    }
+    .rec-list { list-style: none; padding: 0 12px 80px; }
+    .rec-item {
+      padding: 16px; margin: 8px 0; border-radius: var(--radius-sm);
+      background: var(--bg); cursor: pointer; transition: all .2s;
+    }
+    .rec-item:hover { transform: translateX(-4px); box-shadow: var(--shadow); }
+    .rec-item h3 { font-size: 14px; font-weight: 700; margin-bottom: 4px; }
+    .rec-item p { font-size: 12px; color: var(--text-light); line-height: 1.4; }
+    .rec-item audio { width: 100%; margin-top: 10px; border-radius: 8px; }
+    .rec-item-tag {
+      display: inline-block; padding: 2px 8px; border-radius: 12px;
+      font-size: 10px; font-weight: 700; color: #fff; margin-top: 6px;
+    }
+    .rec-count {
+      font-size: 12px; color: var(--text-light); padding: 8px 20px;
+      font-weight: 600;
+    }
+
+    /* ── Loading ────────────────────────────────────────────────────── */
+    .loading {
+      display: none; position: fixed; inset: 0;
+      background: rgba(45,52,54,.6); backdrop-filter: blur(4px);
+      z-index: 2000; justify-content: center; align-items: center;
+      flex-direction: column; gap: 16px;
+    }
+    .loading.show { display: flex; }
+    .spinner {
+      width: 48px; height: 48px; border: 4px solid rgba(255,255,255,.3);
+      border-top-color: var(--accent); border-radius: 50%;
+      animation: spin .8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .loading span { color: #fff; font-size: 16px; font-weight: 700; }
+
+    /* ── Toast ──────────────────────────────────────────────────────── */
+    .toast {
+      position: fixed; bottom: 100px; left: 50%; transform: translateX(-50%) translateY(100px);
+      z-index: 3000; background: var(--text); color: #fff;
+      padding: 12px 24px; border-radius: 28px; font-size: 14px; font-weight: 600;
+      box-shadow: var(--shadow-lg); opacity: 0; transition: all .4s;
+      pointer-events: none;
+    }
+    .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+    /* ── Responsive ─────────────────────────────────────────────────── */
+    @media (max-width: 600px) {
+      header h1 { font-size: 16px; }
+      .archive { width: 100%; right: -100%; }
+      .filter-bar { max-width: 85vw; }
+      .fab { bottom: 20px; height: 50px; padding: 0 20px; font-size: 14px; }
+      .form-card { padding: 20px; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">🎧</div>
+    <h1>Saigon <span>Sound Map</span></h1>
+  </div>
+  <div class="header-actions">
+    <button class="header-btn" id="style-toggle">🛰 Satellite</button>
+    <button class="header-btn" id="archive-btn">📚 Archive <span class="badge" id="count-badge">0</span></button>
+  </div>
+</header>
+
+<div class="map-wrap">
+  <div id="map"></div>
+
+  <!-- Category filter chips -->
+  <div class="filter-bar" id="filter-bar">
+    <button class="filter-chip active" data-cat="">All</button>
+  </div>
+
+  <!-- Record FAB -->
+  <button class="fab" id="upload-btn">
+    <span class="fab-icon">🎙</span> New Recording
+  </button>
+</div>
+
+<!-- Upload form overlay -->
+<div class="overlay" id="form-overlay">
+  <div class="form-card">
+    <button class="form-close" id="form-close">&times;</button>
+    <h2>New Recording</h2>
+    <p class="form-subtitle">Capture a sound at the selected location</p>
+
+    <div class="recorder">
+      <div class="recorder-label">🎙 Record audio</div>
+      <div class="rec-controls">
+        <button class="rec-btn record" id="rec-start">⏺ Record</button>
+        <button class="rec-btn stop" id="rec-stop" disabled>⏹ Stop</button>
+        <button class="rec-btn play" id="rec-play" disabled>▶ Play</button>
+      </div>
+      <div class="rec-status"><span class="rec-dot" id="rec-dot"></span><span id="rec-status">Tap Record to start</span></div>
+    </div>
+
+    <form id="upload-form">
+      <div class="fg">
+        <label>Or upload a file</label>
+        <input type="file" id="audio-file" accept="audio/*,.webm,.mp3,.m4a,.mp4,.ogg,.wav">
+      </div>
+      <div class="fg">
+        <label>Title *</label>
+        <input type="text" id="f-title" required placeholder="e.g. Morning market sounds">
+      </div>
+      <div class="fg">
+        <label>Description</label>
+        <textarea id="f-desc" placeholder="What can be heard in this recording?"></textarea>
+      </div>
+      <div class="fg">
+        <label>Category *</label>
+        <select id="f-category" required>
+          <option value="">Select a category...</option>
+          <option>Eateries</option><option>Sidewalks</option><option>Street Vendors</option>
+          <option>Music</option><option>Home</option><option>Eating</option>
+          <option>Work</option><option>Repairing</option><option>Water</option>
+          <option>Animals</option><option>Conversations</option><option>Vehicles</option>
+          <option>Sports</option><option>Places of worship</option><option>Markets</option>
+          <option>Shops</option><option>Construction Sites</option><option>Playing</option>
+          <option>Rain</option><option>Boat</option><option>Others</option>
+        </select>
+      </div>
+      <input type="hidden" id="f-lat">
+      <input type="hidden" id="f-lng">
+      <div class="form-actions">
+        <button type="button" class="btn btn-cancel" id="form-cancel">Cancel</button>
+        <button type="submit" class="btn btn-primary" id="form-submit">Upload Recording</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Archive panel -->
+<div class="archive" id="archive-panel">
+  <div class="archive-head">
+    <h2>📚 Sound Archive</h2>
+    <button class="archive-close" id="archive-close">&times;</button>
+  </div>
+  <div class="archive-search">
+    <input type="text" id="archive-search-input" placeholder="Search recordings...">
+  </div>
+  <div class="archive-filter">
+    <select id="cat-filter">
+      <option value="">All categories</option>
+      <option>Eateries</option><option>Sidewalks</option><option>Street Vendors</option>
+      <option>Music</option><option>Home</option><option>Eating</option>
+      <option>Work</option><option>Repairing</option><option>Water</option>
+      <option>Animals</option><option>Conversations</option><option>Vehicles</option>
+      <option>Sports</option><option>Places of worship</option><option>Markets</option>
+      <option>Shops</option><option>Construction Sites</option><option>Playing</option>
+      <option>Rain</option><option>Boat</option><option>Others</option>
+    </select>
+  </div>
+  <div class="rec-count" id="rec-count">0 recordings</div>
+  <ul class="rec-list" id="rec-list"></ul>
+</div>
+
+<!-- Loading -->
+<div class="loading" id="loading"><div class="spinner"></div><span>Uploading...</span></div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<!-- Scripts -->
+<script src="https://api.mapbox.com/mapbox-gl-js/v2.14.1/mapbox-gl.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  // ── Config ──────────────────────────────────────────────────────
+  const API = 'https://saigon-soundscape.onrender.com/api';
+  const MAPBOX_TOKEN = 'pk.eyJ1Ijoic2lkZXdhbGtjaXR5IiwiYSI6ImNtOHplcGZnaTBiNXEya3IwODFuMTMxZmYifQ.79iRhWzXiNR140OKQIS6PQ';
+  const SAIGON = [106.6953, 10.7765];
+  const REFRESH = 120_000;
+
+  // Category config: color + icon
+  const CATS = {
+    'Eateries':           { color: '#FF6B6B', icon: '🍜' },
+    'Sidewalks':          { color: '#60A5FA', icon: '🚶' },
+    'Street Vendors':     { color: '#FBBF24', icon: '🛒' },
+    'Music':              { color: '#A78BFA', icon: '🎵' },
+    'Home':               { color: '#34D399', icon: '🏠' },
+    'Eating':             { color: '#F472B6', icon: '🍴' },
+    'Work':               { color: '#92400E', icon: '💼' },
+    'Repairing':          { color: '#6B7280', icon: '🔧' },
+    'Water':              { color: '#06B6D4', icon: '💧' },
+    'Animals':            { color: '#84CC16', icon: '🐾' },
+    'Conversations':      { color: '#EAB308', icon: '💬' },
+    'Vehicles':           { color: '#F97316', icon: '🏍' },
+    'Sports':             { color: '#3B82F6', icon: '⚽' },
+    'Places of worship':  { color: '#7C3AED', icon: '🙏' },
+    'Markets':            { color: '#65A30D', icon: '🏪' },
+    'Shops':              { color: '#0D9488', icon: '🛍' },
+    'Construction Sites': { color: '#DC2626', icon: '🏗' },
+    'Playing':            { color: '#6366F1', icon: '🎈' },
+    'Rain':               { color: '#0EA5E9', icon: '🌧' },
+    'Boat':               { color: '#0891B2', icon: '🚤' },
+    'Others':             { color: '#9CA3AF', icon: '🔊' },
+  };
+
+  // ── State ───────────────────────────────────────────────────────
+  let map, recordings = [], markers = [], tempMarker = null;
+  let currentStyle = 'streets-v11';
+  let activeFilter = '';
+  let mediaRecorder, recordedChunks = [], recordedBlob = null;
+
+  const $ = id => document.getElementById(id);
+
+  // ── Helpers ─────────────────────────────────────────────────────
+  function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+  function toast(msg) {
+    const t = $('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 3000);
+  }
+
+  function catInfo(r) {
+    const cat = r.category && r.category !== 'Others' ? r.category : (() => { const m = (r.title || '').match(/^\[(.*?)\]/); return m ? m[1] : (r.category || 'Others'); })();
+    return { cat, ...(CATS[cat] || { color: '#9CA3AF', icon: '🔊' }) };
+  }
+
+  function audioType(url) {
+    const ext = url.split('.').pop().split('?')[0].toLowerCase();
+    return { mp3:'audio/mpeg', webm:'audio/webm', ogg:'audio/ogg', wav:'audio/wav', m4a:'audio/mp4', mp4:'audio/mp4', aac:'audio/mp4' }[ext] || 'audio/mpeg';
+  }
+
+  // ── Build filter chips ──────────────────────────────────────────
+  function buildFilterChips() {
+    const bar = $('filter-bar');
+    bar.innerHTML = '<button class="filter-chip active" data-cat="">All</button>';
+    Object.entries(CATS).forEach(([name, { icon }]) => {
+      bar.innerHTML += `<button class="filter-chip" data-cat="${name}">${icon} ${name}</button>`;
+    });
+    bar.querySelectorAll('.filter-chip').forEach(chip => {
+      chip.onclick = () => {
+        bar.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
+        chip.classList.add('active');
+        activeFilter = chip.dataset.cat;
+        renderMarkers();
+      };
+    });
+  }
+
+  // ── Map ─────────────────────────────────────────────────────────
+  function initMap() {
+    mapboxgl.accessToken = MAPBOX_TOKEN;
+    map = new mapboxgl.Map({
+      container: 'map',
+      style: `mapbox://styles/mapbox/${currentStyle}`,
+      center: SAIGON, zoom: 12, minZoom: 10, maxZoom: 18,
+    });
+    map.addControl(new mapboxgl.NavigationControl(), 'top-left');
+    map.addControl(new mapboxgl.GeolocateControl({
+      positionOptions: { enableHighAccuracy: true },
+      trackUserLocation: true,
+    }), 'top-left');
+
+    map.on('load', () => {
+      loadRecordings();
+      setInterval(loadRecordings, REFRESH);
+    });
+
+    map.on('click', e => {
+      if (e.originalEvent.target.closest('.marker') || e.originalEvent.target.closest('.mapboxgl-popup')) return;
+      const { lng, lat } = e.lngLat;
+      $('f-lat').value = lat.toFixed(6);
+      $('f-lng').value = lng.toFixed(6);
+      if (tempMarker) { tempMarker.setLngLat(e.lngLat); }
+      else {
+        const el = document.createElement('div');
+        el.className = 'temp-marker';
+        tempMarker = new mapboxgl.Marker(el).setLngLat(e.lngLat).addTo(map);
+      }
+      toast('📍 Location set! Tap "New Recording" to upload.');
+    });
+  }
+
+  // ── Load & render ───────────────────────────────────────────────
+  async function loadRecordings() {
+    try {
+      const res = await fetch(`${API}/recordings`);
+      if (!res.ok) throw new Error(res.statusText);
+      const data = await res.json();
+      if (!Array.isArray(data.recordings)) return;
+      recordings = data.recordings.filter(r => r && typeof r.latitude === 'number' && typeof r.longitude === 'number' && r.audioUrl);
+      $('count-badge').textContent = recordings.length;
+      renderMarkers();
+    } catch (err) {
+      console.error('Failed to load:', err);
+    }
+  }
+
+  function renderMarkers() {
+    markers.forEach(m => m.remove());
+    markers = [];
+
+    const filtered = activeFilter ? recordings.filter(r => catInfo(r).cat === activeFilter) : recordings;
+
+    for (const r of filtered) {
+      try {
+        const { cat, color, icon } = catInfo(r);
+
+        const el = document.createElement('div');
+        el.className = 'marker';
+        el.style.backgroundColor = color;
+        el.setAttribute('data-icon', icon);
+
+        const popup = new mapboxgl.Popup({ offset: 25, maxWidth: '320px' }).setHTML(`
+          <div class="popup-inner">
+            <h3>${esc(r.title || 'Untitled')}</h3>
+            <p>${esc(r.description || 'No description')}</p>
+            <span class="popup-tag" style="background:${color}">${icon} ${esc(cat)}</span>
+            <audio controls preload="metadata">
+              <source src="${esc(r.audioUrl)}" type="${audioType(r.audioUrl)}">
+            </audio>
+          </div>
+        `);
+
+        const m = new mapboxgl.Marker(el)
+          .setLngLat([r.longitude, r.latitude])
+          .setPopup(popup)
+          .addTo(map);
+        markers.push(m);
+      } catch (err) {
+        console.error('Marker error:', err);
+      }
+    }
+  }
+
+  // ── Style toggle ────────────────────────────────────────────────
+  $('style-toggle').onclick = () => {
+    currentStyle = currentStyle === 'streets-v11' ? 'satellite-streets-v11' : 'streets-v11';
+    map.setStyle(`mapbox://styles/mapbox/${currentStyle}`);
+    $('style-toggle').textContent = currentStyle === 'streets-v11' ? '🛰 Satellite' : '🗺 Streets';
+    $('style-toggle').classList.toggle('active');
+    map.once('styledata', () => renderMarkers());
+  };
+
+  // ── Upload form ─────────────────────────────────────────────────
+  function openForm()  { $('form-overlay').classList.add('open'); }
+  function closeForm() { $('form-overlay').classList.remove('open'); resetRecorder(); }
+
+  $('upload-btn').onclick = () => {
+    if (!$('f-lat').value || !$('f-lng').value) { toast('📍 Tap the map first to set a location'); return; }
+    openForm();
+  };
+  $('form-close').onclick = closeForm;
+  $('form-cancel').onclick = closeForm;
+  $('form-overlay').onclick = e => { if (e.target === $('form-overlay')) closeForm(); };
+
+  $('upload-form').onsubmit = async e => {
+    e.preventDefault();
+    const title = $('f-title').value.trim();
+    const cat   = $('f-category').value;
+    if (!title) { toast('Please enter a title'); return; }
+    if (!cat)   { toast('Please select a category'); return; }
+
+    let blob;
+    const fileInput = $('audio-file').files[0];
+    if (recordedBlob && fileInput) {
+      blob = confirm('Use your recording instead of the uploaded file?') ? recordedBlob : fileInput;
+    } else blob = recordedBlob || fileInput;
+    if (!blob) { toast('Record or select an audio file'); return; }
+
+    const filename = blob.name || `recording.${(blob.type || 'audio/webm').split('/')[1]?.split(';')[0] || 'webm'}`;
+
+    const fd = new FormData();
+    fd.append('audioFile', blob, filename);
+    fd.append('title', `[${cat}] ${title}`);
+    fd.append('description', $('f-desc').value);
+    fd.append('category', cat);
+    fd.append('latitude', $('f-lat').value);
+    fd.append('longitude', $('f-lng').value);
+
+    $('loading').classList.add('show');
+    $('form-submit').disabled = true;
+
+    try {
+      const res = await fetch(`${API}/upload`, { method: 'POST', body: fd });
+      if (!res.ok) throw new Error(await res.text());
+      toast('🎉 Upload successful!');
+      closeForm();
+      $('upload-form').reset();
+      if (tempMarker) { tempMarker.remove(); tempMarker = null; }
+      loadRecordings();
+    } catch (err) {
+      toast('Upload failed: ' + err.message);
+    } finally {
+      $('loading').classList.remove('show');
+      $('form-submit').disabled = false;
+    }
+  };
+
+  // ── Recorder ────────────────────────────────────────────────────
+  $('rec-start').onclick = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      recordedChunks = []; recordedBlob = null;
+      mediaRecorder = new MediaRecorder(stream, {
+        mimeType: MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : undefined,
+      });
+      mediaRecorder.ondataavailable = e => { if (e.data.size > 0) recordedChunks.push(e.data); };
+      mediaRecorder.onstop = () => {
+        recordedBlob = new Blob(recordedChunks, { type: mediaRecorder.mimeType });
+        stream.getTracks().forEach(t => t.stop());
+        $('rec-status').textContent = `Recorded (${(recordedBlob.size / 1024).toFixed(0)} KB)`;
+        $('rec-dot').classList.remove('active');
+        $('rec-play').disabled = false;
+      };
+      mediaRecorder.start();
+      $('rec-status').textContent = 'Recording...';
+      $('rec-dot').classList.add('active');
+      $('rec-start').disabled = true;
+      $('rec-stop').disabled = false;
+    } catch { toast('Microphone access denied'); }
+  };
+
+  $('rec-stop').onclick = () => {
+    if (mediaRecorder?.state === 'recording') mediaRecorder.stop();
+    $('rec-start').disabled = false;
+    $('rec-stop').disabled = true;
+  };
+
+  $('rec-play').onclick = () => {
+    if (recordedBlob) new Audio(URL.createObjectURL(recordedBlob)).play();
+  };
+
+  function resetRecorder() {
+    if (mediaRecorder?.state === 'recording') mediaRecorder.stop();
+    recordedChunks = []; recordedBlob = null;
+    $('rec-start').disabled = false;
+    $('rec-stop').disabled = true;
+    $('rec-play').disabled = true;
+    $('rec-status').textContent = 'Tap Record to start';
+    $('rec-dot').classList.remove('active');
+  }
+
+  // ── Archive panel ───────────────────────────────────────────────
+  $('archive-btn').onclick   = () => { $('archive-panel').classList.toggle('open'); updateArchive(); };
+  $('archive-close').onclick = () => $('archive-panel').classList.remove('open');
+  $('cat-filter').onchange   = updateArchive;
+  $('archive-search-input').oninput = updateArchive;
+
+  function updateArchive() {
+    const catFilter = $('cat-filter').value;
+    const search = $('archive-search-input').value.toLowerCase().trim();
+
+    let filtered = recordings;
+    if (catFilter) filtered = filtered.filter(r => catInfo(r).cat === catFilter);
+    if (search) filtered = filtered.filter(r =>
+      (r.title || '').toLowerCase().includes(search) ||
+      (r.description || '').toLowerCase().includes(search)
+    );
+
+    $('rec-count').textContent = `${filtered.length} recording${filtered.length !== 1 ? 's' : ''}`;
+
+    const list = $('rec-list');
+    list.innerHTML = filtered.map(r => {
+      const { cat, color, icon } = catInfo(r);
+      return `
+        <li class="rec-item" data-lat="${r.latitude}" data-lng="${r.longitude}">
+          <h3>${esc(r.title || 'Untitled')}</h3>
+          <span class="rec-item-tag" style="background:${color}">${icon} ${esc(cat)}</span>
+          <p>${esc(r.description || 'No description')}</p>
+          <audio controls preload="metadata">
+            <source src="${esc(r.audioUrl)}" type="${audioType(r.audioUrl)}">
+          </audio>
+        </li>`;
+    }).join('');
+
+    list.querySelectorAll('.rec-item').forEach(el => {
+      el.onclick = e => {
+        if (e.target.closest('audio')) return;
+        map.flyTo({ center: [parseFloat(el.dataset.lng), parseFloat(el.dataset.lat)], zoom: 15 });
+        $('archive-panel').classList.remove('open');
+      };
+    });
+  }
+
+  // ── Init ────────────────────────────────────────────────────────
+  document.addEventListener('DOMContentLoaded', () => {
+    console.log('Saigon Sound Map v1.0');
+    buildFilterChips();
+    initMap();
+  });
+
+})();
+</script>
+</body>
+</html>
