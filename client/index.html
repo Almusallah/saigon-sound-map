@@ -5,30 +5,29 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Saigon Sound Map</title>
   <link href="https://api.mapbox.com/mapbox-gl-js/v2.14.1/mapbox-gl.css" rel="stylesheet">
-  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
     /* ── Variables ──────────────────────────────────────────────────── */
     :root {
-      --primary: #FF6B6B;
-      --primary-dark: #EE5A5A;
-      --secondary: #4ECDC4;
-      --accent: #FFE66D;
-      --purple: #A78BFA;
-      --blue: #60A5FA;
-      --bg: #FFF8F0;
+      --primary: #5B7553;
+      --primary-dark: #4A6344;
+      --accent: #C4956A;
+      --accent-light: #D4A574;
+      --bg: #F5F0EB;
       --card: #FFFFFF;
-      --text: #2D3436;
-      --text-light: #636E72;
-      --shadow: 0 4px 20px rgba(0,0,0,.08);
-      --shadow-lg: 0 8px 32px rgba(0,0,0,.12);
-      --radius: 16px;
-      --radius-sm: 10px;
+      --text: #2C3E2D;
+      --text-light: #6B7B6C;
+      --header-bg: #2C3E2D;
+      --shadow: 0 2px 12px rgba(0,0,0,.08);
+      --shadow-lg: 0 8px 24px rgba(0,0,0,.12);
+      --radius: 12px;
+      --radius-sm: 8px;
     }
 
     /* ── Reset ──────────────────────────────────────────────────────── */
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     body {
-      font-family: 'Nunito', -apple-system, BlinkMacSystemFont, sans-serif;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
       display: flex; flex-direction: column; height: 100vh;
       background: var(--bg); color: var(--text);
       overflow: hidden;
@@ -36,142 +35,135 @@
 
     /* ── Header ─────────────────────────────────────────────────────── */
     header {
-      background: linear-gradient(135deg, var(--primary), #FF8E8E);
-      padding: 14px 20px;
+      background: var(--header-bg);
+      padding: 16px 24px;
       display: flex; align-items: center; justify-content: space-between;
-      box-shadow: 0 2px 12px rgba(255,107,107,.3);
+      border-bottom: 3px solid var(--accent);
       z-index: 100;
     }
     .logo {
-      display: flex; align-items: center; gap: 10px;
-    }
-    .logo-icon {
-      width: 36px; height: 36px; background: rgba(255,255,255,.25);
-      border-radius: 10px; display: flex; align-items: center; justify-content: center;
-      font-size: 20px;
+      display: flex; align-items: center; gap: 12px;
     }
     header h1 {
-      font-size: 20px; font-weight: 800; color: #fff;
-      letter-spacing: -0.3px;
+      font-size: 18px; font-weight: 600; color: #fff;
+      letter-spacing: 0.5px;
     }
-    header h1 span { color: var(--accent); }
-    .header-actions { display: flex; gap: 8px; }
+    .header-actions { display: flex; gap: 12px; align-items: center; }
     .header-btn {
-      background: rgba(255,255,255,.2); border: none; border-radius: var(--radius-sm);
-      padding: 8px 14px; color: #fff; font-size: 13px; font-weight: 700;
+      background: rgba(255,255,255,.15); border: none; border-radius: var(--radius-sm);
+      padding: 8px 14px; color: #fff; font-size: 13px; font-weight: 500;
       font-family: inherit; cursor: pointer; transition: all .2s;
       backdrop-filter: blur(4px);
     }
-    .header-btn:hover { background: rgba(255,255,255,.35); transform: translateY(-1px); }
-    .header-btn.active { background: #fff; color: var(--primary); }
+    .header-btn:hover { background: rgba(255,255,255,.25); }
+    .header-btn.active { background: var(--accent); color: var(--header-bg); }
     .badge {
-      background: var(--accent); color: var(--text); font-size: 11px; font-weight: 800;
-      padding: 1px 7px; border-radius: 20px; margin-left: 4px;
+      background: var(--accent); color: var(--header-bg); font-size: 11px; font-weight: 600;
+      padding: 2px 8px; border-radius: 12px; margin-left: 6px; display: inline-block;
     }
 
     /* ── Map ────────────────────────────────────────────────────────── */
     .map-wrap { flex: 1; position: relative; overflow: hidden; }
     #map { position: absolute; inset: 0; }
 
-    /* ── Custom markers ────────────────────────────────────────────── */
+    /* ── Custom markers (circular, no rotation) ─────────────────────── */
     .marker {
-      width: 32px; height: 32px; border-radius: 50% 50% 50% 0;
-      transform: rotate(-45deg); cursor: pointer;
+      width: 32px; height: 32px; border-radius: 50%;
+      cursor: pointer;
       border: 3px solid #fff; box-shadow: 0 2px 8px rgba(0,0,0,.25);
       transition: transform .2s, box-shadow .2s;
       position: relative;
+      display: flex; align-items: center; justify-content: center;
     }
     .marker::after {
-      content: attr(data-icon); position: absolute; inset: 0;
-      display: flex; align-items: center; justify-content: center;
-      transform: rotate(45deg); font-size: 14px;
+      content: attr(data-icon); position: absolute;
+      font-size: 16px;
     }
     .marker:hover {
-      transform: rotate(-45deg) scale(1.2);
+      transform: scale(1.2);
       box-shadow: 0 4px 16px rgba(0,0,0,.3);
     }
     .temp-marker {
       width: 24px; height: 24px; border-radius: 50%;
-      background: var(--primary); border: 3px solid #fff;
-      box-shadow: 0 0 0 4px rgba(255,107,107,.3);
+      background: var(--accent); border: 3px solid #fff;
+      box-shadow: 0 0 0 4px rgba(196,149,106,.3);
       cursor: pointer; animation: pulse 1.5s infinite;
     }
     @keyframes pulse {
-      0%, 100% { box-shadow: 0 0 0 4px rgba(255,107,107,.3); }
-      50% { box-shadow: 0 0 0 10px rgba(255,107,107,.1); }
+      0%, 100% { box-shadow: 0 0 0 4px rgba(196,149,106,.3); }
+      50% { box-shadow: 0 0 0 10px rgba(196,149,106,.1); }
     }
 
     /* ── Popups ─────────────────────────────────────────────────────── */
     .mapboxgl-popup-content {
       padding: 0 !important; border-radius: var(--radius) !important;
       overflow: hidden; box-shadow: var(--shadow-lg) !important;
-      min-width: 260px; max-width: 320px;
+      min-width: 280px; max-width: 340px;
     }
     .mapboxgl-popup-close-button {
-      font-size: 20px; color: var(--text-light); right: 8px; top: 8px;
+      font-size: 20px; color: var(--text-light); right: 12px; top: 12px;
     }
-    .popup-inner { padding: 16px; }
-    .popup-inner h3 { font-size: 16px; font-weight: 700; margin-bottom: 4px; color: var(--text); }
-    .popup-inner p { font-size: 13px; color: var(--text-light); margin-bottom: 10px; line-height: 1.4; }
+    .popup-inner { padding: 18px; }
+    .popup-inner h3 { font-size: 16px; font-weight: 600; margin-bottom: 6px; color: var(--text); }
+    .popup-inner p { font-size: 13px; color: var(--text-light); margin-bottom: 12px; line-height: 1.5; }
     .popup-tag {
-      display: inline-block; padding: 3px 10px; border-radius: 20px;
-      font-size: 11px; font-weight: 700; color: #fff; margin-bottom: 10px;
+      display: inline-block; padding: 4px 10px; border-radius: 16px;
+      font-size: 11px; font-weight: 600; color: #fff; margin-bottom: 12px;
     }
     .popup-inner audio {
-      width: 100%; border-radius: 8px; margin-top: 4px;
+      width: 100%; border-radius: 6px; margin-top: 8px;
     }
 
     /* ── FAB (record) ──────────────────────────────────────────────── */
     .fab {
       position: absolute; bottom: 28px; left: 50%; transform: translateX(-50%);
       z-index: 10; height: 56px; border-radius: 28px;
-      background: linear-gradient(135deg, var(--primary), #FF8E8E);
-      color: #fff; border: none; font-size: 15px; font-weight: 700;
+      background: var(--accent);
+      color: #fff; border: none; font-size: 15px; font-weight: 600;
       font-family: inherit; cursor: pointer;
-      box-shadow: 0 4px 20px rgba(255,107,107,.4);
+      box-shadow: 0 4px 16px rgba(196,149,106,.35);
       display: flex; align-items: center; gap: 8px; padding: 0 24px;
       transition: all .2s;
     }
-    .fab:hover { transform: translateX(-50%) translateY(-2px); box-shadow: 0 6px 28px rgba(255,107,107,.5); }
-    .fab-icon { font-size: 22px; }
+    .fab:hover { transform: translateX(-50%) translateY(-2px); box-shadow: 0 6px 24px rgba(196,149,106,.45); }
+    .fab-icon { font-size: 20px; }
 
     /* ── Filter bar ────────────────────────────────────────────────── */
     .filter-bar {
-      position: absolute; top: 12px; left: 50%; transform: translateX(-50%);
-      z-index: 10; display: flex; gap: 6px; padding: 6px;
-      background: var(--card); border-radius: 28px;
+      position: absolute; top: 14px; left: 50%; transform: translateX(-50%);
+      z-index: 10; display: flex; gap: 8px; padding: 8px 10px;
+      background: var(--card); border-radius: 24px;
       box-shadow: var(--shadow); max-width: 90vw; overflow-x: auto;
       scrollbar-width: none;
     }
     .filter-bar::-webkit-scrollbar { display: none; }
     .filter-chip {
-      white-space: nowrap; padding: 7px 14px; border-radius: 20px;
-      border: 2px solid transparent; background: var(--bg);
-      font-size: 12px; font-weight: 700; font-family: inherit;
-      color: var(--text-light); cursor: pointer; transition: all .2s;
+      white-space: nowrap; padding: 7px 14px; border-radius: 18px;
+      border: none; background: rgba(91,117,83,.08);
+      font-size: 12px; font-weight: 500; font-family: inherit;
+      color: var(--text); cursor: pointer; transition: all .2s;
     }
-    .filter-chip:hover { border-color: var(--primary); color: var(--primary); }
-    .filter-chip.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+    .filter-chip:hover { background: rgba(91,117,83,.15); }
+    .filter-chip.active { background: var(--primary); color: #fff; }
 
-    /* ── Overlay / Form ────────────────────────────────────────────── */
+    /* ── Modal / Overlay ────────────────────────────────────────────── */
     .overlay {
       display: none; position: fixed; inset: 0;
-      background: rgba(45,52,54,.5); backdrop-filter: blur(4px);
+      background: rgba(45,62,45,.5); backdrop-filter: blur(4px);
       z-index: 1000; justify-content: center; align-items: center;
     }
     .overlay.open { display: flex; }
+
+    /* ── Form Card ──────────────────────────────────────────────────── */
     .form-card {
       background: var(--card); border-radius: var(--radius);
-      padding: 28px; width: 92%; max-width: 480px; max-height: 88vh;
+      padding: 28px; width: 92%; max-width: 500px; max-height: 88vh;
       overflow-y: auto; position: relative; box-shadow: var(--shadow-lg);
     }
     .form-card h2 {
-      font-size: 22px; font-weight: 800; margin-bottom: 4px;
-      background: linear-gradient(135deg, var(--primary), var(--purple));
-      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-      background-clip: text;
+      font-size: 24px; font-weight: 700; margin-bottom: 4px; color: var(--text);
     }
-    .form-subtitle { font-size: 13px; color: var(--text-light); margin-bottom: 20px; }
+    .form-subtitle { font-size: 13px; color: var(--text-light); margin-bottom: 22px; }
     .form-close {
       position: absolute; top: 16px; right: 16px; background: var(--bg);
       border: none; width: 32px; height: 32px; border-radius: 50%;
@@ -179,59 +171,90 @@
       display: flex; align-items: center; justify-content: center;
       transition: all .2s;
     }
-    .form-close:hover { background: #fee; color: var(--primary); }
+    .form-close:hover { background: rgba(196,149,106,.15); color: var(--accent); }
+
+    /* ── About Modal ────────────────────────────────────────────────── */
+    .about-card {
+      background: var(--card); border-radius: var(--radius);
+      padding: 32px; width: 92%; max-width: 520px; max-height: 88vh;
+      overflow-y: auto; position: relative; box-shadow: var(--shadow-lg);
+    }
+    .about-card h2 {
+      font-size: 24px; font-weight: 700; margin-bottom: 20px; color: var(--text);
+    }
+    .about-card p {
+      font-size: 14px; line-height: 1.7; color: var(--text-light);
+      margin-bottom: 16px;
+    }
+    .about-card a {
+      color: var(--accent); text-decoration: none; font-weight: 500;
+      transition: color .2s;
+    }
+    .about-card a:hover { color: var(--primary); text-decoration: underline; }
+    .about-close {
+      position: absolute; top: 16px; right: 16px; background: var(--bg);
+      border: none; width: 32px; height: 32px; border-radius: 50%;
+      font-size: 18px; cursor: pointer; color: var(--text-light);
+      display: flex; align-items: center; justify-content: center;
+      transition: all .2s;
+    }
+    .about-close:hover { background: rgba(196,149,106,.15); color: var(--accent); }
+
+    /* ── Form Fields ────────────────────────────────────────────────── */
     .fg { margin-bottom: 16px; }
     .fg label {
-      display: block; font-size: 13px; font-weight: 700;
+      display: block; font-size: 13px; font-weight: 600;
       margin-bottom: 6px; color: var(--text);
     }
     .fg input, .fg textarea, .fg select {
-      width: 100%; padding: 10px 14px; border: 2px solid #E8E8E8;
+      width: 100%; padding: 10px 12px; border: 1px solid #DDD9D0;
       border-radius: var(--radius-sm); font-size: 14px;
-      font-family: inherit; color: var(--text);
-      transition: border-color .2s;
+      font-family: inherit; color: var(--text); background: #fff;
+      transition: border-color .2s, box-shadow .2s;
     }
     .fg input:focus, .fg textarea:focus, .fg select:focus {
-      outline: none; border-color: var(--primary);
+      outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(196,149,106,.1);
     }
     .fg textarea { resize: vertical; min-height: 70px; }
-    .form-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; }
+
+    /* ── Buttons ────────────────────────────────────────────────────── */
+    .form-actions { display: flex; gap: 12px; justify-content: flex-end; margin-top: 24px; }
     .btn {
-      padding: 11px 22px; border: none; border-radius: var(--radius-sm);
-      cursor: pointer; font-size: 14px; font-weight: 700; font-family: inherit;
+      padding: 10px 20px; border: none; border-radius: var(--radius-sm);
+      cursor: pointer; font-size: 14px; font-weight: 600; font-family: inherit;
       transition: all .2s;
     }
     .btn-primary {
-      background: linear-gradient(135deg, var(--primary), #FF8E8E);
-      color: #fff; box-shadow: 0 2px 12px rgba(255,107,107,.3);
+      background: var(--primary);
+      color: #fff; box-shadow: 0 2px 8px rgba(91,117,83,.25);
     }
-    .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 4px 16px rgba(255,107,107,.4); }
-    .btn-cancel { background: var(--bg); color: var(--text-light); }
-    .btn-cancel:hover { background: #eee; }
+    .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(91,117,83,.35); }
+    .btn-cancel { background: var(--bg); color: var(--text-light); border: 1px solid #DDD9D0; }
+    .btn-cancel:hover { background: #fafaf7; }
 
     /* ── Recorder ───────────────────────────────────────────────────── */
     .recorder {
-      background: var(--bg); border-radius: var(--radius-sm);
-      padding: 14px; margin-bottom: 16px;
+      background: rgba(91,117,83,.05); border-radius: var(--radius-sm);
+      padding: 14px; margin-bottom: 18px; border: 1px solid rgba(91,117,83,.1);
     }
-    .recorder-label { font-size: 13px; font-weight: 700; margin-bottom: 10px; display: flex; align-items: center; gap: 6px; }
+    .recorder-label { font-size: 13px; font-weight: 600; margin-bottom: 10px; display: flex; align-items: center; gap: 6px; color: var(--text); }
     .rec-controls { display: flex; gap: 8px; flex-wrap: wrap; }
     .rec-btn {
-      padding: 8px 16px; border: none; border-radius: 20px;
-      cursor: pointer; font-size: 13px; font-weight: 700;
+      padding: 8px 14px; border: none; border-radius: 18px;
+      cursor: pointer; font-size: 13px; font-weight: 600;
       font-family: inherit; color: #fff; transition: all .2s;
     }
-    .rec-btn.record { background: #EF4444; }
-    .rec-btn.record:hover { background: #DC2626; }
-    .rec-btn.stop { background: #6B7280; }
-    .rec-btn.play { background: var(--blue); }
-    .rec-btn:disabled { opacity: .4; cursor: not-allowed; }
+    .rec-btn.record { background: #C9302C; }
+    .rec-btn.record:hover { background: #A02420; }
+    .rec-btn.stop { background: #717579; }
+    .rec-btn.play { background: var(--primary); }
+    .rec-btn:disabled { opacity: .5; cursor: not-allowed; }
     .rec-status {
       font-size: 12px; color: var(--text-light); margin-top: 8px;
       display: flex; align-items: center; gap: 6px;
     }
     .rec-dot {
-      width: 8px; height: 8px; border-radius: 50%; background: #EF4444;
+      width: 8px; height: 8px; border-radius: 50%; background: #C9302C;
       animation: blink 1s infinite; display: none;
     }
     .rec-dot.active { display: inline-block; }
@@ -241,61 +264,62 @@
     .archive {
       position: fixed; top: 0; right: -400px; width: 400px; height: 100%;
       background: var(--card); z-index: 999; transition: right .35s cubic-bezier(.4,0,.2,1);
-      overflow-y: auto; box-shadow: -4px 0 24px rgba(0,0,0,.1);
+      overflow-y: auto; box-shadow: -4px 0 16px rgba(0,0,0,.1);
     }
     .archive.open { right: 0; }
     .archive-head {
       position: sticky; top: 0; background: var(--card);
-      padding: 20px; display: flex; justify-content: space-between;
-      align-items: center; border-bottom: 2px solid var(--bg); z-index: 1;
+      padding: 18px 20px; display: flex; justify-content: space-between;
+      align-items: center; border-bottom: 1px solid #EEE9E0; z-index: 1;
     }
-    .archive-head h2 { font-size: 20px; font-weight: 800; }
+    .archive-head h2 { font-size: 18px; font-weight: 700; }
     .archive-close {
       background: var(--bg); border: none; width: 36px; height: 36px;
       border-radius: 50%; font-size: 20px; cursor: pointer;
       color: var(--text-light); display: flex; align-items: center;
       justify-content: center; transition: all .2s;
     }
-    .archive-close:hover { background: #fee; color: var(--primary); }
+    .archive-close:hover { background: rgba(196,149,106,.15); color: var(--accent); }
     .archive-search {
-      padding: 0 20px; margin-top: 16px;
+      padding: 12px 16px;
     }
     .archive-search input {
-      width: 100%; padding: 10px 14px 10px 38px;
-      border: 2px solid #E8E8E8; border-radius: 28px;
+      width: 100%; padding: 10px 12px 10px 36px;
+      border: 1px solid #DDD9D0; border-radius: 20px;
       font-size: 14px; font-family: inherit; color: var(--text);
-      background: var(--bg) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='%23636E72' viewBox='0 0 16 16'%3E%3Cpath d='M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85zm-5.242.156a5 5 0 1 1 0-10 5 5 0 0 1 0 10z'/%3E%3C/svg%3E") no-repeat 14px center;
+      background: #fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='%236B7B6C' viewBox='0 0 16 16'%3E%3Cpath d='M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85zm-5.242.156a5 5 0 1 1 0-10 5 5 0 0 1 0 10z'/%3E%3C/svg%3E") no-repeat 12px center;
       transition: border-color .2s;
     }
-    .archive-search input:focus { outline: none; border-color: var(--primary); }
-    .archive-filter { padding: 12px 20px; }
+    .archive-search input:focus { outline: none; border-color: var(--accent); }
+    .archive-filter { padding: 12px 16px; }
     .archive-filter select {
-      width: 100%; padding: 10px 14px; border: 2px solid #E8E8E8;
-      border-radius: var(--radius-sm); font-size: 13px; font-weight: 600;
-      font-family: inherit; color: var(--text); background: var(--bg);
+      width: 100%; padding: 10px 12px; border: 1px solid #DDD9D0;
+      border-radius: var(--radius-sm); font-size: 13px; font-weight: 500;
+      font-family: inherit; color: var(--text); background: #fff;
     }
     .rec-list { list-style: none; padding: 0 12px 80px; }
     .rec-item {
-      padding: 16px; margin: 8px 0; border-radius: var(--radius-sm);
+      padding: 14px; margin: 8px 0; border-radius: var(--radius-sm);
       background: var(--bg); cursor: pointer; transition: all .2s;
+      border: 1px solid transparent;
     }
-    .rec-item:hover { transform: translateX(-4px); box-shadow: var(--shadow); }
-    .rec-item h3 { font-size: 14px; font-weight: 700; margin-bottom: 4px; }
+    .rec-item:hover { transform: translateX(-2px); box-shadow: var(--shadow); border-color: #EEE9E0; }
+    .rec-item h3 { font-size: 14px; font-weight: 600; margin-bottom: 4px; }
     .rec-item p { font-size: 12px; color: var(--text-light); line-height: 1.4; }
-    .rec-item audio { width: 100%; margin-top: 10px; border-radius: 8px; }
+    .rec-item audio { width: 100%; margin-top: 10px; border-radius: 6px; }
     .rec-item-tag {
       display: inline-block; padding: 2px 8px; border-radius: 12px;
-      font-size: 10px; font-weight: 700; color: #fff; margin-top: 6px;
+      font-size: 10px; font-weight: 600; color: #fff; margin-top: 6px;
     }
     .rec-count {
       font-size: 12px; color: var(--text-light); padding: 8px 20px;
-      font-weight: 600;
+      font-weight: 500;
     }
 
     /* ── Loading ────────────────────────────────────────────────────── */
     .loading {
       display: none; position: fixed; inset: 0;
-      background: rgba(45,52,54,.6); backdrop-filter: blur(4px);
+      background: rgba(45,62,45,.6); backdrop-filter: blur(4px);
       z-index: 2000; justify-content: center; align-items: center;
       flex-direction: column; gap: 16px;
     }
@@ -306,13 +330,13 @@
       animation: spin .8s linear infinite;
     }
     @keyframes spin { to { transform: rotate(360deg); } }
-    .loading span { color: #fff; font-size: 16px; font-weight: 700; }
+    .loading span { color: #fff; font-size: 15px; font-weight: 600; }
 
     /* ── Toast ──────────────────────────────────────────────────────── */
     .toast {
       position: fixed; bottom: 100px; left: 50%; transform: translateX(-50%) translateY(100px);
       z-index: 3000; background: var(--text); color: #fff;
-      padding: 12px 24px; border-radius: 28px; font-size: 14px; font-weight: 600;
+      padding: 12px 24px; border-radius: 24px; font-size: 14px; font-weight: 500;
       box-shadow: var(--shadow-lg); opacity: 0; transition: all .4s;
       pointer-events: none;
     }
@@ -320,11 +344,17 @@
 
     /* ── Responsive ─────────────────────────────────────────────────── */
     @media (max-width: 600px) {
+      header { padding: 12px 16px; }
       header h1 { font-size: 16px; }
+      .header-actions { gap: 8px; }
+      .header-btn { padding: 6px 10px; font-size: 12px; }
+      .badge { padding: 1px 6px; font-size: 10px; }
       .archive { width: 100%; right: -100%; }
-      .filter-bar { max-width: 85vw; }
-      .fab { bottom: 20px; height: 50px; padding: 0 20px; font-size: 14px; }
-      .form-card { padding: 20px; }
+      .filter-bar { max-width: 85vw; font-size: 11px; }
+      .fab { bottom: 20px; height: 50px; padding: 0 18px; font-size: 13px; }
+      .fab-icon { font-size: 18px; }
+      .form-card { padding: 20px; width: 95%; max-width: 100%; }
+      .about-card { padding: 24px; width: 95%; max-width: 100%; }
     }
   </style>
 </head>
@@ -332,12 +362,12 @@
 
 <header>
   <div class="logo">
-    <div class="logo-icon">🎧</div>
-    <h1>Saigon <span>Sound Map</span></h1>
+    <h1>SAIGON SOUND MAP</h1>
   </div>
   <div class="header-actions">
-    <button class="header-btn" id="style-toggle">🛰 Satellite</button>
-    <button class="header-btn" id="archive-btn">📚 Archive <span class="badge" id="count-badge">0</span></button>
+    <button class="header-btn" id="about-btn">About</button>
+    <button class="header-btn" id="style-toggle">Satellite</button>
+    <button class="header-btn" id="archive-btn">Archive <span class="badge" id="count-badge">0</span></button>
   </div>
 </header>
 
@@ -408,10 +438,21 @@
   </div>
 </div>
 
+<!-- About modal -->
+<div class="overlay" id="about-overlay">
+  <div class="about-card">
+    <button class="about-close" id="about-close">&times;</button>
+    <h2>About Saigon Sound Map</h2>
+    <p>Saigon Sound Map is a collaborative project initiated by <a href="https://officinegap.com" target="_blank">Officine GAP</a>, an interdisciplinary creative studio based in Ho Chi Minh City.</p>
+    <p>The project invites the community to record, upload, and share the everyday sounds of Ho Chi Minh City and South Vietnam — from street vendors and motorbike traffic to temple bells, market chatter, and monsoon rains.</p>
+    <p>Our aim is to build a living sound ecology repository — a sonic archive that preserves the rich acoustic identity of this vibrant region for researchers, artists, and anyone curious about the soundscape of everyday life in Saigon.</p>
+  </div>
+</div>
+
 <!-- Archive panel -->
 <div class="archive" id="archive-panel">
   <div class="archive-head">
-    <h2>📚 Sound Archive</h2>
+    <h2>Sound Archive</h2>
     <button class="archive-close" id="archive-close">&times;</button>
   </div>
   <div class="archive-search">
@@ -451,29 +492,29 @@
   const SAIGON = [106.6953, 10.7765];
   const REFRESH = 120_000;
 
-  // Category config: color + icon
+  // Category config: color + icon (earth-tone palette)
   const CATS = {
-    'Eateries':           { color: '#FF6B6B', icon: '🍜' },
-    'Sidewalks':          { color: '#60A5FA', icon: '🚶' },
-    'Street Vendors':     { color: '#FBBF24', icon: '🛒' },
-    'Music':              { color: '#A78BFA', icon: '🎵' },
-    'Home':               { color: '#34D399', icon: '🏠' },
-    'Eating':             { color: '#F472B6', icon: '🍴' },
-    'Work':               { color: '#92400E', icon: '💼' },
-    'Repairing':          { color: '#6B7280', icon: '🔧' },
-    'Water':              { color: '#06B6D4', icon: '💧' },
-    'Animals':            { color: '#84CC16', icon: '🐾' },
-    'Conversations':      { color: '#EAB308', icon: '💬' },
-    'Vehicles':           { color: '#F97316', icon: '🏍' },
-    'Sports':             { color: '#3B82F6', icon: '⚽' },
-    'Places of worship':  { color: '#7C3AED', icon: '🙏' },
-    'Markets':            { color: '#65A30D', icon: '🏪' },
-    'Shops':              { color: '#0D9488', icon: '🛍' },
-    'Construction Sites': { color: '#DC2626', icon: '🏗' },
-    'Playing':            { color: '#6366F1', icon: '🎈' },
-    'Rain':               { color: '#0EA5E9', icon: '🌧' },
-    'Boat':               { color: '#0891B2', icon: '🚤' },
-    'Others':             { color: '#9CA3AF', icon: '🔊' },
+    'Eateries':           { color: '#C4956A', icon: '🍜' },
+    'Sidewalks':          { color: '#7B9E87', icon: '🚶' },
+    'Street Vendors':     { color: '#D4A574', icon: '🛒' },
+    'Music':              { color: '#8B7B8B', icon: '🎵' },
+    'Home':               { color: '#9DB58C', icon: '🏠' },
+    'Eating':             { color: '#C9956B', icon: '🍴' },
+    'Work':               { color: '#8B7660', icon: '💼' },
+    'Repairing':          { color: '#7D8D88', icon: '🔧' },
+    'Water':              { color: '#6B9DAE', icon: '💧' },
+    'Animals':            { color: '#8BA67A', icon: '🐾' },
+    'Conversations':      { color: '#C4B37F', icon: '💬' },
+    'Vehicles':           { color: '#B87333', icon: '🏍' },
+    'Sports':             { color: '#7BA699', icon: '⚽' },
+    'Places of worship':  { color: '#8B7B8F', icon: '🙏' },
+    'Markets':            { color: '#9BA878', icon: '🏪' },
+    'Shops':              { color: '#8B9E92', icon: '🛍' },
+    'Construction Sites': { color: '#A87660', icon: '🏗' },
+    'Playing':            { color: '#8FA597', icon: '🎈' },
+    'Rain':               { color: '#6B8F9E', icon: '🌧' },
+    'Boat':               { color: '#6B9BA9', icon: '🚤' },
+    'Others':             { color: '#8B9195', icon: '🔊' },
   };
 
   // ── State ───────────────────────────────────────────────────────
@@ -496,7 +537,7 @@
 
   function catInfo(r) {
     const cat = r.category && r.category !== 'Others' ? r.category : (() => { const m = (r.title || '').match(/^\[(.*?)\]/); return m ? m[1] : (r.category || 'Others'); })();
-    return { cat, ...(CATS[cat] || { color: '#9CA3AF', icon: '🔊' }) };
+    return { cat, ...(CATS[cat] || { color: '#8B9195', icon: '🔊' }) };
   }
 
   function audioType(url) {
@@ -596,7 +637,7 @@
           </div>
         `);
 
-        const m = new mapboxgl.Marker({ element: el, anchor: 'bottom' })
+        const m = new mapboxgl.Marker({ element: el })
           .setLngLat([r.longitude, r.latitude])
           .setPopup(popup)
           .addTo(map);
@@ -611,10 +652,15 @@
   $('style-toggle').onclick = () => {
     currentStyle = currentStyle === 'streets-v11' ? 'satellite-streets-v11' : 'streets-v11';
     map.setStyle(`mapbox://styles/mapbox/${currentStyle}`);
-    $('style-toggle').textContent = currentStyle === 'streets-v11' ? '🛰 Satellite' : '🗺 Streets';
+    $('style-toggle').textContent = currentStyle === 'streets-v11' ? 'Satellite' : 'Streets';
     $('style-toggle').classList.toggle('active');
     map.once('styledata', () => renderMarkers());
   };
+
+  // ── About modal ─────────────────────────────────────────────────
+  $('about-btn').onclick = () => { $('about-overlay').classList.add('open'); };
+  $('about-close').onclick = () => { $('about-overlay').classList.remove('open'); };
+  $('about-overlay').onclick = e => { if (e.target === $('about-overlay')) $('about-overlay').classList.remove('open'); };
 
   // ── Upload form ─────────────────────────────────────────────────
   function openForm()  { $('form-overlay').classList.add('open'); }
@@ -759,7 +805,7 @@
 
   // ── Init ────────────────────────────────────────────────────────
   document.addEventListener('DOMContentLoaded', () => {
-    console.log('Saigon Sound Map v1.0');
+    console.log('Saigon Sound Map v2.0');
     buildFilterChips();
     initMap();
   });
