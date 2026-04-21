@@ -596,7 +596,7 @@
           </div>
         `);
 
-        const m = new mapboxgl.Marker(el)
+        const m = new mapboxgl.Marker({ element: el, anchor: 'bottom' })
           .setLngLat([r.longitude, r.latitude])
           .setPopup(popup)
           .addTo(map);
