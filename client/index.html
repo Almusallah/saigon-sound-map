@@ -71,8 +71,7 @@
       width: 32px; height: 32px; border-radius: 50%;
       cursor: pointer;
       border: 3px solid #fff; box-shadow: 0 2px 8px rgba(0,0,0,.25);
-      transition: transform .2s, box-shadow .2s;
-      position: relative;
+      transition: box-shadow .2s;
       display: flex; align-items: center; justify-content: center;
     }
     .marker::after {
@@ -80,8 +79,7 @@
       font-size: 16px;
     }
     .marker:hover {
-      transform: scale(1.2);
-      box-shadow: 0 4px 16px rgba(0,0,0,.3);
+      box-shadow: 0 4px 16px rgba(0,0,0,.4), 0 0 0 4px rgba(196,149,106,.3);
     }
     .temp-marker {
       width: 24px; height: 24px; border-radius: 50%;
