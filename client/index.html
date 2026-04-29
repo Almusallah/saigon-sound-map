@@ -718,10 +718,23 @@
   // ── Recorder ────────────────────────────────────────────────────
   $('rec-start').onclick = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          sampleRate: { ideal: 48000, min: 44100 },
+          channelCount: { ideal: 2 },
+          echoCancellation: false,
+          noiseSuppression: false,
+          autoGainControl: false,
+          latency: { ideal: 0 },
+        }
+      });
       recordedChunks = []; recordedBlob = null;
+      // pick best available codec — prefer opus (excellent at high bitrate)
+      const mimeType = ['audio/webm;codecs=opus','audio/webm','audio/mp4']
+        .find(m => MediaRecorder.isTypeSupported(m));
       mediaRecorder = new MediaRecorder(stream, {
-        mimeType: MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : undefined,
+        ...(mimeType ? { mimeType } : {}),
+        audioBitsPerSecond: 256000,
       });
       mediaRecorder.ondataavailable = e => { if (e.data.size > 0) recordedChunks.push(e.data); };
       mediaRecorder.onstop = () => {
