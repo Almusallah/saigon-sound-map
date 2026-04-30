@@ -698,6 +698,17 @@
 
     const sizeMB = (blob.size / (1024*1024)).toFixed(2);
     $('loading').querySelector('span').textContent = `Uploading ${sizeMB} MB… 0%`;
+    // Warn on slow connections or large files before committing to upload
+    try {
+      const conn = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+      const slow = conn && (conn.effectiveType === '2g' || conn.effectiveType === 'slow-2g' || conn.saveData);
+      const big = blob.size > 5 * 1024 * 1024;
+      if (slow || big) {
+        const reason = slow ? `slow connection (${conn.effectiveType})` : 'large file';
+        const ok = confirm(`Heads up: ${reason}. Upload ${sizeMB} MB anyway?`);
+        if (!ok) { $('form-submit').disabled = false; return; }
+      }
+    } catch (_) { /* navigator.connection unavailable; proceed */ }
     $('loading').classList.add('show');
     $('form-submit').disabled = true;
 
@@ -732,7 +743,9 @@
           if (attempt > 1) {
             const span = $('loading').querySelector('span');
             if (span) span.textContent = `Retrying… (${attempt}/${MAX_ATTEMPTS})`;
-            await new Promise(r => setTimeout(r, 1500 * attempt)); // backoff
+            // exponential backoff: 2s, 5s — better for flaky 4G
+            const delays = [0, 2000, 5000];
+            await new Promise(r => setTimeout(r, delays[attempt - 1] || 5000));
           }
           await uploadOnce();
           lastErr = null;
@@ -740,6 +753,8 @@
         } catch (e) {
           lastErr = e;
           if (e.message === 'aborted') break; // don't retry user-cancelled
+          // don't retry client errors (4xx) — only network, timeout, or 5xx
+          if (/^HTTP 4\d\d/.test(e.message)) break;
         }
       }
       if (lastErr) throw lastErr;
@@ -786,7 +801,22 @@
         $('rec-dot').classList.remove('active');
         $('rec-play').disabled = false;
       };
-      mediaRecorder.start();
+      // 1s timeslices: emit chunks incrementally so memory stays low on long recordings
+      mediaRecorder.start(1000);
+      // 5-minute soft cap with warning at 4:30 (helps mobile/4G upload reliability)
+      window._recWarnT = setTimeout(() => {
+        if (mediaRecorder && mediaRecorder.state === 'recording') {
+          $('rec-status').textContent = 'Recording… 30s left (5-min cap)';
+        }
+      }, 270000);
+      window._recCapT = setTimeout(() => {
+        if (mediaRecorder && mediaRecorder.state === 'recording') {
+          mediaRecorder.stop();
+          $('rec-start').disabled = false;
+          $('rec-stop').disabled = true;
+          toast('Reached 5-min recording limit');
+        }
+      }, 300000);
       $('rec-status').textContent = 'Recording...';
       $('rec-dot').classList.add('active');
       $('rec-start').disabled = true;
@@ -795,6 +825,7 @@
   };
 
   $('rec-stop').onclick = () => {
+    clearTimeout(window._recWarnT); clearTimeout(window._recCapT);
     if (mediaRecorder?.state === 'recording') mediaRecorder.stop();
     $('rec-start').disabled = false;
     $('rec-stop').disabled = true;
