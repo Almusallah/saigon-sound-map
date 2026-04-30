@@ -486,7 +486,7 @@
 
   // ── Config ──────────────────────────────────────────────────────
   const API = 'https://saigon-soundscape.onrender.com/api';
-  const MAPBOX_TOKEN = 'pk.eyJ1Ijoic2lkZXdhbGtjaXR5IiwiYSI6ImNtOHplcGZnaTBiNXEya3IwODFuMTMxZmYifQ.79iRhWzXiNR140OKQIS6PQ';
+  const MAPBOX_TOKEN = 'pk.eyJ1Ijoic2lkZXdhbGtjaXR5IiwiYSI6ImNtN2c3Z28zZzBiZmsya3M3eXU2emEzOXQifQ.hLfguhn2EXIhg3XZL1_Dcw';
   const SAIGON = [106.6953, 10.7765];
   const REFRESH = 120_000;
 
@@ -517,7 +517,7 @@
 
   // ── State ───────────────────────────────────────────────────────
   let map, recordings = [], markers = [], tempMarker = null;
-  let currentStyle = 'streets-v11';
+  let currentStyle = 'mapbox://styles/sidewalkcity/cmojyebpi000301s89p4p2km6';
   let activeFilter = '';
   let mediaRecorder, recordedChunks = [], recordedBlob = null;
 
@@ -565,7 +565,7 @@
     mapboxgl.accessToken = MAPBOX_TOKEN;
     map = new mapboxgl.Map({
       container: 'map',
-      style: `mapbox://styles/mapbox/${currentStyle}`,
+      style: currentStyle,
       center: SAIGON, zoom: 12, minZoom: 10, maxZoom: 18,
     });
     map.addControl(new mapboxgl.NavigationControl(), 'top-left');
@@ -648,9 +648,9 @@
 
   // ── Style toggle ────────────────────────────────────────────────
   $('style-toggle').onclick = () => {
-    currentStyle = currentStyle === 'streets-v11' ? 'satellite-streets-v11' : 'streets-v11';
-    map.setStyle(`mapbox://styles/mapbox/${currentStyle}`);
-    $('style-toggle').textContent = currentStyle === 'streets-v11' ? 'Satellite' : 'Streets';
+    currentStyle = currentStyle === 'mapbox://styles/sidewalkcity/cmojyebpi000301s89p4p2km6' ? 'mapbox://styles/mapbox/satellite-streets-v11' : 'mapbox://styles/sidewalkcity/cmojyebpi000301s89p4p2km6';
+    map.setStyle(currentStyle);
+    $('style-toggle').textContent = currentStyle === 'mapbox://styles/sidewalkcity/cmojyebpi000301s89p4p2km6' ? 'Satellite' : 'Map';
     $('style-toggle').classList.toggle('active');
     map.once('styledata', () => renderMarkers());
   };
@@ -696,13 +696,54 @@
     fd.append('latitude', $('f-lat').value);
     fd.append('longitude', $('f-lng').value);
 
+    const sizeMB = (blob.size / (1024*1024)).toFixed(2);
+    $('loading').querySelector('span').textContent = `Uploading ${sizeMB} MB… 0%`;
     $('loading').classList.add('show');
     $('form-submit').disabled = true;
 
+    // XHR upload with progress, cancel, and retry-on-network-failure
+    const uploadOnce = () => new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      window._currentXhr = xhr;
+      xhr.open('POST', `${API}/upload`);
+      xhr.timeout = 120000; // 2 min hard timeout per attempt
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable) {
+          const pct = Math.round((e.loaded / e.total) * 100);
+          const span = $('loading').querySelector('span');
+          if (span) span.textContent = `Uploading ${sizeMB} MB… ${pct}%`;
+        }
+      };
+      xhr.onload = () => {
+        if (xhr.status >= 200 && xhr.status < 300) resolve(xhr.responseText);
+        else reject(new Error(xhr.responseText || `HTTP ${xhr.status}`));
+      };
+      xhr.onerror = () => reject(new Error('network'));
+      xhr.ontimeout = () => reject(new Error('timeout'));
+      xhr.onabort = () => reject(new Error('aborted'));
+      xhr.send(fd);
+    });
+
     try {
-      const res = await fetch(`${API}/upload`, { method: 'POST', body: fd });
-      if (!res.ok) throw new Error(await res.text());
-      toast('🎉 Upload successful!');
+      let lastErr;
+      const MAX_ATTEMPTS = 3;
+      for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+        try {
+          if (attempt > 1) {
+            const span = $('loading').querySelector('span');
+            if (span) span.textContent = `Retrying… (${attempt}/${MAX_ATTEMPTS})`;
+            await new Promise(r => setTimeout(r, 1500 * attempt)); // backoff
+          }
+          await uploadOnce();
+          lastErr = null;
+          break;
+        } catch (e) {
+          lastErr = e;
+          if (e.message === 'aborted') break; // don't retry user-cancelled
+        }
+      }
+      if (lastErr) throw lastErr;
+      toast('✓ Upload successful!');
       closeForm();
       $('upload-form').reset();
       if (tempMarker) { tempMarker.remove(); tempMarker = null; }
@@ -711,6 +752,7 @@
       toast('Upload failed: ' + err.message);
     } finally {
       $('loading').classList.remove('show');
+      $('loading').querySelector('span').textContent = 'Uploading…';
       $('form-submit').disabled = false;
     }
   };
@@ -721,7 +763,7 @@
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
           sampleRate: { ideal: 48000, min: 44100 },
-          channelCount: { ideal: 2 },
+          channelCount: { ideal: 1 },
           echoCancellation: false,
           noiseSuppression: false,
           autoGainControl: false,
@@ -729,12 +771,12 @@
         }
       });
       recordedChunks = []; recordedBlob = null;
-      // pick best available codec — prefer opus (excellent at high bitrate)
+      // pick best codec — opus mono ~128 kbps gives small files with great quality
       const mimeType = ['audio/webm;codecs=opus','audio/webm','audio/mp4']
         .find(m => MediaRecorder.isTypeSupported(m));
       mediaRecorder = new MediaRecorder(stream, {
         ...(mimeType ? { mimeType } : {}),
-        audioBitsPerSecond: 256000,
+        audioBitsPerSecond: 128000,
       });
       mediaRecorder.ondataavailable = e => { if (e.data.size > 0) recordedChunks.push(e.data); };
       mediaRecorder.onstop = () => {
