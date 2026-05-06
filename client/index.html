@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>Saigon Sound Map</title>
   <link href="https://api.mapbox.com/mapbox-gl-js/v3.7.0/mapbox-gl.css" rel="stylesheet">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -114,7 +114,7 @@
 
     /* ── FAB (record) ──────────────────────────────────────────────── */
     .fab {
-      position: absolute; bottom: 28px; left: 50%; transform: translateX(-50%);
+      position: absolute; bottom: calc(28px + env(safe-area-inset-bottom, 0px)); left: 50%; transform: translateX(-50%);
       z-index: 10; height: 56px; border-radius: 28px;
       background: var(--accent);
       color: #fff; border: none; font-size: 15px; font-weight: 600;
@@ -349,7 +349,7 @@
       .badge { padding: 1px 6px; font-size: 10px; }
       .archive { width: 100%; right: -100%; }
       .filter-bar { max-width: 85vw; font-size: 11px; }
-      .fab { bottom: 20px; height: 50px; padding: 0 18px; font-size: 13px; }
+      .fab { bottom: calc(20px + env(safe-area-inset-bottom, 0px)); height: 50px; padding: 0 18px; font-size: 13px; }
       .fab-icon { font-size: 18px; }
       .form-card { padding: 20px; width: 95%; max-width: 100%; }
       .about-card { padding: 24px; width: 95%; max-width: 100%; }
@@ -566,13 +566,25 @@
     map = new mapboxgl.Map({
       container: 'map',
       style: currentStyle,
-      center: SAIGON, zoom: 12, minZoom: 10, maxZoom: 18,
+      center: SAIGON, zoom: 12,   minZoom: 5, maxZoom: 18,
     });
     map.addControl(new mapboxgl.NavigationControl(), 'top-left');
-    map.addControl(new mapboxgl.GeolocateControl({
-      positionOptions: { enableHighAccuracy: true },
-      trackUserLocation: true,
-    }), 'top-left');
+    const geolocate = new mapboxgl.GeolocateControl({
+      positionOptions: { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 },
+      trackUserLocation: false,
+      showUserHeading: false,
+      showAccuracyCircle: true,
+      fitBoundsOptions: { maxZoom: 16 }
+    });
+    map.addControl(geolocate, 'top-left');
+    geolocate.on('error', (e) => {
+      toast('📍 Location unavailable: ' + ((e && e.message) || 'permission denied or timeout') + '. On iOS, enable Location for Safari in Settings.');
+    });
+    if (navigator.permissions) {
+      navigator.permissions.query({ name: 'geolocation' })
+        .then(p => { if (p.state === 'denied') toast('Enable Location for Safari in iOS Settings'); })
+        .catch(() => {});
+    }
 
     map.on('load', () => {
       loadRecordings();
