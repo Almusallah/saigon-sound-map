@@ -491,29 +491,40 @@
   const REFRESH = 120_000;
 
   // Category config: color + icon (earth-tone palette)
-  const CATS = {
-    'Eateries':           { color: '#C4956A', icon: '🍜' },
-    'Sidewalks':          { color: '#7B9E87', icon: '🚶' },
-    'Street Vendors':     { color: '#D4A574', icon: '🛒' },
-    'Music':              { color: '#8B7B8B', icon: '🎵' },
-    'Home':               { color: '#9DB58C', icon: '🏠' },
-    'Eating':             { color: '#C9956B', icon: '🍴' },
-    'Work':               { color: '#8B7660', icon: '💼' },
-    'Repairing':          { color: '#7D8D88', icon: '🔧' },
-    'Water':              { color: '#6B9DAE', icon: '💧' },
-    'Animals':            { color: '#8BA67A', icon: '🐾' },
-    'Conversations':      { color: '#C4B37F', icon: '💬' },
-    'Vehicles':           { color: '#B87333', icon: '🏍' },
-    'Sports':             { color: '#7BA699', icon: '⚽' },
-    'Places of worship':  { color: '#8B7B8F', icon: '🙏' },
-    'Markets':            { color: '#9BA878', icon: '🏪' },
-    'Shops':              { color: '#8B9E92', icon: '🛍' },
-    'Construction Sites': { color: '#A87660', icon: '🏗' },
-    'Playing':            { color: '#8FA597', icon: '🎈' },
-    'Rain':               { color: '#6B8F9E', icon: '🌧' },
-    'Boat':               { color: '#6B9BA9', icon: '🚤' },
-    'Others':             { color: '#8B9195', icon: '🔊' },
-  };
+    const CATS = {
+          'Food & Drink':              { color: '#B14632', icon: '🍜' },
+          'Sidewalks':                 { color: '#7B9E87', icon: '🚶' },
+          'Street Vendors':            { color: '#D4A574', icon: '🛒' },
+          'Music':                     { color: '#8B7B8B', icon: '🎵' },
+          'Home':                      { color: '#9DB58C', icon: '🏠' },
+          'Work':                      { color: '#8B7660', icon: '🔨' },
+          'Repairing':                 { color: '#7D8D88', icon: '🔧' },
+          'Conversations':             { color: '#C4B37F', icon: '💬' },
+          'Vehicles':                  { color: '#B87333', icon: '🚗' },
+          'Markets':                   { color: '#9BA878', icon: '🏪' },
+          'Shops':                     { color: '#8B9E92', icon: '🏬' },
+          'Play & Leisure':            { color: '#E8B547', icon: '🎈' },
+          'Ritual & Ceremony':         { color: '#8B3424', icon: '🥍' },
+          'Announcements & Signals':   { color: '#E17314', icon: '📢' },
+          'Infrastructure & Utilities':{ color: '#A87660', icon: '🔌' },
+          'Nature':                    { color: '#7BA699', icon: '🌿' },
+          'Waterways':                 { color: '#6B9DAE', icon: '🌊' },
+          'Background':                { color: '#8B9195', icon: '🎙' },
+    };
+
+    const CAT_ALIASES = {
+          'Eateries':           'Food & Drink',
+          'Eating':             'Food & Drink',
+          'Sports':             'Play & Leisure',
+          'Playing':            'Play & Leisure',
+          'Places of worship':  'Ritual & Ceremony',
+          'Construction Sites': 'Infrastructure & Utilities',
+          'Animals':            'Nature',
+          'Rain':               'Nature',
+          'Water':              'Waterways',
+          'Boat':               'Waterways',
+          'Others':             'Background',
+    };
 
   // ── State ───────────────────────────────────────────────────────
   let map, recordings = [], markers = [], tempMarker = null;
