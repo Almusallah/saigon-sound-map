@@ -3,21 +3,21 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>Saigon Sound Map</title>
+  <title>Saigon_Miền Tây Sound Map</title>
   <link href="https://api.mapbox.com/mapbox-gl-js/v3.7.0/mapbox-gl.css" rel="stylesheet">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
     /* ── Variables ──────────────────────────────────────────────────── */
     :root {
-      --primary: #5B7553;
-      --primary-dark: #4A6344;
-      --accent: #C4956A;
-      --accent-light: #D4A574;
-      --bg: #F5F0EB;
+      --primary: #B14632;
+      --primary-dark: #8B3424;
+      --accent: #E17314;
+      --accent-light: #B27951;
+      --bg: #FFE7E7;
       --card: #FFFFFF;
-      --text: #2C3E2D;
-      --text-light: #6B7B6C;
-      --header-bg: #2C3E2D;
+      --text: #2C1810;
+      --text-light: #8B6B5B;
+      --header-bg: #B14632;
       --shadow: 0 2px 12px rgba(0,0,0,.08);
       --shadow-lg: 0 8px 24px rgba(0,0,0,.12);
       --radius: 12px;
@@ -36,7 +36,7 @@
     /* ── Header ─────────────────────────────────────────────────────── */
     header {
       background: var(--header-bg);
-      padding: 16px 24px;
+      padding: calc(16px + env(safe-area-inset-top, 0px)) 24px 16px;
       display: flex; align-items: center; justify-content: space-between;
       border-bottom: 3px solid var(--accent);
       z-index: 100;
@@ -342,13 +342,13 @@
 
     /* ── Responsive ─────────────────────────────────────────────────── */
     @media (max-width: 600px) {
-      header { padding: 12px 16px; }
+      header { padding: calc(12px + env(safe-area-inset-top, 0px)) 16px 12px; }
       header h1 { font-size: 16px; }
       .header-actions { gap: 8px; }
       .header-btn { padding: 6px 10px; font-size: 12px; }
       .badge { padding: 1px 6px; font-size: 10px; }
       .archive { width: 100%; right: -100%; }
-      .filter-bar { max-width: 85vw; font-size: 11px; }
+      .filter-bar { top: 64px; max-width: 90vw; font-size: 11px; }
       .fab { bottom: calc(80px + env(safe-area-inset-bottom, 0px)); height: 50px; padding: 0 18px; font-size: 13px; }
       .fab-icon { font-size: 18px; }
       .form-card { padding: 20px; width: 95%; max-width: 100%; }
@@ -360,7 +360,7 @@
 
 <header>
   <div class="logo">
-    <h1>SAIGON SOUND MAP</h1>
+    <h1>SAIGON_MIỀN TÂY SOUND MAP</h1>
   </div>
   <div class="header-actions">
     <button class="header-btn" id="about-btn">About</button>
