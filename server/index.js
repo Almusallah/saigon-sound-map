@@ -17,6 +17,16 @@ app.use(cors({ origin: '*', methods: ['GET', 'POST', 'DELETE', 'OPTIONS'] }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// Admin auth for destructive routes
+function requireAdmin(req, res, next) {
+    const provided = req.headers['x-admin-token'] ||
+                         (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
+    if (!process.env.ADMIN_TOKEN || provided !== process.env.ADMIN_TOKEN) {
+          return res.status(401).json({ error: 'unauthorized' });
+    }
+    next();
+}
+
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 25 * 1024 * 1024 }, // 25 MB
@@ -98,7 +108,7 @@ app.post('/api/upload', upload.single('audioFile'), async (req, res) => {
   }
 });
 
-app.delete('/api/recordings/:id', async (req, res) => {
+app.delete('/api/recordings/:id', requireAdmin, async (req, res) => {
   try {
     await Recording.deleteOne({ id: req.params.id });
     cache = cache.filter(r => r.id !== req.params.id);
