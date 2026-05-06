@@ -624,7 +624,7 @@
       if (!res.ok) throw new Error(res.statusText);
       const data = await res.json();
       if (!Array.isArray(data.recordings)) return;
-      recordings = data.recordings.filter(r => r && typeof r.latitude === 'number' && typeof r.longitude === 'number' && r.audioUrl);
+      recordings = data.recordings.filter(r => r && typeof r.latitude === 'number' && typeof r.longitude === 'number' && r.audioUrl).map(r => ({ ...r, category: CAT_ALIASES[r.category] || r.category }));
       $('count-badge').textContent = recordings.length;
       renderMarkers();
     } catch (err) {
