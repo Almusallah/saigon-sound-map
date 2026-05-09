@@ -340,6 +340,13 @@
     }
     .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 
+    /* When zoomed out below CLUSTER_MAX_ZOOM, the body gets the
+       `clustered` class. Hide DOM-rendered recording markers so the
+       Mapbox cluster circles aren't visually muddied. The heritage
+       marker (.heritage-marker) is intentionally exempt — it should
+       always be visible as a landmark pin. */
+    body.clustered .marker { display: none; }
+
     /* ── Heritage / Sound Atlas (interactive doc) ───────────────────── */
     .heritage-overlay { z-index: 1500; }
     .heritage-card {
@@ -702,9 +709,17 @@
     }
 
     map.on('load', () => {
+      setupClusters();
       loadRecordings();
       setInterval(loadRecordings, REFRESH);
       addHeritageMarker();
+    });
+
+    // Toggle cluster-mode CSS class on the map container so DOM markers
+    // hide at low zoom (where clusters take over) and re-appear on zoom-in.
+    map.on('zoom', () => {
+      const z = map.getZoom();
+      document.body.classList.toggle('clustered', z < CLUSTER_MAX_ZOOM);
     });
 
     map.on('click', e => {
@@ -737,9 +752,89 @@
     }
   }
 
+  // ── Clustering ──────────────────────────────────────────────────
+  // Below this zoom, DOM markers are hidden and Mapbox-native cluster
+  // circles take over. Above it, DOM markers re-appear and clusters fade.
+  const CLUSTER_MAX_ZOOM = 14;
+
+  // Set up the GeoJSON source + cluster layers once, on map load.
+  function setupClusters() {
+    if (map.getSource('recordings-source')) return;
+
+    map.addSource('recordings-source', {
+      type:           'geojson',
+      data:           { type: 'FeatureCollection', features: [] },
+      cluster:        true,
+      clusterMaxZoom: CLUSTER_MAX_ZOOM,
+      clusterRadius:  50,
+    });
+
+    // Cluster circle: black fill, lime ring, size scales with point count.
+    map.addLayer({
+      id:     'cluster-circles',
+      type:   'circle',
+      source: 'recordings-source',
+      filter: ['has', 'point_count'],
+      paint: {
+        'circle-color':        '#000000',
+        'circle-radius':       ['step', ['get', 'point_count'], 18, 5, 22, 10, 26, 25, 32],
+        'circle-stroke-color': '#B8FF00',
+        'circle-stroke-width': 2,
+        'circle-opacity':      0.92,
+      },
+    });
+
+    // Cluster count text: lime numerals.
+    map.addLayer({
+      id:     'cluster-counts',
+      type:   'symbol',
+      source: 'recordings-source',
+      filter: ['has', 'point_count'],
+      layout: {
+        'text-field':   ['get', 'point_count_abbreviated'],
+        'text-font':    ['DIN Pro Bold', 'Arial Unicode MS Bold'],
+        'text-size':    14,
+        'text-allow-overlap': true,
+      },
+      paint: { 'text-color': '#B8FF00' },
+    });
+
+    // Click cluster to zoom in on it (auto-finds the zoom level that
+    // breaks the cluster apart).
+    map.on('click', 'cluster-circles', (e) => {
+      const features  = map.queryRenderedFeatures(e.point, { layers: ['cluster-circles'] });
+      if (!features.length) return;
+      const clusterId = features[0].properties.cluster_id;
+      map.getSource('recordings-source').getClusterExpansionZoom(clusterId, (err, zoom) => {
+        if (err) return;
+        map.easeTo({ center: features[0].geometry.coordinates, zoom });
+      });
+    });
+
+    map.on('mouseenter', 'cluster-circles', () => map.getCanvas().style.cursor = 'pointer');
+    map.on('mouseleave', 'cluster-circles', () => map.getCanvas().style.cursor = '');
+  }
+
+  // Push the current `recordings` array into the GeoJSON source. Called
+  // every time recordings change (load + upload).
+  function updateClusterData() {
+    const source = map.getSource('recordings-source');
+    if (!source) return;
+    const filtered = activeFilter ? recordings.filter(r => catInfo(r).cat === activeFilter) : recordings;
+    source.setData({
+      type: 'FeatureCollection',
+      features: filtered.map(r => ({
+        type: 'Feature',
+        geometry: { type: 'Point', coordinates: [r.longitude, r.latitude] },
+        properties: { id: r.id, title: r.title || '', category: catInfo(r).cat },
+      })),
+    });
+  }
+
   function renderMarkers() {
     markers.forEach(m => m.remove());
     markers = [];
+    updateClusterData();
 
     const filtered = activeFilter ? recordings.filter(r => catInfo(r).cat === activeFilter) : recordings;
 
@@ -780,7 +875,7 @@
     map.setStyle(currentStyle);
     $('style-toggle').textContent = currentStyle === 'mapbox://styles/sidewalkcity/cmojyebpi000301s89p4p2km6' ? 'Satellite' : 'Map';
     $('style-toggle').classList.toggle('active');
-    map.once('styledata', () => renderMarkers());
+    map.once('styledata', () => { setupClusters(); renderMarkers(); });
   };
 
   // ── Sound Heritage (interactive doc, Ishkur-style) ──────────────
