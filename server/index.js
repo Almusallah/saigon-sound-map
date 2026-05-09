@@ -221,6 +221,96 @@ app.get('/api/migrate-geojson', requireAdmin, async (req, res) => {
   }
 });
 
+// Bulk-update endpoint for curating recording titles/categories at scale.
+// Body shape:
+//   {
+//     "dryRun": false,
+//     "updates": [
+//       { "idPrefix": "f6fd31a9", "title": "Kids playing", "category": "Play & Leisure" }
+//     ],
+//     "deleteByPrefix": ["3f6cfa4f"],
+//     "deleteByMatch":  ["FUJIRO"]   // matches title or audioUrl, case-insensitive
+//   }
+// idPrefix is matched against the START of the recording's UUID.
+// description is set to '' on every update (clears the auto-discovered text).
+app.post('/api/admin/bulk-update', requireAdmin, async (req, res) => {
+  const { dryRun = false, updates = [], deleteByPrefix = [], deleteByMatch = [] } = req.body;
+  const result = { dryRun, updated: [], deleted: [], notFound: [], ambiguous: [], errors: [] };
+
+  // Helper: find a unique recording by id-prefix, or report ambiguity.
+  async function findOneByPrefix(prefix) {
+    // Escape regex specials in prefix; idPrefix is meant to be hex-like
+    const escaped = prefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const matches = await Recording.find({ id: { $regex: '^' + escaped } }).limit(2).lean();
+    return matches;
+  }
+
+  try {
+    // Updates
+    for (const u of updates) {
+      if (!u.idPrefix || !u.title || !u.category) {
+        result.errors.push({ idPrefix: u.idPrefix, error: 'Missing idPrefix/title/category' });
+        continue;
+      }
+      const matches = await findOneByPrefix(u.idPrefix);
+      if (matches.length === 0) { result.notFound.push(u.idPrefix); continue; }
+      if (matches.length > 1) { result.ambiguous.push({ idPrefix: u.idPrefix, count: matches.length }); continue; }
+      const existing = matches[0];
+      const before = { title: existing.title, category: existing.category, description: existing.description };
+      if (dryRun) {
+        result.updated.push({ idPrefix: u.idPrefix, fullId: existing.id, before, after: { title: u.title, category: u.category, description: '' } });
+      } else {
+        try {
+          // Use updateOne so the validate hook re-runs and we don't have to re-set location
+          await Recording.updateOne(
+            { id: existing.id },
+            { $set: { title: u.title, category: u.category, description: '' } },
+            { runValidators: true }
+          );
+          result.updated.push({ idPrefix: u.idPrefix, fullId: existing.id, before, after: { title: u.title, category: u.category, description: '' } });
+        } catch (e) {
+          result.errors.push({ idPrefix: u.idPrefix, error: e.message });
+        }
+      }
+    }
+
+    // Deletes by id-prefix
+    for (const prefix of deleteByPrefix) {
+      const matches = await findOneByPrefix(prefix);
+      if (matches.length === 0) { result.notFound.push(prefix); continue; }
+      if (matches.length > 1) { result.ambiguous.push({ prefix, count: matches.length }); continue; }
+      if (dryRun) {
+        result.deleted.push({ idPrefix: prefix, fullId: matches[0].id, title: matches[0].title });
+      } else {
+        await Recording.deleteOne({ id: matches[0].id });
+        result.deleted.push({ idPrefix: prefix, fullId: matches[0].id, title: matches[0].title });
+      }
+    }
+
+    // Deletes by string match (title or audioUrl, case-insensitive)
+    for (const term of deleteByMatch) {
+      const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const re = { $regex: escaped, $options: 'i' };
+      const matches = await Recording.find({ $or: [{ title: re }, { audioUrl: re }] }).lean();
+      for (const m of matches) {
+        if (dryRun) {
+          result.deleted.push({ matchedTerm: term, fullId: m.id, title: m.title });
+        } else {
+          await Recording.deleteOne({ id: m.id });
+          result.deleted.push({ matchedTerm: term, fullId: m.id, title: m.title });
+        }
+      }
+      if (matches.length === 0) result.notFound.push(`(match) ${term}`);
+    }
+
+    if (!dryRun) await refreshCache();
+    res.json({ success: true, ...result });
+  } catch (err) {
+    console.error('[POST /admin/bulk-update]', err.message);
+    res.status(500).json({ success: false, error: err.message, partial: result });
+  }
+});
+
 // ── Static files ─────────────────────────────────────────────────────────
 app.use(express.static(path.join(__dirname, '../client')));
 app.get('*', (req, res) => res.sendFile(path.join(__dirname, '../client/index.html')));
