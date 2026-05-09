@@ -304,7 +304,17 @@
     .rec-item:hover { transform: translateX(-2px); box-shadow: var(--shadow); border-color: #EEE9E0; }
     .rec-item h3 { font-size: 14px; font-weight: 600; margin-bottom: 4px; }
     .rec-item p { font-size: 12px; color: var(--text-light); line-height: 1.4; }
-    .rec-item audio { width: 100%; margin-top: 10px; border-radius: 6px; }
+    /* Lock audio control to a consistent box. Native browser scrubber
+       renders differently across codecs (older b2-sync MP3s lack a
+       proper Xing/VBR header, so Chrome ends up streaming the whole
+       file to estimate duration — that produces a visually different
+       scrubber to clean WebM uploads). The fixed height + width: 100%
+       keeps the row layout uniform regardless. */
+    .rec-item audio {
+      width: 100%; height: 40px;
+      margin-top: 10px; border-radius: 6px;
+      display: block;
+    }
     .rec-item-tag {
       display: inline-block; padding: 2px 8px; border-radius: 12px;
       font-size: 10px; font-weight: 600; color: #fff; margin-top: 6px;
@@ -535,10 +545,10 @@
 <div class="overlay" id="about-overlay">
   <div class="about-card">
     <button class="about-close" id="about-close">&times;</button>
-    <h2>About Saigon Sound Map</h2>
-    <p>Saigon Sound Map is a collaborative project initiated by <a href="https://officinegap.com" target="_blank">Officine GAP</a>, an interdisciplinary creative studio based in Ho Chi Minh City.</p>
-    <p>The project invites the community to record, upload, and share the everyday sounds of Ho Chi Minh City and South Vietnam — from street vendors and motorbike traffic to temple bells, market chatter, and monsoon rains.</p>
-    <p>Our aim is to build a living sound ecology repository — a sonic archive that preserves the rich acoustic identity of this vibrant region for researchers, artists, and anyone curious about the soundscape of everyday life in Saigon.</p>
+    <h2>About Saigon_Miền Tây Sound Map</h2>
+    <p>The Saigon_Miền Tây Sound Map is a collaborative project initiated by <a href="https://officinegap.com" target="_blank">Officine Gặp</a>, an interdisciplinary creative studio based in Ho Chi Minh City, Vietnam.</p>
+    <p>The project invites the community to record and share the everyday sounds of Ho Chi Minh City and the southern provinces — from street vendors and motorbike traffic to everyday rituals and ceremonies, market chatter, and monsoon rains.</p>
+    <p>Together, these recordings form a growing, living sound repository: a resource for artists, researchers, and anyone interested in listening more closely to the rhythms and textures of life in southern Vietnam.</p>
   </div>
 </div>
 
@@ -855,7 +865,7 @@
             <h3>${esc(r.title || 'Untitled')}</h3>
             <p>${esc(r.description || 'No description')}</p>
             <span class="popup-tag" style="background:${color}">${icon} ${esc(cat)}</span>
-            <audio controls preload="metadata">
+            <audio controls preload="none">
               <source src="${esc(r.audioUrl)}" type="${audioType(r.audioUrl)}">
             </audio>
           </div>
@@ -1236,7 +1246,7 @@
           <h3>${esc(r.title || 'Untitled')}</h3>
           <span class="rec-item-tag" style="background:${color}">${icon} ${esc(cat)}</span>
           <p>${esc(r.description || 'No description')}</p>
-          <audio controls preload="metadata">
+          <audio controls preload="none">
             <source src="${esc(r.audioUrl)}" type="${audioType(r.audioUrl)}">
           </audio>
         </li>`;
