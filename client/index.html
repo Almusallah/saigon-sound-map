@@ -260,11 +260,11 @@
 
     /* ── Archive panel ─────────────────────────────────────────────── */
     .archive {
-      position: fixed; top: 0; right: -400px; width: 400px; height: 100%;
-      background: var(--card); z-index: 999; transition: right .35s cubic-bezier(.4,0,.2,1);
+      position: fixed; top: 0; right: 0; width: 400px; height: 100%; transform: translateX(100%); will-change: transform;
+      background: var(--card); z-index: 999; transition: transform .35s cubic-bezier(.4,0,.2,1);
       overflow-y: auto; box-shadow: -4px 0 16px rgba(0,0,0,.1);
     }
-    .archive.open { right: 0; }
+    .archive.open { transform: translateX(0); }
     .archive-head {
       position: sticky; top: 0; background: var(--card);
       padding: 18px 20px; display: flex; justify-content: space-between;
@@ -347,7 +347,7 @@
       .header-actions { gap: 8px; }
       .header-btn { padding: 6px 10px; font-size: 12px; }
       .badge { padding: 1px 6px; font-size: 10px; }
-      .archive { width: 100%; right: -100%; }
+      .archive { width: 100%; }
       .filter-bar { top: 8px; left: 60px; transform: none; max-width: calc(100vw - 70px); font-size: 11px; }
       .fab { bottom: calc(80px + env(safe-area-inset-bottom, 0px)); height: 50px; padding: 0 18px; font-size: 13px; }
       .fab-icon { font-size: 18px; }
@@ -869,7 +869,7 @@
   }
 
   // ── Archive panel ───────────────────────────────────────────────
-  $('archive-btn').onclick   = () => { $('archive-panel').classList.toggle('open'); updateArchive(); };
+  $('archive-btn').onclick   = () => { $('archive-panel').classList.toggle('open'); requestAnimationFrame(() => updateArchive()); };
   $('archive-close').onclick = () => $('archive-panel').classList.remove('open');
   $('cat-filter').onchange   = updateArchive;
   $('archive-search-input').oninput = updateArchive;
