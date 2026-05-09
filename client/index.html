@@ -340,6 +340,97 @@
     }
     .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 
+    /* ── Heritage / Sound Atlas (interactive doc) ───────────────────── */
+    .heritage-overlay { z-index: 1500; }
+    .heritage-card {
+      background: var(--header-bg); color: var(--primary);
+      width: 92%; max-width: 880px; max-height: 90vh; overflow-y: auto;
+      border-radius: var(--radius); padding: 32px 28px;
+      border: 1px solid var(--primary);
+      box-shadow: var(--shadow-lg);
+      position: relative;
+    }
+    .heritage-close {
+      position: absolute; top: 12px; right: 16px;
+      background: transparent; border: none; color: var(--primary);
+      font-size: 28px; cursor: pointer; line-height: 1;
+    }
+    .heritage-title {
+      font-size: 22px; font-weight: 700; margin-bottom: 4px; color: var(--primary);
+      letter-spacing: 0.5px;
+    }
+    .heritage-subtitle {
+      font-size: 13px; color: rgba(184,255,0,.7);
+      margin-bottom: 24px; font-style: italic;
+    }
+    .heritage-tree { display: flex; flex-direction: column; gap: 16px; }
+    .heritage-branch {
+      border-left: 3px solid var(--primary);
+      padding: 12px 16px;
+      background: rgba(184,255,0,.04);
+      border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+    }
+    .heritage-branch-head {
+      display: flex; align-items: center; gap: 10px;
+      margin-bottom: 8px; flex-wrap: wrap;
+    }
+    .heritage-branch-icon { font-size: 22px; }
+    .heritage-branch-head h3 {
+      font-size: 16px; font-weight: 600; color: var(--primary);
+      letter-spacing: 0.3px; flex: 1; min-width: 0;
+    }
+    .heritage-branch-tag {
+      font-size: 10px; font-weight: 600;
+      padding: 2px 8px; border-radius: 10px;
+      background: var(--primary); color: var(--header-bg);
+    }
+    .heritage-era {
+      margin: 8px 0; padding: 10px 12px;
+      background: rgba(0,0,0,.3); border-radius: var(--radius-sm);
+    }
+    .heritage-era summary {
+      font-size: 13px; font-weight: 500; color: var(--primary);
+      list-style: none; cursor: pointer;
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 12px;
+    }
+    .heritage-era summary::-webkit-details-marker { display: none; }
+    .heritage-era summary::after {
+      content: '+'; font-size: 16px; opacity: .6;
+    }
+    .heritage-era[open] summary::after { content: '−'; }
+    .heritage-era p {
+      font-size: 13px; line-height: 1.6; color: rgba(184,255,0,.85);
+      margin-top: 8px; padding-top: 8px;
+      border-top: 1px dashed rgba(184,255,0,.2);
+    }
+    .heritage-sources {
+      margin-top: 12px; padding-top: 10px;
+      border-top: 1px dashed rgba(184,255,0,.2);
+      display: flex; flex-wrap: wrap; gap: 8px;
+    }
+    .heritage-sources a {
+      font-size: 11px; color: var(--primary); text-decoration: none;
+      padding: 4px 10px; border: 1px solid rgba(184,255,0,.3);
+      border-radius: 12px; transition: all .2s;
+    }
+    .heritage-sources a:hover {
+      background: var(--primary); color: var(--header-bg);
+    }
+    .heritage-marker {
+      width: 44px; height: 44px; border-radius: 50%;
+      background: var(--header-bg);
+      border: 3px solid var(--primary);
+      box-shadow: 0 0 0 6px rgba(184,255,0,.2), 0 0 20px rgba(184,255,0,.4);
+      animation: heritage-pulse 2s ease-in-out infinite;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 22px; cursor: pointer;
+    }
+    @keyframes heritage-pulse {
+      0%, 100% { box-shadow: 0 0 0 6px rgba(184,255,0,.2), 0 0 20px rgba(184,255,0,.4); }
+      50% { box-shadow: 0 0 0 12px rgba(184,255,0,.05), 0 0 30px rgba(184,255,0,.6); }
+    }
+
     /* ── Responsive ─────────────────────────────────────────────────── */
     @media (max-width: 600px) {
       header { padding: calc(12px + env(safe-area-inset-top, 0px)) 16px 12px; }
@@ -353,6 +444,9 @@
       .fab-icon { font-size: 18px; }
       .form-card { padding: 20px; width: 95%; max-width: 100%; }
       .about-card { padding: 24px; width: 95%; max-width: 100%; }
+      .heritage-card { padding: 20px 16px; }
+      .heritage-title { font-size: 18px; }
+      .heritage-branch { padding: 10px 12px; }
     }
   </style>
 </head>
@@ -444,6 +538,16 @@
     <p>Saigon Sound Map is a collaborative project initiated by <a href="https://officinegap.com" target="_blank">Officine GAP</a>, an interdisciplinary creative studio based in Ho Chi Minh City.</p>
     <p>The project invites the community to record, upload, and share the everyday sounds of Ho Chi Minh City and South Vietnam — from street vendors and motorbike traffic to temple bells, market chatter, and monsoon rains.</p>
     <p>Our aim is to build a living sound ecology repository — a sonic archive that preserves the rich acoustic identity of this vibrant region for researchers, artists, and anyone curious about the soundscape of everyday life in Saigon.</p>
+  </div>
+</div>
+
+<!-- Heritage / Sound Atlas modal -->
+<div class="overlay heritage-overlay" id="heritage-overlay">
+  <div class="heritage-card">
+    <button class="heritage-close" id="heritage-close">&times;</button>
+    <h2 class="heritage-title">Sound Heritage of Southern Vietnam</h2>
+    <p class="heritage-subtitle">A living archive of sounds shaped by place, history, and migration</p>
+    <div class="heritage-tree" id="heritage-tree"></div>
   </div>
 </div>
 
@@ -600,6 +704,7 @@
     map.on('load', () => {
       loadRecordings();
       setInterval(loadRecordings, REFRESH);
+      addHeritageMarker();
     });
 
     map.on('click', e => {
@@ -678,10 +783,148 @@
     map.once('styledata', () => renderMarkers());
   };
 
+  // ── Sound Heritage (interactive doc, Ishkur-style) ──────────────
+  const HERITAGE = {
+    position: { lng: 106.7042, lat: 10.7556 }, // District 4, HCMC
+    branches: [
+      {
+        title: 'Rao Hàng — Street Vendor Calls',
+        icon: '🛒',
+        tag: '19th c. — present',
+        eras: [
+          {
+            period: 'Saigon\'s acoustic mosaic',
+            description: 'Saigon developed the richest variety of street vendor calls in Vietnam, drawn from waves of migrants. Mekong Delta vendors brought soft southern accents; Central Vietnamese (Quảng) vendors were known for sharp, shrill tones; Northern accents arrived later. Each vendor type developed signature melodic patterns — dried beef sellers tapped rhythmic accompaniments, fruit vendors extended single syllables into melodies, knife sharpeners rang bells.'
+          },
+          {
+            period: 'Decline & recorded replacement (post-2000)',
+            description: 'Live calls have largely been replaced by pre-recorded loudspeaker announcements on motorbikes — the iconic "BÁNH MÌ NÓNG GIÒN ĐÂY!" loop is now the soundscape of HCMC streets. Critics see this as the loss of an irreplaceable acoustic ecology; the calls are still studied as endangered intangible heritage.'
+          }
+        ],
+        sources: [
+          { title: 'Sài Gòn Thập Cẩm: Tiếng rao hàng', url: 'https://saigonthapcam.wordpress.com/2022/05/07/tieng-rao-hang/' },
+          { title: 'Hanoi\'s Roving Street Vendors (PDF)', url: 'https://www.diva-portal.org/smash/get/diva2:1798736/FULLTEXT02.pdf' }
+        ]
+      },
+      {
+        title: 'Loa Phường — Ward Loudspeakers',
+        icon: '📢',
+        tag: '1960s — present',
+        eras: [
+          {
+            period: 'Wartime origin (1960s–1970s)',
+            description: 'Wire-based megaphones mounted on poles, deployed across North Vietnam during the war. The fastest medium for delivering frontline news and warning citizens of US bombing raids. Critical infrastructure for civil defense and morale.'
+          },
+          {
+            period: 'Subsidy period (1976–1986)',
+            description: 'After reunification, loudspeakers expanded as the "extended arm" of the state, present in nearly every commune. They broadcast agricultural campaigns, public health reminders, vaccination drives, and political directives — a daily rhythm of state communication.'
+          },
+          {
+            period: 'Modern revival & backlash',
+            description: 'Hanoi reintroduced the loudspeakers in 2022 to mixed reception — nostalgic in rural areas, hated in dense urban zones for noise pollution. "Loa phường" is now slang for someone who talks too much. They were also reactivated for COVID-19 public health messaging.'
+          }
+        ],
+        sources: [
+          { title: 'NPR: Hanoi brings back neighborhood loudspeakers', url: 'https://www.npr.org/2022/08/31/1120224897/hanoi-brings-back-neighborhood-loudspeakers' },
+          { title: 'RFA: Play it loud', url: 'https://www.rfa.org/english/commentaries/vietnam-loudspeakers-commentary-08062022105857.html' },
+          { title: 'PMC: Wartime loudspeakers to digital networks', url: 'https://pmc.ncbi.nlm.nih.gov/articles/PMC8263371/' }
+        ]
+      },
+      {
+        title: 'Đờn Ca Tài Tử — Southern Chamber Music',
+        icon: '🪕',
+        tag: 'Late 19th c. — UNESCO 2013',
+        eras: [
+          {
+            period: 'Origins in the Mekong Delta',
+            description: 'Born among rural communities of southern Vietnam in the late 19th century, Đờn ca tài tử reflects life on the rivers and rice fields of the Delta. Both scholarly and folk in roots — descended from Hue court music but informalized for everyday performance. Played anywhere — homes, gardens, river boats — never on formal stages.'
+          },
+          {
+            period: 'Instruments & form',
+            description: 'Performed on moon-shaped lute (đàn nguyệt), two-stringed fiddle (đàn cò), 16-string zither (đàn tranh), pear-shaped lute (đàn tỳ bà), monochord (đàn bầu), and bamboo flute (sáo). The art emphasizes improvisation around "skeletal melodies" — performers ornament and vary fixed rhythmic patterns.'
+          },
+          {
+            period: 'UNESCO Intangible Heritage (2013)',
+            description: 'Inscribed on UNESCO\'s Representative List of the Intangible Cultural Heritage of Humanity in 2013. Performed at festivals, death anniversaries, and community celebrations — intimately tied to the everyday cultural fabric of southern Vietnam.'
+          }
+        ],
+        sources: [
+          { title: 'UNESCO: Art of Đờn ca tài tử', url: 'https://ich.unesco.org/en/RL/art-of-n-ca-tai-t-music-and-song-in-southern-viet-nam-00733' },
+          { title: 'UNESCO Silk Roads Programme', url: 'https://en.unesco.org/silkroad/silk-road-themes/intangible-cultural-heritage/art-don-ca-tai-tu-music-and-song-southern-viet-nam' }
+        ]
+      },
+      {
+        title: 'Cải Lương — Reformed Opera',
+        icon: '🎭',
+        tag: '1918 — present',
+        eras: [
+          {
+            period: 'Birth in colonial Saigon (1918)',
+            description: 'Premiered November 16, 1918 with "Gia Long Tau Quoc" at the Eden Theater in Saigon. Born from Đờn ca tài tử + classical Vietnamese theatre (hát tuồng) + European drama influence under French colonial rule. Theater of the rising urban middle class — modern, hybrid, experimental.'
+          },
+          {
+            period: 'Golden age (1930s–1980s)',
+            description: 'Two main forms: ancient Cải Lương (legend and historical drama, kings and warriors) and modern Cải Lương (contemporary romance, family, social conflict). Combined spoken drama, folk songs, chamber music, and classical opera. Continued mass popularity through the 1970s–80s when other folk forms were already declining.'
+          },
+          {
+            period: 'Decline & preservation',
+            description: 'Now in decline; preserved as a national theatrical form. Younger generations less engaged. Active preservation efforts in Mekong Delta provinces. Increasingly hybridized with TV, film, and contemporary themes to stay relevant.'
+          }
+        ],
+        sources: [
+          { title: 'Wikipedia: Cải lương', url: 'https://en.wikipedia.org/wiki/C%E1%BA%A3i_l%C6%B0%C6%A1ng' },
+          { title: 'Britannica: Cai luong', url: 'https://www.britannica.com/art/cai-luong' },
+          { title: 'Vietnam News: Cải lương preservation', url: 'https://vietnamnews.vn/life-style/1688376/cai-luong-show-on-southern-history-culture-released.html' }
+        ]
+      }
+    ]
+  };
+
+  function renderHeritage() {
+    const tree = $('heritage-tree');
+    tree.innerHTML = HERITAGE.branches.map(b => `
+      <div class="heritage-branch">
+        <div class="heritage-branch-head">
+          <span class="heritage-branch-icon">${b.icon}</span>
+          <h3>${esc(b.title)}</h3>
+          <span class="heritage-branch-tag">${esc(b.tag)}</span>
+        </div>
+        ${b.eras.map(e => `
+          <details class="heritage-era">
+            <summary>${esc(e.period)}</summary>
+            <p>${esc(e.description)}</p>
+          </details>
+        `).join('')}
+        ${b.sources && b.sources.length ? `
+          <div class="heritage-sources">
+            ${b.sources.map(s => `<a href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.title)}</a>`).join('')}
+          </div>
+        ` : ''}
+      </div>
+    `).join('');
+  }
+
+  function addHeritageMarker() {
+    const el = document.createElement('div');
+    el.className = 'heritage-marker';
+    el.innerHTML = '📻';
+    el.title = 'Sound Heritage of Southern Vietnam — click to explore';
+    el.onclick = (e) => {
+      e.stopPropagation();
+      renderHeritage();
+      $('heritage-overlay').classList.add('open');
+    };
+    new mapboxgl.Marker(el).setLngLat([HERITAGE.position.lng, HERITAGE.position.lat]).addTo(map);
+  }
+
   // ── About modal ─────────────────────────────────────────────────
   $('about-btn').onclick = () => { $('about-overlay').classList.add('open'); };
   $('about-close').onclick = () => { $('about-overlay').classList.remove('open'); };
   $('about-overlay').onclick = e => { if (e.target === $('about-overlay')) $('about-overlay').classList.remove('open'); };
+
+  // ── Heritage modal ──────────────────────────────────────────────
+  $('heritage-close').onclick = () => $('heritage-overlay').classList.remove('open');
+  $('heritage-overlay').onclick = e => { if (e.target === $('heritage-overlay')) $('heritage-overlay').classList.remove('open'); };
 
   // ── Upload form ─────────────────────────────────────────────────
   function openForm()  { $('form-overlay').classList.add('open'); }
