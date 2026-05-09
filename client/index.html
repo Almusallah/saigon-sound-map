@@ -585,7 +585,10 @@
 
   // ── Config ──────────────────────────────────────────────────────
   const API = 'https://saigon-soundscape.onrender.com/api';
-  const MAPBOX_TOKEN = 'pk.eyJ1Ijoic2lkZXdhbGtjaXR5IiwiYSI6ImNtN2c3Z28zZzBiZmsya3M3eXU2emEzOXQifQ.hLfguhn2EXIhg3XZL1_Dcw';
+  // Restricted production token — only valid on saigon-soundscape.onrender.com.
+  // If site moves to a custom domain, add it to the token's URL allowlist
+  // in the Mapbox console (account/access-tokens) BEFORE deploying.
+  const MAPBOX_TOKEN = 'pk.eyJ1Ijoic2lkZXdhbGtjaXR5IiwiYSI6ImNtb3kyZjBlbjA4Y3cydHNqdmp2djNqamwifQ.1FjkXIrL_BEWjzcY542lIw';
   const SAIGON = [106.6953, 10.7765];
   const REFRESH = 120_000;
 
