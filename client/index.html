@@ -9,15 +9,15 @@
   <style>
     /* ── Variables ──────────────────────────────────────────────────── */
     :root {
-      --primary: #B14632;
-      --primary-dark: #8B3424;
-      --accent: #E17314;
-      --accent-light: #B27951;
-      --bg: #FFE7E7;
+      --primary: #B8FF00;
+      --primary-dark: #9DD600;
+      --accent: #1A1A1A;
+      --accent-light: #333333;
+      --bg: #F5F0E8;
       --card: #FFFFFF;
-      --text: #2C1810;
-      --text-light: #8B6B5B;
-      --header-bg: #B14632;
+      --text: #000000;
+      --text-light: #555555;
+      --header-bg: #000000;
       --shadow: 0 2px 12px rgba(0,0,0,.08);
       --shadow-lg: 0 8px 24px rgba(0,0,0,.12);
       --radius: 12px;
@@ -45,7 +45,7 @@
       display: flex; align-items: center; gap: 12px;
     }
     header h1 {
-      font-size: 18px; font-weight: 600; color: #fff;
+      font-size: 18px; font-weight: 600; color: var(--primary);
       letter-spacing: 0.5px;
     }
     .header-actions { display: flex; gap: 12px; align-items: center; }
@@ -117,7 +117,7 @@
       position: absolute; bottom: calc(28px + env(safe-area-inset-bottom, 0px)); left: 50%; transform: translateX(-50%);
       z-index: 10; height: 56px; border-radius: 28px;
       background: var(--accent);
-      color: #fff; border: none; font-size: 15px; font-weight: 600;
+      color: var(--primary); border: none; font-size: 15px; font-weight: 600;
       font-family: inherit; cursor: pointer;
       box-shadow: 0 4px 16px rgba(196,149,106,.35);
       display: flex; align-items: center; gap: 8px; padding: 0 24px;
@@ -142,7 +142,7 @@
       color: var(--text); cursor: pointer; transition: all .2s;
     }
     .filter-chip:hover { background: rgba(91,117,83,.15); }
-    .filter-chip.active { background: var(--primary); color: #fff; }
+    .filter-chip.active { background: var(--primary); color: var(--text); }
 
     /* ── Modal / Overlay ────────────────────────────────────────────── */
     .overlay {
