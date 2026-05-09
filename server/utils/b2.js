@@ -105,7 +105,7 @@ async function syncB2ToMongo() {
         id: meta.id,
         title: `Recording ${meta.id.substring(0, 8)}`,
         description: 'Auto-discovered recording',
-        category: 'Others',
+        category: 'Background',
         audioUrl: url,
         latitude: meta.latitude,
         longitude: meta.longitude,
@@ -143,7 +143,7 @@ async function uploadRecording(fileBuffer, mimeType, { title, description, categ
 
   const doc = new Recording({
     id, title: title || 'New Recording', description: description || '',
-    category: category || 'Others', audioUrl: keyToUrl(key),
+    category: category || 'Background', audioUrl: keyToUrl(key),
     latitude: parseFloat(latitude), longitude: parseFloat(longitude),
     source: 'upload', fileSize: fileBuffer.length,
   });

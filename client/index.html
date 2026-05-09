@@ -509,15 +509,9 @@
       </div>
       <div class="fg">
         <label>Category *</label>
+        <!-- options populated from CATS at runtime via buildCategoryDropdowns() -->
         <select id="f-category" required>
           <option value="">Select a category...</option>
-          <option>Eateries</option><option>Sidewalks</option><option>Street Vendors</option>
-          <option>Music</option><option>Home</option><option>Eating</option>
-          <option>Work</option><option>Repairing</option><option>Water</option>
-          <option>Animals</option><option>Conversations</option><option>Vehicles</option>
-          <option>Sports</option><option>Places of worship</option><option>Markets</option>
-          <option>Shops</option><option>Construction Sites</option><option>Playing</option>
-          <option>Rain</option><option>Boat</option><option>Others</option>
         </select>
       </div>
       <input type="hidden" id="f-lat">
@@ -561,15 +555,9 @@
     <input type="text" id="archive-search-input" placeholder="Search recordings...">
   </div>
   <div class="archive-filter">
+    <!-- options populated from CATS at runtime via buildCategoryDropdowns() -->
     <select id="cat-filter">
       <option value="">All categories</option>
-      <option>Eateries</option><option>Sidewalks</option><option>Street Vendors</option>
-      <option>Music</option><option>Home</option><option>Eating</option>
-      <option>Work</option><option>Repairing</option><option>Water</option>
-      <option>Animals</option><option>Conversations</option><option>Vehicles</option>
-      <option>Sports</option><option>Places of worship</option><option>Markets</option>
-      <option>Shops</option><option>Construction Sites</option><option>Playing</option>
-      <option>Rain</option><option>Boat</option><option>Others</option>
     </select>
   </div>
   <div class="rec-count" id="rec-count">0 recordings</div>
@@ -673,6 +661,18 @@
         renderMarkers();
       };
     });
+  }
+
+  // Populate the upload form's category <select> AND the archive filter
+  // <select> from the canonical CATS map. Keeps form options in lockstep
+  // with CATS / CAT_ALIASES so adding a category in one place updates UI
+  // automatically — no more drift between form and filter chips.
+  function buildCategoryDropdowns() {
+    const opts = Object.keys(CATS).map(c => `<option>${esc(c)}</option>`).join('');
+    const upload = $('f-category');
+    if (upload) upload.innerHTML = '<option value="">Select a category...</option>' + opts;
+    const filter = $('cat-filter');
+    if (filter) filter.innerHTML = '<option value="">All categories</option>' + opts;
   }
 
   // ── Map ─────────────────────────────────────────────────────────
@@ -1156,6 +1156,7 @@
   // ── Init ────────────────────────────────────────────────────────
   document.addEventListener('DOMContentLoaded', () => {
     console.log('Saigon Sound Map v2.0');
+    buildCategoryDropdowns();
     buildFilterChips();
     initMap();
   });
