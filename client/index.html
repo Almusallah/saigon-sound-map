@@ -50,15 +50,15 @@
     }
     .header-actions { display: flex; gap: 12px; align-items: center; }
     .header-btn {
-      background: rgba(255,255,255,.15); border: none; border-radius: var(--radius-sm);
-      padding: 8px 14px; color: #fff; font-size: 13px; font-weight: 500;
+      background: transparent; border: 1px solid var(--primary); border-radius: var(--radius-sm);
+      padding: 8px 14px; color: var(--primary); font-size: 13px; font-weight: 500;
       font-family: inherit; cursor: pointer; transition: all .2s;
       backdrop-filter: blur(4px);
     }
-    .header-btn:hover { background: rgba(255,255,255,.25); }
-    .header-btn.active { background: var(--accent); color: var(--header-bg); }
+    .header-btn:hover { background: rgba(184,255,0,.15); }
+    .header-btn.active { background: var(--primary); color: var(--header-bg); border-color: var(--primary); }
     .badge {
-      background: var(--accent); color: var(--header-bg); font-size: 11px; font-weight: 600;
+      background: var(--header-bg); color: var(--primary); border: 1px solid var(--primary); font-size: 11px; font-weight: 600;
       padding: 2px 8px; border-radius: 12px; margin-left: 6px; display: inline-block;
     }
 
