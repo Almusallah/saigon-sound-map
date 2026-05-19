@@ -905,7 +905,23 @@
     audio.onplaying = () => { wrap.classList.remove('loading'); wrap.classList.add('playing'); };
     audio.onpause   = () => { wrap.classList.remove('playing'); wrap.classList.remove('loading'); };
     audio.onended   = () => { wrap.classList.remove('playing'); fill.style.width = '0%'; now.textContent = '0:00'; };
-    audio.onloadedmetadata = () => { total.textContent = fmtTime(audio.duration); };
+    // Duration updater. The popup case has a race: metadata can finish
+    // loading BEFORE attachAudioPlayer runs (since the popup attaches
+    // lazily on open), so a one-shot onloadedmetadata listener would
+    // miss the event. We register the listener AND immediately check if
+    // duration is already available, and we also listen to ondurationchange
+    // for codecs whose duration isn't known until partial decode.
+    const updateDuration = () => {
+      if (isFinite(audio.duration) && audio.duration > 0) {
+        total.textContent = fmtTime(audio.duration);
+      }
+    };
+    audio.onloadedmetadata = updateDuration;
+    audio.ondurationchange = updateDuration;
+    updateDuration();  // catch the already-loaded case
+    // Edge case: if metadata isn't auto-loading (network slow / preload
+    // ignored by some mobile browsers), nudge it.
+    if (audio.readyState === 0) { try { audio.load(); } catch {} }
     audio.ontimeupdate = () => {
       now.textContent = fmtTime(audio.currentTime);
       if (isFinite(audio.duration) && audio.duration > 0) {
