@@ -8,7 +8,7 @@ const mongoose  = require('mongoose');
 const rateLimit = require('express-rate-limit');
 
 const Recording = require('./models/Recording');
-const { syncB2ToMongo, uploadRecording, cleanupOrphans, deleteB2Object, streamB2ObjectAsAttachment } = require('./utils/b2');
+const { syncB2ToMongo, uploadRecording, cleanupOrphans, deleteB2Object, streamB2ObjectAsMp3 } = require('./utils/b2');
 
 // ── App setup ────────────────────────────────────────────────────────────
 const app  = express();
@@ -136,9 +136,12 @@ app.get('/api/recordings/near', readLimiter, async (req, res) => {
 
 // Download proxy. The `<a download>` attribute is ignored when the file
 // lives on a different domain (Backblaze) from the page (Render). This
-// endpoint fetches from B2 server-side and re-streams with a
-// Content-Disposition: attachment header so the browser actually saves it
-// with a friendly filename derived from the recording's title.
+// endpoint fetches the audio from B2 server-side, transcodes anything
+// that isn't already MP3 (webm, m4a, mp4, etc.) to MP3 via ffmpeg, and
+// streams the result back with Content-Disposition: attachment so the
+// browser actually saves it under a friendly filename built from the
+// recording's title. Downloaded files are always .mp3 — universally
+// playable on iOS, Android, Windows, macOS, VLC, etc.
 app.get('/api/download/:idPrefix', readLimiter, async (req, res) => {
   try {
     const prefix = req.params.idPrefix;
@@ -147,14 +150,15 @@ app.get('/api/download/:idPrefix', readLimiter, async (req, res) => {
     }
     const r = await Recording.findOne({ id: { $regex: '^' + prefix } });
     if (!r) return res.status(404).json({ error: 'Recording not found' });
-    const ext = (r.audioUrl.split('.').pop() || 'audio').split('?')[0];
+    // Keep Vietnamese diacritics so saved filenames like "Bánh Bao Đây.mp3"
+    // round-trip cleanly through RFC 5987 encoding.
     const safe = (r.title || 'recording')
       .replace(/[^\w\s\-À-ɏḀ-ỿ]/g, '')
       .replace(/\s+/g, '_')
       .slice(0, 60)
       .replace(/_+$/, '');
-    const filename = `${safe || 'recording'}.${ext}`;
-    await streamB2ObjectAsAttachment(r.audioUrl, filename, res);
+    const filename = `${safe || 'recording'}.mp3`;
+    await streamB2ObjectAsMp3(r.audioUrl, filename, res);
   } catch (err) {
     console.error('[GET /download]', err.message);
     if (!res.headersSent) res.status(500).json({ error: 'Download failed' });

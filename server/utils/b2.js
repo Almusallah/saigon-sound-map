@@ -191,25 +191,62 @@ async function deleteB2Object(audioUrl) {
   return { key };
 }
 
-// Fetch a B2 object and stream its bytes through `res`, setting
-// Content-Disposition: attachment so the browser saves it rather than
-// previewing inline. Used by /api/download/:idPrefix.
-async function streamB2ObjectAsAttachment(audioUrl, filename, res) {
+// Fetch a B2 object and stream its bytes through `res` as an MP3
+// attachment. If the source is already MP3, the bytes are piped straight
+// through. Otherwise (webm/opus, m4a, mp4, ogg, etc.) the bytes go
+// through ffmpeg, which re-encodes to MP3 at 128 kbps so downloads are
+// always universally playable. Used by /api/download/:idPrefix.
+async function streamB2ObjectAsMp3(audioUrl, filename, res) {
   const { GetObjectCommand } = require('@aws-sdk/client-s3');
+  const { spawn } = require('child_process');
   const prefix = `https://${process.env.B2_ENDPOINT}/${getBucket()}/`;
   if (!audioUrl.startsWith(prefix)) {
     throw new Error(`audioUrl doesn't match expected prefix: ${audioUrl}`);
   }
   const key = audioUrl.slice(prefix.length);
+  const isMp3 = /\.mp3$/i.test(key);
+
   const obj = await getS3().send(new GetObjectCommand({ Bucket: getBucket(), Key: key }));
-  res.set('Content-Type',         obj.ContentType   || 'application/octet-stream');
-  res.set('Content-Length',       obj.ContentLength || '');
-  res.set('Content-Disposition',  `attachment; filename="${filename.replace(/[^\w.\-]/g, '_')}"; filename*=UTF-8''${encodeURIComponent(filename)}`);
+
+  // ASCII-safe filename fallback for old browsers + RFC 5987 form for new ones
+  const asciiName = filename.replace(/[^\w.\-]/g, '_');
+  res.set('Content-Type',         'audio/mpeg');
+  res.set('Content-Disposition',
+    `attachment; filename="${asciiName}"; filename*=UTF-8''${encodeURIComponent(filename)}`);
   res.set('Cache-Control',        'public, max-age=3600');
-  obj.Body.pipe(res);
+
+  if (isMp3) {
+    // Pass-through: no transcode needed. Send Content-Length so the
+    // browser shows accurate progress.
+    if (obj.ContentLength) res.set('Content-Length', obj.ContentLength);
+    obj.Body.pipe(res);
+    return;
+  }
+
+  // Transcode via ffmpeg. We can't predict the output length, so no
+  // Content-Length header — browser shows indeterminate progress.
+  const ff = spawn('ffmpeg', [
+    '-hide_banner', '-loglevel', 'error',
+    '-i', 'pipe:0',
+    '-vn',                       // strip video tracks (mp4/m4a often have one)
+    '-acodec', 'libmp3lame',
+    '-b:a', '128k',
+    '-ar', '44100',
+    '-f', 'mp3',
+    'pipe:1',
+  ]);
+  obj.Body.pipe(ff.stdin);
+  ff.stdout.pipe(res);
+  ff.stderr.on('data', d => console.log('[ffmpeg]', d.toString().trim().slice(0, 200)));
+  ff.on('error', err => {
+    console.error('[ffmpeg spawn]', err.message);
+    if (!res.headersSent) res.status(500).end();
+  });
+  // Clean up ffmpeg if the client disconnects mid-download
+  res.on('close', () => { try { ff.kill('SIGKILL'); } catch {} });
 }
 
 module.exports = {
   syncB2ToMongo, uploadRecording, cleanupOrphans,
-  deleteB2Object, streamB2ObjectAsAttachment,
+  deleteB2Object, streamB2ObjectAsMp3,
 };

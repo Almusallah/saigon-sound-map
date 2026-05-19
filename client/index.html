@@ -113,17 +113,27 @@
     }
 
     /* ── FAB (record) ──────────────────────────────────────────────── */
+    /* New Recording FAB: solid red (#FF4848) so it reads instantly as a
+       "record" affordance, but with the same pill geometry and font as
+       the rest of the dark UI so it sits cleanly with the lime/black theme. */
     .fab {
-      position: absolute; bottom: calc(28px + env(safe-area-inset-bottom, 0px)); left: 50%; transform: translateX(-50%);
+      position: absolute; bottom: calc(28px + env(safe-area-inset-bottom, 0px));
+      left: 50%; transform: translateX(-50%);
       z-index: 10; height: 56px; border-radius: 28px;
-      background: var(--accent);
-      color: var(--primary); border: none; font-size: 15px; font-weight: 600;
+      background: #FF4848;
+      color: #FFFFFF; border: none;
+      font-size: 15px; font-weight: 600;
       font-family: inherit; cursor: pointer;
-      box-shadow: 0 4px 16px rgba(196,149,106,.35);
+      letter-spacing: 0.3px;
+      box-shadow: 0 4px 16px rgba(255,72,72,.45);
       display: flex; align-items: center; gap: 8px; padding: 0 24px;
       transition: all .2s;
     }
-    .fab:hover { transform: translateX(-50%) translateY(-2px); box-shadow: 0 6px 24px rgba(196,149,106,.45); }
+    .fab:hover {
+      background: #FF2C2C;
+      transform: translateX(-50%) translateY(-2px);
+      box-shadow: 0 6px 24px rgba(255,72,72,.55);
+    }
     .fab-icon { font-size: 20px; }
 
     /* ── Filter bar ────────────────────────────────────────────────── */
@@ -403,6 +413,32 @@
       letter-spacing: 0.3px;
     }
 
+    /* ── Initial loading splash ─────────────────────────────────────── */
+    /* Full-screen overlay shown on first paint; fades out once initMap()
+       completes. Same lime/black palette as the rest of the dark UI. */
+    #initial-loading {
+      position: fixed; inset: 0; z-index: 99999;
+      background: var(--header-bg);
+      color: var(--primary);
+      display: flex; align-items: center; justify-content: center;
+      padding: 24px;
+      font-family: inherit;
+      transition: opacity .5s ease-out;
+    }
+    #initial-loading.gone { opacity: 0; pointer-events: none; }
+    #initial-loading p {
+      font-size: 16px;
+      font-weight: 600;
+      line-height: 1.5;
+      letter-spacing: 0.4px;
+      text-align: center;
+      animation: il-pulse 1.6s ease-in-out infinite;
+    }
+    @keyframes il-pulse { 50% { opacity: 0.55; } }
+    @media (max-width: 600px) {
+      #initial-loading p { font-size: 14px; }
+    }
+
     /* ── Loading ────────────────────────────────────────────────────── */
     .loading {
       display: none; position: fixed; inset: 0;
@@ -551,6 +587,12 @@
   </style>
 </head>
 <body>
+
+<!-- Initial loading splash. Visible on first paint; fades out once the map
+     fires its 'load' event (handled in initMap). -->
+<div id="initial-loading">
+  <p>Loading the Saigon_Miền&nbsp;Tây Sound Map,<br>please wait&hellip;</p>
+</div>
 
 <header>
   <div class="logo">
@@ -705,7 +747,7 @@
           'Markets':                   { color: '#9BA878', icon: '🏪' },
           'Shops':                     { color: '#8B9E92', icon: '🏬' },
           'Play & Leisure':            { color: '#E8B547', icon: '🎈' },
-          'Ritual & Ceremony':         { color: '#8B3424', icon: '🥍' },
+          'Ritual & Ceremony':         { color: '#8B3424', icon: '📿' },
           'Announcements & Signals':   { color: '#E17314', icon: '📢' },
           'Infrastructure & Utilities':{ color: '#A87660', icon: '🔌' },
           'Nature':                    { color: '#7BA699', icon: '🌿' },
@@ -888,6 +930,15 @@
       setInterval(loadRecordings, REFRESH);
       // Heritage marker temporarily hidden — flip HERITAGE_ENABLED below to re-enable.
       if (HERITAGE_ENABLED) addHeritageMarker();
+      // Hide the initial loading splash (short delay so users see the map
+      // tiles + markers settle in rather than abruptly transitioning).
+      setTimeout(() => {
+        const il = $('initial-loading');
+        if (il) {
+          il.classList.add('gone');
+          setTimeout(() => il.remove(), 600);
+        }
+      }, 400);
     });
 
     // Toggle cluster-mode CSS class on the map container so DOM markers
