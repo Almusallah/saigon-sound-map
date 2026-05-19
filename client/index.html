@@ -381,6 +381,15 @@
       transition: width .08s linear;
     }
     .apc audio { display: none; }
+    .apc-dl {
+      flex: 0 0 22px; width: 22px; height: 22px;
+      display: flex; align-items: center; justify-content: center;
+      border-radius: 50%; text-decoration: none;
+      color: var(--primary); font-size: 13px;
+      border: 1px solid rgba(184,255,0,.35);
+      transition: all .15s; line-height: 1;
+    }
+    .apc-dl:hover { background: var(--primary); color: var(--header-bg); }
     .rec-item-tag {
       display: inline-block; padding: 2px 10px; border-radius: 12px;
       font-size: 10px; font-weight: 600; margin-top: 6px;
@@ -429,6 +438,10 @@
 
     /* ── Heritage / Sound Atlas (interactive doc) ───────────────────── */
     .heritage-overlay { z-index: 1500; }
+    /* Heritage feature is currently disabled — keep its overlay hidden even
+       if classList.add('open') is called from elsewhere. Re-enable by
+       setting HERITAGE_ENABLED = true in JS AND removing this rule. */
+    #heritage-overlay { display: none !important; }
     .heritage-card {
       background: var(--header-bg); color: var(--primary);
       width: 92%; max-width: 880px; max-height: 90vh; overflow-y: auto;
@@ -541,7 +554,8 @@
 
 <header>
   <div class="logo">
-    <h1>SAIGON_MIỀN TÂY SOUND MAP</h1>
+    <!-- Non-breaking space inside "MIỀN TÂY" so it never wraps to a new line on narrow mobile screens. -->
+    <h1>SAIGON_MIỀN&nbsp;TÂY SOUND MAP</h1>
   </div>
   <div class="header-actions">
     <button class="header-btn" id="about-btn">About</button>
@@ -672,6 +686,11 @@
   const SAIGON = [106.6953, 10.7765];
   const REFRESH = 120_000;
 
+  // Feature flag: when false, the District 4 heritage marker is not added
+  // to the map AND the heritage modal never opens (the HTML stays in the
+  // DOM but the user-facing surface is hidden). Flip to true to restore.
+  const HERITAGE_ENABLED = false;
+
   // Category config: color + icon (earth-tone palette)
     const CATS = {
           'Food & Drink':              { color: '#B14632', icon: '🍜' },
@@ -748,12 +767,25 @@
     return `${m}:${s.toString().padStart(2,'0')}`;
   }
 
-  function audioPlayerHTML(src, mime) {
+  function audioPlayerHTML(src, mime, title) {
+    // Sanitize the title for use as a filename, then append the original
+    // file extension. This is what gets saved when the user taps the
+    // download icon. Truncated to 60 chars to stay friendly on file systems.
+    const origExt = (src.split('.').pop() || 'mp3').split('?')[0].toLowerCase();
+    const safe = (title || 'recording')
+      .replace(/[^\w\s-]/g, '')   // drop punctuation/diacritics
+      .replace(/\s+/g, '_')
+      .slice(0, 60)
+      .replace(/_+$/, '');
+    const filename = `${safe || 'recording'}.${origExt}`;
     return `<div class="apc">
       <button class="apc-btn" type="button" aria-label="Play/Pause"></button>
       <span class="apc-time apc-now">0:00</span>
       <div class="apc-track"><div class="apc-fill"></div></div>
       <span class="apc-time apc-total">--:--</span>
+      <a class="apc-dl" href="${esc(src)}" download="${esc(filename)}"
+         target="_blank" rel="noopener" aria-label="Download recording"
+         title="Download as ${esc(filename)}">↓</a>
       <audio preload="metadata" src="${esc(src)}" type="${esc(mime)}"></audio>
     </div>`;
   }
@@ -859,7 +891,8 @@
       setupClusters();
       loadRecordings();
       setInterval(loadRecordings, REFRESH);
-      addHeritageMarker();
+      // Heritage marker temporarily hidden — flip HERITAGE_ENABLED below to re-enable.
+      if (HERITAGE_ENABLED) addHeritageMarker();
     });
 
     // Toggle cluster-mode CSS class on the map container so DOM markers
@@ -999,7 +1032,7 @@
             <h3>${esc(r.title || 'Untitled')}</h3>
             <p>${esc(r.description || 'No description')}</p>
             <span class="popup-tag" style="background:${color}">${icon} ${esc(cat)}</span>
-            ${audioPlayerHTML(r.audioUrl, audioType(r.audioUrl))}
+            ${audioPlayerHTML(r.audioUrl, audioType(r.audioUrl), r.title)}
           </div>
         `);
         // Attach the custom audio-player JS once the popup is in the DOM.
@@ -1383,7 +1416,7 @@
           <h3>${esc(r.title || 'Untitled')}</h3>
           <span class="rec-item-tag">${icon} ${esc(cat)}</span>
           <p>${esc(r.description || 'No description')}</p>
-          ${audioPlayerHTML(r.audioUrl, audioType(r.audioUrl))}
+          ${audioPlayerHTML(r.audioUrl, audioType(r.audioUrl), r.title)}
         </li>`;
     }).join('');
 
