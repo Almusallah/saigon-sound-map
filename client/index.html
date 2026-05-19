@@ -334,19 +334,53 @@
       font-size: 12px; line-height: 1.4;
       color: rgba(184,255,0,.7);
     }
-    /* Lock audio control to a consistent box. Native browser scrubber
-       renders differently across codecs (older b2-sync MP3s lack a
-       proper Xing/VBR header, so Chrome ends up streaming the whole
-       file to estimate duration — that produces a visually different
-       scrubber to clean WebM uploads). The fixed height + width: 100%
-       keeps the row layout uniform regardless.
-       Subtle filter to harmonize the native control with the dark theme. */
-    .rec-item audio {
-      width: 100%; height: 40px;
-      margin-top: 10px; border-radius: 6px;
-      display: block;
-      filter: invert(0.9) hue-rotate(70deg) saturate(0.8) brightness(1.1);
+    /* Custom audio player (.apc) — replaces native browser controls
+       across Archive cards AND map marker popups, so the visual is
+       uniform regardless of codec quirks. Audio element is hidden
+       behind display: none; all UI is hand-rolled in the wrapper. */
+    .apc {
+      display: flex; align-items: center; gap: 10px;
+      padding: 8px 12px; margin-top: 10px;
+      background: rgba(0,0,0,.4);
+      border: 1px solid rgba(184,255,0,.3);
+      border-radius: 22px;
     }
+    .apc-btn {
+      flex: 0 0 28px; width: 28px; height: 28px;
+      border: none; border-radius: 50%;
+      background: var(--primary); color: var(--header-bg);
+      cursor: pointer; padding: 0;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 11px; line-height: 1;
+      transition: transform .15s;
+    }
+    .apc-btn:hover { transform: scale(1.08); }
+    .apc-btn::before { content: '\25B6'; padding-left: 1px; } /* ▶ */
+    .apc.playing .apc-btn::before { content: '\23F8'; padding-left: 0; } /* ⏸ */
+    .apc.loading .apc-btn::before {
+      content: '\22EF'; padding-left: 0;  /* ⋯ */
+      animation: apc-blink 1s steps(2) infinite;
+    }
+    @keyframes apc-blink { 50% { opacity: .35; } }
+    .apc-time {
+      flex: 0 0 auto;
+      font-size: 10px;
+      font-family: 'SF Mono', Menlo, Consolas, monospace;
+      color: var(--primary);
+      letter-spacing: 0.5px; min-width: 30px;
+    }
+    .apc-track {
+      flex: 1 1 auto; height: 4px;
+      background: rgba(184,255,0,.18);
+      border-radius: 2px; cursor: pointer;
+      position: relative; overflow: hidden;
+    }
+    .apc-fill {
+      height: 100%; width: 0%;
+      background: var(--primary);
+      transition: width .08s linear;
+    }
+    .apc audio { display: none; }
     .rec-item-tag {
       display: inline-block; padding: 2px 10px; border-radius: 12px;
       font-size: 10px; font-weight: 600; margin-top: 6px;
@@ -702,6 +736,70 @@
     return { mp3:'audio/mpeg', webm:'audio/webm', ogg:'audio/ogg', wav:'audio/wav', m4a:'audio/mp4', mp4:'audio/mp4', aac:'audio/mp4' }[ext] || 'audio/mpeg';
   }
 
+  // ── Custom audio player ─────────────────────────────────────────
+  // Used in Archive cards AND map marker popups so the visual is
+  // identical regardless of codec quirks (older b2-sync MP3s lacking
+  // Xing headers vs newer WebM uploads). Native <audio controls> are
+  // hidden; everything (play button, scrubber, times) is rendered by us.
+  function fmtTime(t) {
+    if (!isFinite(t) || t < 0) return '0:00';
+    const m = Math.floor(t / 60);
+    const s = Math.floor(t % 60);
+    return `${m}:${s.toString().padStart(2,'0')}`;
+  }
+
+  function audioPlayerHTML(src, mime) {
+    return `<div class="apc">
+      <button class="apc-btn" type="button" aria-label="Play/Pause"></button>
+      <span class="apc-time apc-now">0:00</span>
+      <div class="apc-track"><div class="apc-fill"></div></div>
+      <span class="apc-time apc-total">--:--</span>
+      <audio preload="none" src="${esc(src)}" type="${esc(mime)}"></audio>
+    </div>`;
+  }
+
+  function attachAudioPlayer(wrap) {
+    if (wrap._attached) return;
+    wrap._attached = true;
+    const audio = wrap.querySelector('audio');
+    const btn   = wrap.querySelector('.apc-btn');
+    const now   = wrap.querySelector('.apc-now');
+    const total = wrap.querySelector('.apc-total');
+    const track = wrap.querySelector('.apc-track');
+    const fill  = wrap.querySelector('.apc-fill');
+
+    btn.onclick = (e) => {
+      e.stopPropagation();
+      // Pause every other player first — only one plays at a time
+      document.querySelectorAll('.apc.playing').forEach(p => {
+        if (p !== wrap) { p.classList.remove('playing'); p.querySelector('audio').pause(); }
+      });
+      if (audio.paused) {
+        wrap.classList.add('loading');
+        audio.play().catch(err => { wrap.classList.remove('loading'); console.error('play:', err); });
+      } else {
+        audio.pause();
+      }
+    };
+    audio.onplaying = () => { wrap.classList.remove('loading'); wrap.classList.add('playing'); };
+    audio.onpause   = () => { wrap.classList.remove('playing'); wrap.classList.remove('loading'); };
+    audio.onended   = () => { wrap.classList.remove('playing'); fill.style.width = '0%'; now.textContent = '0:00'; };
+    audio.onloadedmetadata = () => { total.textContent = fmtTime(audio.duration); };
+    audio.ontimeupdate = () => {
+      now.textContent = fmtTime(audio.currentTime);
+      if (isFinite(audio.duration) && audio.duration > 0) {
+        fill.style.width = (audio.currentTime / audio.duration * 100) + '%';
+      }
+    };
+    track.onclick = (e) => {
+      e.stopPropagation();
+      if (!isFinite(audio.duration) || audio.duration <= 0) return;
+      const rect = track.getBoundingClientRect();
+      const pos  = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+      audio.currentTime = pos * audio.duration;
+    };
+  }
+
   // ── Build filter chips ──────────────────────────────────────────
   function buildFilterChips() {
     const bar = $('filter-bar');
@@ -901,11 +999,14 @@
             <h3>${esc(r.title || 'Untitled')}</h3>
             <p>${esc(r.description || 'No description')}</p>
             <span class="popup-tag" style="background:${color}">${icon} ${esc(cat)}</span>
-            <audio controls preload="none">
-              <source src="${esc(r.audioUrl)}" type="${audioType(r.audioUrl)}">
-            </audio>
+            ${audioPlayerHTML(r.audioUrl, audioType(r.audioUrl))}
           </div>
         `);
+        // Attach the custom audio-player JS once the popup is in the DOM.
+        popup.on('open', () => {
+          const el = popup.getElement();
+          if (el) el.querySelectorAll('.apc').forEach(attachAudioPlayer);
+        });
 
         const m = new mapboxgl.Marker({ element: el })
           .setLngLat([r.longitude, r.latitude])
@@ -1282,15 +1383,17 @@
           <h3>${esc(r.title || 'Untitled')}</h3>
           <span class="rec-item-tag">${icon} ${esc(cat)}</span>
           <p>${esc(r.description || 'No description')}</p>
-          <audio controls preload="none">
-            <source src="${esc(r.audioUrl)}" type="${audioType(r.audioUrl)}">
-          </audio>
+          ${audioPlayerHTML(r.audioUrl, audioType(r.audioUrl))}
         </li>`;
     }).join('');
 
+    // Hook every newly-rendered player
+    list.querySelectorAll('.apc').forEach(attachAudioPlayer);
+
     list.querySelectorAll('.rec-item').forEach(el => {
       el.onclick = e => {
-        if (e.target.closest('audio')) return;
+        // Don't fly-to-pin if the click was inside the audio player
+        if (e.target.closest('.apc')) return;
         map.flyTo({ center: [parseFloat(el.dataset.lng), parseFloat(el.dataset.lat)], zoom: 15 });
         $('archive-panel').classList.remove('open');
       };
