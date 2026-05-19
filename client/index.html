@@ -259,69 +259,105 @@
     @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: .3; } }
 
     /* ── Archive panel ─────────────────────────────────────────────── */
+    /* Matches the Sound Heritage modal palette: black surface, lime
+       accents, subtle lime-tinted cards. Functionally identical to the
+       previous panel — only the visual identity changed. */
     .archive {
-      position: fixed; top: 0; right: 0; width: 400px; height: 100%; transform: translateX(100%); will-change: transform;
-      background: var(--card); z-index: 999; transition: transform .35s cubic-bezier(.4,0,.2,1);
-      overflow-y: auto; box-shadow: -4px 0 16px rgba(0,0,0,.1);
+      position: fixed; top: 0; right: 0; width: 400px; height: 100%;
+      transform: translateX(100%); will-change: transform;
+      background: var(--header-bg); color: var(--primary);
+      border-left: 1px solid var(--primary);
+      z-index: 999; transition: transform .35s cubic-bezier(.4,0,.2,1);
+      overflow-y: auto; box-shadow: -4px 0 16px rgba(0,0,0,.4);
     }
     .archive.open { transform: translateX(0); }
     .archive-head {
-      position: sticky; top: 0; background: var(--card);
+      position: sticky; top: 0; background: var(--header-bg);
       padding: 18px 20px; display: flex; justify-content: space-between;
-      align-items: center; border-bottom: 1px solid #EEE9E0; z-index: 1;
+      align-items: center; border-bottom: 1px solid rgba(184,255,0,.25);
+      z-index: 1;
     }
-    .archive-head h2 { font-size: 18px; font-weight: 700; }
+    .archive-head h2 {
+      font-size: 18px; font-weight: 700; color: var(--primary);
+      letter-spacing: 0.3px;
+    }
     .archive-close {
-      background: var(--bg); border: none; width: 36px; height: 36px;
-      border-radius: 50%; font-size: 20px; cursor: pointer;
-      color: var(--text-light); display: flex; align-items: center;
-      justify-content: center; transition: all .2s;
+      background: transparent; border: 1px solid var(--primary);
+      width: 32px; height: 32px; border-radius: 50%;
+      font-size: 18px; cursor: pointer; color: var(--primary);
+      display: flex; align-items: center; justify-content: center;
+      transition: all .2s; line-height: 1;
     }
-    .archive-close:hover { background: rgba(196,149,106,.15); color: var(--accent); }
-    .archive-search {
-      padding: 12px 16px;
+    .archive-close:hover {
+      background: var(--primary); color: var(--header-bg);
     }
+    .archive-search { padding: 12px 16px; }
     .archive-search input {
       width: 100%; padding: 10px 12px 10px 36px;
-      border: 1px solid #DDD9D0; border-radius: 20px;
-      font-size: 14px; font-family: inherit; color: var(--text);
-      background: #fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='%236B7B6C' viewBox='0 0 16 16'%3E%3Cpath d='M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85zm-5.242.156a5 5 0 1 1 0-10 5 5 0 0 1 0 10z'/%3E%3C/svg%3E") no-repeat 12px center;
+      border: 1px solid rgba(184,255,0,.3); border-radius: 20px;
+      font-size: 14px; font-family: inherit; color: var(--primary);
+      background: rgba(0,0,0,.3) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='%23B8FF00' viewBox='0 0 16 16'%3E%3Cpath d='M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85zm-5.242.156a5 5 0 1 1 0-10 5 5 0 0 1 0 10z'/%3E%3C/svg%3E") no-repeat 12px center;
       transition: border-color .2s;
     }
-    .archive-search input:focus { outline: none; border-color: var(--accent); }
-    .archive-filter { padding: 12px 16px; }
-    .archive-filter select {
-      width: 100%; padding: 10px 12px; border: 1px solid #DDD9D0;
-      border-radius: var(--radius-sm); font-size: 13px; font-weight: 500;
-      font-family: inherit; color: var(--text); background: #fff;
+    .archive-search input::placeholder { color: rgba(184,255,0,.45); }
+    .archive-search input:focus {
+      outline: none; border-color: var(--primary);
+      background-color: rgba(0,0,0,.5);
     }
+    .archive-filter { padding: 6px 16px 12px; }
+    .archive-filter select {
+      width: 100%; padding: 10px 12px;
+      border: 1px solid rgba(184,255,0,.3);
+      border-radius: var(--radius-sm);
+      font-size: 13px; font-weight: 500; font-family: inherit;
+      color: var(--primary); background: rgba(0,0,0,.3);
+      cursor: pointer;
+    }
+    .archive-filter select:focus {
+      outline: none; border-color: var(--primary);
+    }
+    .archive-filter select option { background: var(--header-bg); color: var(--primary); }
     .rec-list { list-style: none; padding: 0 12px 80px; }
     .rec-item {
-      padding: 14px; margin: 8px 0; border-radius: var(--radius-sm);
-      background: var(--bg); cursor: pointer; transition: all .2s;
-      border: 1px solid transparent;
+      padding: 12px 14px; margin: 8px 0;
+      border-left: 3px solid var(--primary);
+      border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+      background: rgba(184,255,0,.04); cursor: pointer;
+      transition: background .2s;
     }
-    .rec-item:hover { transform: translateX(-2px); box-shadow: var(--shadow); border-color: #EEE9E0; }
-    .rec-item h3 { font-size: 14px; font-weight: 600; margin-bottom: 4px; }
-    .rec-item p { font-size: 12px; color: var(--text-light); line-height: 1.4; }
+    .rec-item:hover { background: rgba(184,255,0,.10); }
+    .rec-item h3 {
+      font-size: 14px; font-weight: 600; color: var(--primary);
+      margin-bottom: 4px; letter-spacing: 0.2px;
+    }
+    .rec-item p {
+      font-size: 12px; line-height: 1.4;
+      color: rgba(184,255,0,.7);
+    }
     /* Lock audio control to a consistent box. Native browser scrubber
        renders differently across codecs (older b2-sync MP3s lack a
        proper Xing/VBR header, so Chrome ends up streaming the whole
        file to estimate duration — that produces a visually different
        scrubber to clean WebM uploads). The fixed height + width: 100%
-       keeps the row layout uniform regardless. */
+       keeps the row layout uniform regardless.
+       Subtle filter to harmonize the native control with the dark theme. */
     .rec-item audio {
       width: 100%; height: 40px;
       margin-top: 10px; border-radius: 6px;
       display: block;
+      filter: invert(0.9) hue-rotate(70deg) saturate(0.8) brightness(1.1);
     }
     .rec-item-tag {
-      display: inline-block; padding: 2px 8px; border-radius: 12px;
-      font-size: 10px; font-weight: 600; color: #fff; margin-top: 6px;
+      display: inline-block; padding: 2px 10px; border-radius: 12px;
+      font-size: 10px; font-weight: 600; margin-top: 6px;
+      background: transparent; color: var(--primary);
+      border: 1px solid rgba(184,255,0,.4);
+      letter-spacing: 0.3px;
     }
     .rec-count {
-      font-size: 12px; color: var(--text-light); padding: 8px 20px;
-      font-weight: 500;
+      font-size: 11px; color: rgba(184,255,0,.6);
+      padding: 4px 20px 12px; font-weight: 500;
+      letter-spacing: 0.3px;
     }
 
     /* ── Loading ────────────────────────────────────────────────────── */
@@ -1244,7 +1280,7 @@
       return `
         <li class="rec-item" data-lat="${r.latitude}" data-lng="${r.longitude}">
           <h3>${esc(r.title || 'Untitled')}</h3>
-          <span class="rec-item-tag" style="background:${color}">${icon} ${esc(cat)}</span>
+          <span class="rec-item-tag">${icon} ${esc(cat)}</span>
           <p>${esc(r.description || 'No description')}</p>
           <audio controls preload="none">
             <source src="${esc(r.audioUrl)}" type="${audioType(r.audioUrl)}">
