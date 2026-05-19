@@ -113,26 +113,24 @@
     }
 
     /* ── FAB (record) ──────────────────────────────────────────────── */
-    /* New Recording FAB: solid red (#FF4848) so it reads instantly as a
-       "record" affordance, but with the same pill geometry and font as
-       the rest of the dark UI so it sits cleanly with the lime/black theme. */
+    /* New Recording FAB: black pill with lime green text, matches the
+       archive/heritage dark theme. */
     .fab {
       position: absolute; bottom: calc(28px + env(safe-area-inset-bottom, 0px));
       left: 50%; transform: translateX(-50%);
       z-index: 10; height: 56px; border-radius: 28px;
-      background: #FF4848;
-      color: #FFFFFF; border: none;
+      background: var(--header-bg);
+      color: var(--primary); border: none;
       font-size: 15px; font-weight: 600;
       font-family: inherit; cursor: pointer;
       letter-spacing: 0.3px;
-      box-shadow: 0 4px 16px rgba(255,72,72,.45);
+      box-shadow: 0 4px 16px rgba(0,0,0,.35);
       display: flex; align-items: center; gap: 8px; padding: 0 24px;
       transition: all .2s;
     }
     .fab:hover {
-      background: #FF2C2C;
       transform: translateX(-50%) translateY(-2px);
-      box-shadow: 0 6px 24px rgba(255,72,72,.55);
+      box-shadow: 0 6px 24px rgba(184,255,0,.25);
     }
     .fab-icon { font-size: 20px; }
 
@@ -163,23 +161,32 @@
     .overlay.open { display: flex; }
 
     /* ── Form Card ──────────────────────────────────────────────────── */
+    /* Matches the Archive panel's lime/black palette. */
     .form-card {
-      background: var(--card); border-radius: var(--radius);
+      background: var(--header-bg); color: var(--primary);
+      border: 1px solid var(--primary);
+      border-radius: var(--radius);
       padding: 28px; width: 92%; max-width: 500px; max-height: 88vh;
-      overflow-y: auto; position: relative; box-shadow: var(--shadow-lg);
+      overflow-y: auto; position: relative;
+      box-shadow: var(--shadow-lg);
     }
     .form-card h2 {
-      font-size: 24px; font-weight: 700; margin-bottom: 4px; color: var(--text);
+      font-size: 22px; font-weight: 700; margin-bottom: 4px;
+      color: var(--primary); letter-spacing: 0.3px;
     }
-    .form-subtitle { font-size: 13px; color: var(--text-light); margin-bottom: 22px; }
+    .form-subtitle {
+      font-size: 13px; color: rgba(184,255,0,.7);
+      margin-bottom: 22px;
+    }
     .form-close {
-      position: absolute; top: 16px; right: 16px; background: var(--bg);
-      border: none; width: 32px; height: 32px; border-radius: 50%;
-      font-size: 18px; cursor: pointer; color: var(--text-light);
+      position: absolute; top: 16px; right: 16px;
+      background: transparent; border: 1px solid var(--primary);
+      width: 32px; height: 32px; border-radius: 50%;
+      font-size: 18px; cursor: pointer; color: var(--primary);
       display: flex; align-items: center; justify-content: center;
-      transition: all .2s;
+      transition: all .2s; line-height: 1;
     }
-    .form-close:hover { background: rgba(196,149,106,.15); color: var(--accent); }
+    .form-close:hover { background: var(--primary); color: var(--header-bg); }
 
     /* ── About Modal ────────────────────────────────────────────────── */
     .about-card {
@@ -211,19 +218,35 @@
     /* ── Form Fields ────────────────────────────────────────────────── */
     .fg { margin-bottom: 16px; }
     .fg label {
-      display: block; font-size: 13px; font-weight: 600;
-      margin-bottom: 6px; color: var(--text);
+      display: block; font-size: 12px; font-weight: 600;
+      margin-bottom: 6px; color: var(--primary);
+      letter-spacing: 0.3px;
     }
     .fg input, .fg textarea, .fg select {
-      width: 100%; padding: 10px 12px; border: 1px solid #DDD9D0;
+      width: 100%; padding: 10px 12px;
+      border: 1px solid rgba(184,255,0,.3);
       border-radius: var(--radius-sm); font-size: 14px;
-      font-family: inherit; color: var(--text); background: #fff;
-      transition: border-color .2s, box-shadow .2s;
+      font-family: inherit; color: var(--primary);
+      background: rgba(0,0,0,.3);
+      transition: border-color .15s, background .15s;
     }
+    .fg input::placeholder, .fg textarea::placeholder { color: rgba(184,255,0,.4); }
     .fg input:focus, .fg textarea:focus, .fg select:focus {
-      outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(196,149,106,.1);
+      outline: none; border-color: var(--primary);
+      background: rgba(0,0,0,.5);
     }
     .fg textarea { resize: vertical; min-height: 70px; }
+    .fg select option { background: var(--header-bg); color: var(--primary); }
+    /* Native file input — partially restyled. Browser still draws the
+       button portion, but we can dress up the wrapper text color. */
+    .fg input[type="file"] { padding: 8px; cursor: pointer; }
+    .fg input[type="file"]::file-selector-button {
+      background: var(--primary); color: var(--header-bg);
+      border: none; border-radius: var(--radius-sm);
+      padding: 6px 12px; margin-right: 10px;
+      font-weight: 600; font-size: 12px;
+      cursor: pointer; font-family: inherit;
+    }
 
     /* ── Buttons ────────────────────────────────────────────────────── */
     .form-actions { display: flex; gap: 12px; justify-content: flex-end; margin-top: 24px; }
@@ -233,32 +256,53 @@
       transition: all .2s;
     }
     .btn-primary {
-      background: var(--primary);
-      color: #fff; box-shadow: 0 2px 8px rgba(91,117,83,.25);
+      background: var(--primary); color: var(--header-bg);
+      box-shadow: 0 2px 8px rgba(184,255,0,.2);
     }
-    .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(91,117,83,.35); }
-    .btn-cancel { background: var(--bg); color: var(--text-light); border: 1px solid #DDD9D0; }
-    .btn-cancel:hover { background: #fafaf7; }
+    .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(184,255,0,.35); }
+    .btn-cancel {
+      background: transparent; color: var(--primary);
+      border: 1px solid var(--primary);
+    }
+    .btn-cancel:hover { background: rgba(184,255,0,.1); }
 
     /* ── Recorder ───────────────────────────────────────────────────── */
     .recorder {
-      background: rgba(91,117,83,.05); border-radius: var(--radius-sm);
-      padding: 14px; margin-bottom: 18px; border: 1px solid rgba(91,117,83,.1);
+      background: rgba(184,255,0,.04);
+      border: 1px solid rgba(184,255,0,.2);
+      border-left: 3px solid var(--primary);
+      border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+      padding: 14px; margin-bottom: 18px;
     }
-    .recorder-label { font-size: 13px; font-weight: 600; margin-bottom: 10px; display: flex; align-items: center; gap: 6px; color: var(--text); }
+    .recorder-label {
+      font-size: 12px; font-weight: 600; margin-bottom: 10px;
+      display: flex; align-items: center; gap: 6px;
+      color: var(--primary); letter-spacing: 0.3px;
+    }
     .rec-controls { display: flex; gap: 8px; flex-wrap: wrap; }
     .rec-btn {
       padding: 8px 14px; border: none; border-radius: 18px;
       cursor: pointer; font-size: 13px; font-weight: 600;
-      font-family: inherit; color: #fff; transition: all .2s;
+      font-family: inherit; color: #fff;
+      transition: all .15s;
     }
+    /* Record stays red — universally recognized as "record".
+       Stop and Play match the lime/black palette. */
     .rec-btn.record { background: #C9302C; }
-    .rec-btn.record:hover { background: #A02420; }
-    .rec-btn.stop { background: #717579; }
-    .rec-btn.play { background: var(--primary); }
-    .rec-btn:disabled { opacity: .5; cursor: not-allowed; }
+    .rec-btn.record:hover:not(:disabled) { background: #A02420; }
+    .rec-btn.stop {
+      background: transparent; color: var(--primary);
+      border: 1px solid var(--primary);
+    }
+    .rec-btn.stop:hover:not(:disabled) { background: rgba(184,255,0,.12); }
+    .rec-btn.play {
+      background: var(--primary); color: var(--header-bg);
+    }
+    .rec-btn.play:hover:not(:disabled) { transform: translateY(-1px); }
+    .rec-btn:disabled { opacity: .4; cursor: not-allowed; }
     .rec-status {
-      font-size: 12px; color: var(--text-light); margin-top: 8px;
+      font-size: 12px; color: rgba(184,255,0,.7);
+      margin-top: 8px;
       display: flex; align-items: center; gap: 6px;
     }
     .rec-dot {
