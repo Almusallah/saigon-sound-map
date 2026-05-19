@@ -767,25 +767,20 @@
     return `${m}:${s.toString().padStart(2,'0')}`;
   }
 
-  function audioPlayerHTML(src, mime, title) {
-    // Sanitize the title for use as a filename, then append the original
-    // file extension. This is what gets saved when the user taps the
-    // download icon. Truncated to 60 chars to stay friendly on file systems.
-    const origExt = (src.split('.').pop() || 'mp3').split('?')[0].toLowerCase();
-    const safe = (title || 'recording')
-      .replace(/[^\w\s-]/g, '')   // drop punctuation/diacritics
-      .replace(/\s+/g, '_')
-      .slice(0, 60)
-      .replace(/_+$/, '');
-    const filename = `${safe || 'recording'}.${origExt}`;
+  function audioPlayerHTML(src, mime, title, id) {
+    // Download routes through our server's /api/download proxy because the
+    // <a download> attribute is silently ignored when the file lives on a
+    // different origin (Backblaze). The proxy sends Content-Disposition:
+    // attachment with a friendly filename derived from the recording's
+    // title server-side, so the file actually saves rather than streams
+    // inline in a new tab.
+    const downloadUrl = id ? `/api/download/${id.split('-')[0]}` : '';
     return `<div class="apc">
       <button class="apc-btn" type="button" aria-label="Play/Pause"></button>
       <span class="apc-time apc-now">0:00</span>
       <div class="apc-track"><div class="apc-fill"></div></div>
       <span class="apc-time apc-total">--:--</span>
-      <a class="apc-dl" href="${esc(src)}" download="${esc(filename)}"
-         target="_blank" rel="noopener" aria-label="Download recording"
-         title="Download as ${esc(filename)}">↓</a>
+      ${downloadUrl ? `<a class="apc-dl" href="${esc(downloadUrl)}" aria-label="Download recording" title="Download">↓</a>` : ''}
       <audio preload="metadata" src="${esc(src)}" type="${esc(mime)}"></audio>
     </div>`;
   }
@@ -1032,7 +1027,7 @@
             <h3>${esc(r.title || 'Untitled')}</h3>
             <p>${esc(r.description || 'No description')}</p>
             <span class="popup-tag" style="background:${color}">${icon} ${esc(cat)}</span>
-            ${audioPlayerHTML(r.audioUrl, audioType(r.audioUrl), r.title)}
+            ${audioPlayerHTML(r.audioUrl, audioType(r.audioUrl), r.title, r.id)}
           </div>
         `);
         // Attach the custom audio-player JS once the popup is in the DOM.
@@ -1416,7 +1411,7 @@
           <h3>${esc(r.title || 'Untitled')}</h3>
           <span class="rec-item-tag">${icon} ${esc(cat)}</span>
           <p>${esc(r.description || 'No description')}</p>
-          ${audioPlayerHTML(r.audioUrl, audioType(r.audioUrl), r.title)}
+          ${audioPlayerHTML(r.audioUrl, audioType(r.audioUrl), r.title, r.id)}
         </li>`;
     }).join('');
 

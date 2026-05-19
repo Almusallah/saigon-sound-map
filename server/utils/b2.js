@@ -178,4 +178,38 @@ async function cleanupOrphans() {
   return toRemove.length;
 }
 
-module.exports = { syncB2ToMongo, uploadRecording, cleanupOrphans };
+// Delete a single object from the B2 bucket. Used when permanently
+// removing a recording so the B2 sync doesn't re-import it on next run.
+async function deleteB2Object(audioUrl) {
+  const { DeleteObjectCommand } = require('@aws-sdk/client-s3');
+  const prefix = `https://${process.env.B2_ENDPOINT}/${getBucket()}/`;
+  if (!audioUrl.startsWith(prefix)) {
+    throw new Error(`audioUrl doesn't match expected prefix: ${audioUrl}`);
+  }
+  const key = audioUrl.slice(prefix.length);
+  await getS3().send(new DeleteObjectCommand({ Bucket: getBucket(), Key: key }));
+  return { key };
+}
+
+// Fetch a B2 object and stream its bytes through `res`, setting
+// Content-Disposition: attachment so the browser saves it rather than
+// previewing inline. Used by /api/download/:idPrefix.
+async function streamB2ObjectAsAttachment(audioUrl, filename, res) {
+  const { GetObjectCommand } = require('@aws-sdk/client-s3');
+  const prefix = `https://${process.env.B2_ENDPOINT}/${getBucket()}/`;
+  if (!audioUrl.startsWith(prefix)) {
+    throw new Error(`audioUrl doesn't match expected prefix: ${audioUrl}`);
+  }
+  const key = audioUrl.slice(prefix.length);
+  const obj = await getS3().send(new GetObjectCommand({ Bucket: getBucket(), Key: key }));
+  res.set('Content-Type',         obj.ContentType   || 'application/octet-stream');
+  res.set('Content-Length',       obj.ContentLength || '');
+  res.set('Content-Disposition',  `attachment; filename="${filename.replace(/[^\w.\-]/g, '_')}"; filename*=UTF-8''${encodeURIComponent(filename)}`);
+  res.set('Cache-Control',        'public, max-age=3600');
+  obj.Body.pipe(res);
+}
+
+module.exports = {
+  syncB2ToMongo, uploadRecording, cleanupOrphans,
+  deleteB2Object, streamB2ObjectAsAttachment,
+};

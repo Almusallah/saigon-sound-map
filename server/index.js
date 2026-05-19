@@ -8,7 +8,7 @@ const mongoose  = require('mongoose');
 const rateLimit = require('express-rate-limit');
 
 const Recording = require('./models/Recording');
-const { syncB2ToMongo, uploadRecording, cleanupOrphans } = require('./utils/b2');
+const { syncB2ToMongo, uploadRecording, cleanupOrphans, deleteB2Object, streamB2ObjectAsAttachment } = require('./utils/b2');
 
 // ── App setup ────────────────────────────────────────────────────────────
 const app  = express();
@@ -134,6 +134,33 @@ app.get('/api/recordings/near', readLimiter, async (req, res) => {
   }
 });
 
+// Download proxy. The `<a download>` attribute is ignored when the file
+// lives on a different domain (Backblaze) from the page (Render). This
+// endpoint fetches from B2 server-side and re-streams with a
+// Content-Disposition: attachment header so the browser actually saves it
+// with a friendly filename derived from the recording's title.
+app.get('/api/download/:idPrefix', readLimiter, async (req, res) => {
+  try {
+    const prefix = req.params.idPrefix;
+    if (!/^[a-f0-9]{4,}$/i.test(prefix)) {
+      return res.status(400).json({ error: 'Invalid id prefix' });
+    }
+    const r = await Recording.findOne({ id: { $regex: '^' + prefix } });
+    if (!r) return res.status(404).json({ error: 'Recording not found' });
+    const ext = (r.audioUrl.split('.').pop() || 'audio').split('?')[0];
+    const safe = (r.title || 'recording')
+      .replace(/[^\w\s\-À-ɏḀ-ỿ]/g, '')
+      .replace(/\s+/g, '_')
+      .slice(0, 60)
+      .replace(/_+$/, '');
+    const filename = `${safe || 'recording'}.${ext}`;
+    await streamB2ObjectAsAttachment(r.audioUrl, filename, res);
+  } catch (err) {
+    console.error('[GET /download]', err.message);
+    if (!res.headersSent) res.status(500).json({ error: 'Download failed' });
+  }
+});
+
 app.post('/api/upload', uploadLimiter, upload.single('audioFile'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ success: false, message: 'No audio file' });
@@ -234,7 +261,7 @@ app.get('/api/migrate-geojson', requireAdmin, async (req, res) => {
 // idPrefix is matched against the START of the recording's UUID.
 // description is set to '' on every update (clears the auto-discovered text).
 app.post('/api/admin/bulk-update', requireAdmin, async (req, res) => {
-  const { dryRun = false, updates = [], deleteByPrefix = [], deleteByMatch = [] } = req.body;
+  const { dryRun = false, updates = [], deleteByPrefix = [], deleteByMatch = [], alsoDeleteB2 = false } = req.body;
   const result = { dryRun, updated: [], deleted: [], notFound: [], ambiguous: [], errors: [] };
 
   // Helper: find a unique recording by id-prefix, or report ambiguity.
@@ -274,16 +301,24 @@ app.post('/api/admin/bulk-update', requireAdmin, async (req, res) => {
       }
     }
 
-    // Deletes by id-prefix
+    // Deletes by id-prefix. If alsoDeleteB2=true, the underlying B2 audio
+    // file is also removed so the auto-sync won't re-import the recording.
     for (const prefix of deleteByPrefix) {
       const matches = await findOneByPrefix(prefix);
       if (matches.length === 0) { result.notFound.push(prefix); continue; }
       if (matches.length > 1) { result.ambiguous.push({ prefix, count: matches.length }); continue; }
+      const r = matches[0];
+      const entry = { idPrefix: prefix, fullId: r.id, title: r.title, b2Deleted: false };
       if (dryRun) {
-        result.deleted.push({ idPrefix: prefix, fullId: matches[0].id, title: matches[0].title });
+        entry.b2WouldDelete = alsoDeleteB2;
+        result.deleted.push(entry);
       } else {
-        await Recording.deleteOne({ id: matches[0].id });
-        result.deleted.push({ idPrefix: prefix, fullId: matches[0].id, title: matches[0].title });
+        await Recording.deleteOne({ id: r.id });
+        if (alsoDeleteB2) {
+          try { await deleteB2Object(r.audioUrl); entry.b2Deleted = true; }
+          catch (e) { entry.b2Error = e.message; }
+        }
+        result.deleted.push(entry);
       }
     }
 
