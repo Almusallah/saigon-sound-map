@@ -537,16 +537,17 @@
       font-size: 19px; font-weight: 700; margin-bottom: 14px;
       color: var(--primary); letter-spacing: 0.3px;
     }
+    /* Title stays lime; body copy in white for higher readability. */
     .welcome-card p {
-      font-size: 13.5px; line-height: 1.55;
-      color: rgba(184,255,0,.85); margin-bottom: 12px;
+      font-size: 13.5px; line-height: 1.6;
+      color: rgba(255,255,255,.92); margin-bottom: 12px;
     }
     .welcome-card p:last-of-type { margin-bottom: 0; }
     .welcome-card .welcome-hint {
       margin-top: 18px; padding-top: 12px;
       border-top: 1px solid rgba(184,255,0,.2);
       font-size: 11px; font-style: italic;
-      color: rgba(184,255,0,.55);
+      color: rgba(255,255,255,.55);
       text-align: center; letter-spacing: 0.4px;
     }
     .welcome-close {
@@ -1384,8 +1385,8 @@
       window.removeEventListener('wheel',    hide, { passive: true, capture: true });
       window.removeEventListener('touchmove', hide, { passive: true, capture: true });
     };
-    // Auto-dismiss after 10 seconds
-    const autoTimer = setTimeout(hide, 10000);
+    // Auto-dismiss after 20 seconds
+    const autoTimer = setTimeout(hide, 20000);
     // Click outside card (anywhere on the dim overlay) dismisses
     overlay.onclick = e => { if (e.target === overlay) hide(); };
     // Close button
