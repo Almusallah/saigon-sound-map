@@ -522,6 +522,48 @@
     body.clustered .marker { display: none; }
 
     /* ── Heritage / Sound Atlas (interactive doc) ───────────────────── */
+    /* ── Welcome modal ──────────────────────────────────────────────── */
+    /* Same palette as Archive / Heritage: black card on dim overlay,
+       lime border + lime text. Shown on first paint, auto-dismisses. */
+    .welcome-overlay { z-index: 1600; }
+    .welcome-card {
+      background: var(--header-bg); color: var(--primary);
+      border: 1px solid var(--primary); border-radius: var(--radius);
+      padding: 28px 26px; width: 92%; max-width: 520px; max-height: 88vh;
+      overflow-y: auto; position: relative;
+      box-shadow: var(--shadow-lg);
+    }
+    .welcome-card h2 {
+      font-size: 19px; font-weight: 700; margin-bottom: 14px;
+      color: var(--primary); letter-spacing: 0.3px;
+    }
+    .welcome-card p {
+      font-size: 13.5px; line-height: 1.55;
+      color: rgba(184,255,0,.85); margin-bottom: 12px;
+    }
+    .welcome-card p:last-of-type { margin-bottom: 0; }
+    .welcome-card .welcome-hint {
+      margin-top: 18px; padding-top: 12px;
+      border-top: 1px solid rgba(184,255,0,.2);
+      font-size: 11px; font-style: italic;
+      color: rgba(184,255,0,.55);
+      text-align: center; letter-spacing: 0.4px;
+    }
+    .welcome-close {
+      position: absolute; top: 14px; right: 14px;
+      background: transparent; border: 1px solid var(--primary);
+      width: 30px; height: 30px; border-radius: 50%;
+      font-size: 17px; cursor: pointer; color: var(--primary);
+      display: flex; align-items: center; justify-content: center;
+      transition: all .2s; line-height: 1;
+    }
+    .welcome-close:hover { background: var(--primary); color: var(--header-bg); }
+    @media (max-width: 600px) {
+      .welcome-card { padding: 22px 18px; }
+      .welcome-card h2 { font-size: 17px; }
+      .welcome-card p { font-size: 13px; }
+    }
+
     .heritage-overlay { z-index: 1500; }
     /* Heritage feature is currently disabled — keep its overlay hidden even
        if classList.add('open') is called from elsewhere. Re-enable by
@@ -713,6 +755,19 @@
         <button type="submit" class="btn btn-primary" id="form-submit">Upload Recording</button>
       </div>
     </form>
+  </div>
+</div>
+
+<!-- Welcome modal — shown once on initial page load, dismissed by:
+     auto-timeout (10s) · clicking outside the card · scrolling · close button -->
+<div class="overlay welcome-overlay" id="welcome-overlay">
+  <div class="welcome-card">
+    <button class="welcome-close" id="welcome-close" aria-label="Close">&times;</button>
+    <h2>Welcome to the Saigon_Miền&nbsp;Tây Sound Map</h2>
+    <p>This project explores everyday urban life through its acoustic environment.</p>
+    <p>The map invites slow listening and attention to the changing sonic environments of the region.</p>
+    <p>This is an open and evolving archive — listen and contribute respectfully. When recording in public or semi-public environments, please be mindful of the surrounding context, environments, and forms of life connected to these spaces and sounds.</p>
+    <p class="welcome-hint">Tap anywhere outside to begin</p>
   </div>
 </div>
 
@@ -1006,6 +1061,8 @@
           il.classList.add('gone');
           setTimeout(() => il.remove(), 600);
         }
+        // Show the welcome modal right after the loading splash fades.
+        showWelcome();
       }, 400);
     });
 
@@ -1307,6 +1364,36 @@
       $('heritage-overlay').classList.add('open');
     };
     new mapboxgl.Marker(el).setLngLat([HERITAGE.position.lng, HERITAGE.position.lat]).addTo(map);
+  }
+
+  // ── Welcome modal ───────────────────────────────────────────────
+  // Shown once on initial page load; dismissed by any of: 10s timeout,
+  // close button, clicking the dim background, scrolling on the map,
+  // or the next click anywhere outside the modal card.
+  function showWelcome() {
+    const overlay = $('welcome-overlay');
+    if (!overlay) return;
+    overlay.classList.add('open');
+    let dismissed = false;
+    const hide = () => {
+      if (dismissed) return;
+      dismissed = true;
+      overlay.classList.remove('open');
+      clearTimeout(autoTimer);
+      window.removeEventListener('scroll',   hide, true);
+      window.removeEventListener('wheel',    hide, { passive: true, capture: true });
+      window.removeEventListener('touchmove', hide, { passive: true, capture: true });
+    };
+    // Auto-dismiss after 10 seconds
+    const autoTimer = setTimeout(hide, 10000);
+    // Click outside card (anywhere on the dim overlay) dismisses
+    overlay.onclick = e => { if (e.target === overlay) hide(); };
+    // Close button
+    $('welcome-close').onclick = hide;
+    // Scroll, wheel, or touchmove dismisses (capture so we catch map drags too)
+    window.addEventListener('scroll',    hide, true);
+    window.addEventListener('wheel',     hide, { passive: true, capture: true });
+    window.addEventListener('touchmove', hide, { passive: true, capture: true });
   }
 
   // ── About modal ─────────────────────────────────────────────────
