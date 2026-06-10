@@ -254,18 +254,31 @@ async function streamB2ObjectAsMp3(audioUrl, filename, res) {
   res.on('close', () => { try { ff.kill('SIGKILL'); } catch {} });
 }
 
-// One-time migration: convert every non-MP3 recording in B2 to MP3.
-// Sequential on purpose (free-tier RAM); `limit` keeps each HTTP call well
-// under Render's request timeout — the caller loops until `remaining` is 0.
+// One-time migration: re-encode every recording that isn't genuine MP3.
+// Extensions lie — six legacy ".mp3" files in the bucket are really MP4
+// containers — so each object's first bytes are probed instead. Sequential
+// on purpose (free-tier RAM); `limit` keeps each HTTP call well under
+// Render's request timeout — the caller loops until `remaining` is 0.
 async function transcodeLegacyToMp3({ dryRun = true, limit = 6 } = {}) {
   const { GetObjectCommand } = require('@aws-sdk/client-s3');
   const s3 = getS3();
   const prefix = `https://${process.env.B2_ENDPOINT}/${getBucket()}/`;
 
-  const pending = await Recording.find(
-    { audioUrl: { $not: /\.mp3$/i } },
-    'id title audioUrl latitude longitude'
-  ).lean();
+  const all = await Recording.find({}, 'id title audioUrl latitude longitude').lean();
+  const pending = [];
+  for (const rec of all) {
+    const key = rec.audioUrl.slice(prefix.length);
+    try {
+      const probe = await s3.send(new GetObjectCommand({
+        Bucket: getBucket(), Key: key, Range: 'bytes=0-15',
+      }));
+      const chunks = [];
+      for await (const c of probe.Body) chunks.push(c);
+      if (!isMp3Buffer(Buffer.concat(chunks))) pending.push(rec);
+    } catch (err) {
+      console.error(`[transcode-legacy] probe ${rec.id.slice(0, 8)}:`, err.message);
+    }
+  }
 
   if (dryRun) {
     return {
@@ -296,7 +309,9 @@ async function transcodeLegacyToMp3({ dryRun = true, limit = 6 } = {}) {
         { id: rec.id },
         { audioUrl: keyToUrl(newKey), fileSize: mp3.length }
       );
-      await deleteB2Object(rec.audioUrl);
+      // The fake-".mp3" files keep the same key — the upload above already
+      // overwrote them, so deleting would destroy the fresh copy.
+      if (oldKey !== newKey) await deleteB2Object(rec.audioUrl);
 
       done.push({ id: rec.id.slice(0, 8), title: rec.title, oldSize: original.length, newSize: mp3.length });
       console.log(`[transcode-legacy] ${rec.id.slice(0, 8)} ${oldKey} -> ${newKey}`);
