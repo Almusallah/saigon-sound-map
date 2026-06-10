@@ -55,4 +55,30 @@ async function transcodeToMp3(inputBuffer) {
   }
 }
 
-module.exports = { transcodeToMp3, isMp3Buffer };
+// Audio length in seconds (float), measured with ffprobe via a temp file.
+// Returns 0 on any failure — duration is cosmetic, never worth failing an
+// upload over.
+async function probeDuration(buffer) {
+  const tmp = path.join(os.tmpdir(), `probe-${uuidv4()}`);
+  await fs.promises.writeFile(tmp, buffer);
+  try {
+    const out = await new Promise((resolve) => {
+      const fp = spawn('ffprobe', [
+        '-v', 'error',
+        '-show_entries', 'format=duration',
+        '-of', 'csv=p=0',
+        tmp,
+      ]);
+      let stdout = '';
+      fp.stdout.on('data', d => { stdout += d; });
+      fp.on('error', () => resolve(''));
+      fp.on('close', () => resolve(stdout));
+    });
+    const dur = parseFloat(out);
+    return isFinite(dur) && dur > 0 ? Math.round(dur * 10) / 10 : 0;
+  } finally {
+    fs.promises.unlink(tmp).catch(() => {});
+  }
+}
+
+module.exports = { transcodeToMp3, isMp3Buffer, probeDuration };

@@ -34,6 +34,10 @@ const recordingSchema = new mongoose.Schema({
   },
   source:      { type: String, enum: ['upload', 'b2-sync'], default: 'upload' },
   fileSize:    { type: Number, default: 0 },
+  // Audio length in seconds, measured server-side with ffprobe at upload
+  // (or by the backfill-durations admin job). Lets the client print
+  // durations without fetching file metadata from B2.
+  duration:    { type: Number, default: 0 },
 }, {
   timestamps: true,
 });

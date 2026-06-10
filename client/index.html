@@ -291,6 +291,21 @@
       font-family: inherit; color: #fff;
       transition: all .15s;
     }
+    /* Location row inside the upload form */
+    .loc-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .loc-status {
+      flex: 1 1 100%; font-size: 12px;
+      color: rgba(184,255,0,.55);
+    }
+    .loc-status.set { color: var(--primary); font-weight: 600; }
+    .loc-btn {
+      padding: 8px 14px; border-radius: 18px;
+      cursor: pointer; font-size: 13px; font-weight: 600;
+      font-family: inherit; transition: all .15s;
+      background: transparent; color: var(--primary);
+      border: 1px solid rgba(184,255,0,.4);
+    }
+    .loc-btn:hover { background: rgba(184,255,0,.12); }
     /* Record stays red — universally recognized as "record".
        Stop and Play match the lime/black palette. */
     .rec-btn.record { background: #C9302C; }
@@ -466,6 +481,12 @@
       vertical-align: middle;
     }
     .popup-inner .rec-date { color: var(--text-light); margin: 0 0 12px 8px; }
+    .share-btn {
+      background: transparent; border: none; cursor: pointer;
+      font-size: 13px; margin-left: 6px; padding: 2px 4px;
+      opacity: .65; vertical-align: middle; transition: opacity .15s;
+    }
+    .share-btn:hover { opacity: 1; }
     .rec-count {
       font-size: 11px; color: rgba(184,255,0,.6);
       padding: 4px 20px 12px; font-weight: 500;
@@ -759,6 +780,14 @@
           <option value="">Select a category...</option>
         </select>
       </div>
+      <div class="fg">
+        <label>Location *</label>
+        <div class="loc-row">
+          <span class="loc-status" id="loc-status">No location set yet</span>
+          <button type="button" class="loc-btn" id="loc-gps">📍 Use my location</button>
+          <button type="button" class="loc-btn" id="loc-pin">🗺️ Drop a pin</button>
+        </div>
+      </div>
       <input type="hidden" id="f-lat">
       <input type="hidden" id="f-lng">
       <div class="form-actions">
@@ -889,6 +918,7 @@
 
   // ── State ───────────────────────────────────────────────────────
   let map, recordings = [], markers = [], tempMarker = null;
+  let markersById = {};      // recording id -> mapboxgl.Marker, for ?rec= deep links
   let currentStyle = 'mapbox://styles/sidewalkcity/cmojyebpi000301s89p4p2km6';
   let activeFilter = '';
   let mediaRecorder, recordedChunks = [], recordedBlob = null;
@@ -933,6 +963,42 @@
     return t ? `<span class="rec-date">🕐 ${t}</span>` : '';
   }
 
+  // Share button — every recording is addressable as /?rec=<id-prefix>.
+  // Native share sheet on mobile, clipboard copy on desktop.
+  function shareBtnHTML(r) {
+    return `<button class="share-btn" type="button" data-rec="${r.id.split('-')[0]}" title="Share link to this recording" aria-label="Share">🔗</button>`;
+  }
+  // Capture phase so stopPropagation also silences the archive card's
+  // own fly-to-pin click handler underneath the button.
+  document.addEventListener('click', e => {
+    const btn = e.target.closest('.share-btn');
+    if (!btn) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const url = `${location.origin}/?rec=${btn.dataset.rec}`;
+    if (navigator.share) {
+      navigator.share({ title: 'Saigon_Miền Tây Sound Map', url }).catch(() => {});
+    } else if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(url).then(
+        () => toast('🔗 Link copied — send it to someone'),
+        () => prompt('Copy this link:', url)
+      );
+    } else {
+      prompt('Copy this link:', url);
+    }
+  }, true);
+
+  // /?rec=<id-prefix> — fly to that recording and open its popup.
+  function openDeepLink() {
+    const ref = new URLSearchParams(location.search).get('rec');
+    if (!ref) return;
+    const r = recordings.find(x => x.id.startsWith(ref));
+    if (!r) return;
+    map.flyTo({ center: [r.longitude, r.latitude], zoom: 16 });
+    const m = markersById[r.id];
+    if (m && m.getPopup() && !m.getPopup().isOpen()) m.togglePopup();
+  }
+
   // ── Custom audio player ─────────────────────────────────────────
   // Used in Archive cards AND map marker popups so the visual is
   // identical regardless of codec quirks (older b2-sync MP3s lacking
@@ -945,7 +1011,7 @@
     return `${m}:${s.toString().padStart(2,'0')}`;
   }
 
-  function audioPlayerHTML(src, mime, title, id) {
+  function audioPlayerHTML(src, mime, title, id, dur) {
     // Download routes through our server's /api/download proxy because the
     // <a download> attribute is silently ignored when the file lives on a
     // different origin (Backblaze). The proxy sends Content-Disposition:
@@ -953,13 +1019,17 @@
     // title server-side, so the file actually saves rather than streams
     // inline in a new tab.
     const downloadUrl = id ? `/api/download/${id.split('-')[0]}` : '';
+    // When the DB already knows the duration we print it directly and use
+    // preload="none" — otherwise 60 archive cards would each fetch file
+    // metadata from B2 just to display a number we already have.
+    const knownDur = isFinite(dur) && dur > 0;
     return `<div class="apc">
       <button class="apc-btn" type="button" aria-label="Play/Pause"></button>
       <span class="apc-time apc-now">0:00</span>
       <div class="apc-track"><div class="apc-fill"></div></div>
-      <span class="apc-time apc-total">--:--</span>
+      <span class="apc-time apc-total">${knownDur ? fmtTime(dur) : '--:--'}</span>
       ${downloadUrl ? `<a class="apc-dl" href="${esc(downloadUrl)}" aria-label="Download recording" title="Download">↓</a>` : ''}
-      <audio preload="metadata" src="${esc(src)}" type="${esc(mime)}"></audio>
+      <audio preload="${knownDur ? 'none' : 'metadata'}" src="${esc(src)}" type="${esc(mime)}"></audio>
     </div>`;
   }
 
@@ -1105,15 +1175,15 @@
     map.on('click', e => {
       if (e.originalEvent.target.closest('.marker') || e.originalEvent.target.closest('.mapboxgl-popup')) return;
       const { lng, lat } = e.lngLat;
-      $('f-lat').value = lat.toFixed(6);
-      $('f-lng').value = lng.toFixed(6);
-      if (tempMarker) { tempMarker.setLngLat(e.lngLat); }
-      else {
-        const el = document.createElement('div');
-        el.className = 'temp-marker';
-        tempMarker = new mapboxgl.Marker(el).setLngLat(e.lngLat).addTo(map);
+      setUploadLocation(lat, lng);
+      if (pinMode) {
+        // "Drop a pin" sent the contributor here from the upload form —
+        // take them straight back with the location filled in.
+        pinMode = false;
+        openForm();
+      } else {
+        toast('📍 Location set! Tap "New Recording" to upload.');
       }
-      toast('📍 Location set! Tap "New Recording" to upload.');
     });
   }
 
@@ -1127,6 +1197,7 @@
       recordings = data.recordings.filter(r => r && typeof r.latitude === 'number' && typeof r.longitude === 'number' && r.audioUrl).map(r => ({ ...r, category: CAT_ALIASES[r.category] || r.category }));
       $('count-badge').textContent = recordings.length;
       renderMarkers();
+      openDeepLink();
     } catch (err) {
       console.error('Failed to load:', err);
     }
@@ -1214,6 +1285,7 @@
   function renderMarkers() {
     markers.forEach(m => m.remove());
     markers = [];
+    markersById = {};
     updateClusterData();
 
     const filtered = activeFilter ? recordings.filter(r => catInfo(r).cat === activeFilter) : recordings;
@@ -1231,8 +1303,8 @@
           <div class="popup-inner">
             <h3>${esc(r.title || 'Untitled')}</h3>
             <p>${esc(r.description || 'No description')}</p>
-            <span class="popup-tag" style="background:${color}">${icon} ${esc(cat)}</span>${recDateHTML(r)}
-            ${audioPlayerHTML(r.audioUrl, audioType(r.audioUrl), r.title, r.id)}
+            <span class="popup-tag" style="background:${color}">${icon} ${esc(cat)}</span>${recDateHTML(r)}${shareBtnHTML(r)}
+            ${audioPlayerHTML(r.audioUrl, audioType(r.audioUrl), r.title, r.id, r.duration)}
           </div>
         `);
         // Attach the custom audio-player JS once the popup is in the DOM.
@@ -1246,6 +1318,7 @@
           .setPopup(popup)
           .addTo(map);
         markers.push(m);
+        markersById[r.id] = m;
       } catch (err) {
         console.error('Marker error:', err);
       }
@@ -1435,13 +1508,63 @@
   $('heritage-overlay').onclick = e => { if (e.target === $('heritage-overlay')) $('heritage-overlay').classList.remove('open'); };
 
   // ── Upload form ─────────────────────────────────────────────────
-  function openForm()  { $('form-overlay').classList.add('open'); }
+  function openForm()  { updateLocStatus(); $('form-overlay').classList.add('open'); }
   function closeForm() { $('form-overlay').classList.remove('open'); resetRecorder(); }
 
-  $('upload-btn').onclick = () => {
-    if (!$('f-lat').value || !$('f-lng').value) { toast('📍 Tap the map first to set a location'); return; }
-    openForm();
+  // Location can be set three ways: tapping the map before opening the
+  // form, the "Use my location" button, or "Drop a pin" (which closes the
+  // form, waits for one map tap, then reopens it).
+  let pinMode = false;
+
+  function setUploadLocation(lat, lng) {
+    $('f-lat').value = lat.toFixed(6);
+    $('f-lng').value = lng.toFixed(6);
+    const lngLat = [lng, lat];
+    if (tempMarker) { tempMarker.setLngLat(lngLat); }
+    else {
+      const el = document.createElement('div');
+      el.className = 'temp-marker';
+      tempMarker = new mapboxgl.Marker(el).setLngLat(lngLat).addTo(map);
+    }
+    updateLocStatus();
+  }
+
+  function updateLocStatus() {
+    const s = $('loc-status');
+    if (!s) return;
+    const lat = $('f-lat').value, lng = $('f-lng').value;
+    if (lat && lng) {
+      s.textContent = `✓ Location set (${(+lat).toFixed(4)}, ${(+lng).toFixed(4)})`;
+      s.classList.add('set');
+    } else {
+      s.textContent = 'No location set yet';
+      s.classList.remove('set');
+    }
+  }
+
+  $('loc-gps').onclick = () => {
+    if (!navigator.geolocation) { toast('Geolocation not available on this device'); return; }
+    $('loc-status').textContent = 'Locating…';
+    navigator.geolocation.getCurrentPosition(
+      pos => {
+        const { latitude, longitude } = pos.coords;
+        setUploadLocation(latitude, longitude);
+        map.flyTo({ center: [longitude, latitude], zoom: Math.max(map.getZoom(), 15) });
+      },
+      () => { updateLocStatus(); toast('Could not get your location — try dropping a pin instead'); },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
   };
+
+  $('loc-pin').onclick = () => {
+    pinMode = true;
+    // Hide the overlay WITHOUT closeForm() — that would reset the recorder
+    // and silently discard a recording the contributor just made.
+    $('form-overlay').classList.remove('open');
+    toast('🗺️ Tap the map where this sound was recorded');
+  };
+
+  $('upload-btn').onclick = openForm;
   $('form-close').onclick = closeForm;
   $('form-cancel').onclick = closeForm;
   $('form-overlay').onclick = e => { if (e.target === $('form-overlay')) closeForm(); };
@@ -1452,6 +1575,10 @@
     const cat   = $('f-category').value;
     if (!title) { toast('Please enter a title'); return; }
     if (!cat)   { toast('Please select a category'); return; }
+    if (!$('f-lat').value || !$('f-lng').value) {
+      toast('📍 Set a location — use the buttons above');
+      return;
+    }
 
     let blob;
     const fileInput = $('audio-file').files[0];
@@ -1644,9 +1771,9 @@
       return `
         <li class="rec-item" data-lat="${r.latitude}" data-lng="${r.longitude}">
           <h3>${esc(r.title || 'Untitled')}</h3>
-          <span class="rec-item-tag">${icon} ${esc(cat)}</span>${recDateHTML(r)}
+          <span class="rec-item-tag">${icon} ${esc(cat)}</span>${recDateHTML(r)}${shareBtnHTML(r)}
           <p>${esc(r.description || 'No description')}</p>
-          ${audioPlayerHTML(r.audioUrl, audioType(r.audioUrl), r.title, r.id)}
+          ${audioPlayerHTML(r.audioUrl, audioType(r.audioUrl), r.title, r.id, r.duration)}
         </li>`;
     }).join('');
 

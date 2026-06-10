@@ -8,7 +8,7 @@ const mongoose  = require('mongoose');
 const rateLimit = require('express-rate-limit');
 
 const Recording = require('./models/Recording');
-const { syncB2ToMongo, uploadRecording, cleanupOrphans, deleteB2Object, streamB2ObjectAsMp3, transcodeLegacyToMp3 } = require('./utils/b2');
+const { syncB2ToMongo, uploadRecording, cleanupOrphans, deleteB2Object, streamB2ObjectAsMp3, transcodeLegacyToMp3, backfillDurations } = require('./utils/b2');
 
 // ── App setup ────────────────────────────────────────────────────────────
 const app  = express();
@@ -363,6 +363,21 @@ app.post('/api/admin/transcode-legacy', requireAdmin, async (req, res) => {
     res.json({ success: true, ...result });
   } catch (err) {
     console.error('[POST /admin/transcode-legacy]', err.message);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Backfill `duration` for recordings uploaded before durations were
+// captured at upload. POST {limit:10}; repeat until `remaining` is 0.
+app.post('/api/admin/backfill-durations', requireAdmin, async (req, res) => {
+  try {
+    const result = await backfillDurations({
+      limit: Math.min(parseInt(req.body?.limit, 10) || 10, 20),
+    });
+    if (result.updated.length) await refreshCache();
+    res.json({ success: true, ...result });
+  } catch (err) {
+    console.error('[POST /admin/backfill-durations]', err.message);
     res.status(500).json({ success: false, error: err.message });
   }
 });

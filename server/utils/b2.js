@@ -7,7 +7,7 @@ const { S3Client, ListObjectsV2Command, HeadObjectCommand } = require('@aws-sdk/
 const { Upload } = require('@aws-sdk/lib-storage');
 const { v4: uuidv4 } = require('uuid');
 const Recording = require('../models/Recording');
-const { transcodeToMp3, isMp3Buffer } = require('./transcode');
+const { transcodeToMp3, isMp3Buffer, probeDuration } = require('./transcode');
 
 const AUDIO_EXTENSIONS = new Set(['webm', 'mp3', 'mp4', 'm4a', 'ogg', 'wav', 'aac', 'flac']);
 
@@ -141,8 +141,9 @@ async function uploadRecording(fileBuffer, mimeType, { title, description, categ
     console.log(`[upload] transcoded to mp3: ${before} -> ${fileBuffer.length} bytes`);
   }
   const key = buildKey(id, latitude, longitude, 'mp3');
+  const duration = await probeDuration(fileBuffer);
 
-  console.log(`[upload] ${key} (${fileBuffer.length} bytes)`);
+  console.log(`[upload] ${key} (${fileBuffer.length} bytes, ${duration}s)`);
 
   await new Upload({
     client: getS3(),
@@ -153,7 +154,7 @@ async function uploadRecording(fileBuffer, mimeType, { title, description, categ
     id, title: title || 'New Recording', description: description || '',
     category: category || 'Background', audioUrl: keyToUrl(key),
     latitude: parseFloat(latitude), longitude: parseFloat(longitude),
-    source: 'upload', fileSize: fileBuffer.length,
+    source: 'upload', fileSize: fileBuffer.length, duration,
   });
   await doc.save();
   console.log(`[upload] Saved ${id}`);
@@ -324,7 +325,40 @@ async function transcodeLegacyToMp3({ dryRun = true, limit = 6 } = {}) {
   return { dryRun: false, converted: done, errors, remaining: pending.length - done.length };
 }
 
+// Backfill `duration` for recordings that predate duration capture.
+// Downloads each file (all genuine MP3 now, ~1-2 MB each) and ffprobes it.
+// Batched like transcodeLegacyToMp3 — call until `remaining` is 0.
+async function backfillDurations({ limit = 10 } = {}) {
+  const { GetObjectCommand } = require('@aws-sdk/client-s3');
+  const s3 = getS3();
+  const prefix = `https://${process.env.B2_ENDPOINT}/${getBucket()}/`;
+
+  const pending = await Recording.find(
+    { $or: [{ duration: { $exists: false } }, { duration: 0 }] },
+    'id title audioUrl'
+  ).lean();
+
+  const done = [], errors = [];
+  for (const rec of pending.slice(0, limit)) {
+    try {
+      const key = rec.audioUrl.slice(prefix.length);
+      const obj = await s3.send(new GetObjectCommand({ Bucket: getBucket(), Key: key }));
+      const chunks = [];
+      for await (const c of obj.Body) chunks.push(c);
+      const duration = await probeDuration(Buffer.concat(chunks));
+      if (!duration) throw new Error('ffprobe returned no duration');
+      await Recording.updateOne({ id: rec.id }, { duration });
+      done.push({ id: rec.id.slice(0, 8), title: rec.title, duration });
+    } catch (err) {
+      errors.push({ id: rec.id.slice(0, 8), error: err.message });
+      console.error(`[backfill-durations] ${rec.id.slice(0, 8)}:`, err.message);
+    }
+  }
+
+  return { updated: done, errors, remaining: pending.length - done.length };
+}
+
 module.exports = {
   syncB2ToMongo, uploadRecording, cleanupOrphans,
-  deleteB2Object, streamB2ObjectAsMp3, transcodeLegacyToMp3,
+  deleteB2Object, streamB2ObjectAsMp3, transcodeLegacyToMp3, backfillDurations,
 };
