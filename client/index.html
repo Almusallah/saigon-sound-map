@@ -1074,8 +1074,10 @@
     audio.ondurationchange = updateDuration;
     updateDuration();  // catch the already-loaded case
     // Edge case: if metadata isn't auto-loading (network slow / preload
-    // ignored by some mobile browsers), nudge it.
-    if (audio.readyState === 0) { try { audio.load(); } catch {} }
+    // ignored by some mobile browsers), nudge it — but only when we don't
+    // already know the duration from the DB. With preload="none" a load()
+    // here would re-introduce the 60-fetches-per-archive-open problem.
+    if (audio.readyState === 0 && total.textContent === '--:--') { try { audio.load(); } catch {} }
     audio.ontimeupdate = () => {
       now.textContent = fmtTime(audio.currentTime);
       if (isFinite(audio.duration) && audio.duration > 0) {
@@ -1146,8 +1148,18 @@
         .catch(() => {});
     }
 
-    map.on('load', () => {
-      setupClusters();
+    // Boot runs on map 'load', with an 8 s fallback so a slow or failing
+    // tile fetch (CDN hiccup, flaky mobile network) can't leave visitors
+    // stranded on the splash screen — recordings and the UI don't need
+    // every tile to be useful.
+    let booted = false;
+    const boot = () => {
+      if (booted) return;
+      booted = true;
+      // setupClusters needs the style; if boot came from the timeout
+      // fallback the style may not be ready yet — retry on 'load'
+      // (setupClusters is idempotent via its getSource guard).
+      try { setupClusters(); } catch (e) { map.once('load', () => { try { setupClusters(); } catch {} }); }
       loadRecordings();
       setInterval(loadRecordings, REFRESH);
       // Heritage marker temporarily hidden — flip HERITAGE_ENABLED below to re-enable.
@@ -1163,7 +1175,9 @@
         // Show the welcome modal right after the loading splash fades.
         showWelcome();
       }, 400);
-    });
+    };
+    map.on('load', boot);
+    setTimeout(boot, 8000);
 
     // Toggle cluster-mode CSS class on the map container so DOM markers
     // hide at low zoom (where clusters take over) and re-appear on zoom-in.
