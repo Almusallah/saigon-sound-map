@@ -23,22 +23,24 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // ── Rate limiters ────────────────────────────────────────────────────────
-// Anonymous uploads need spam protection. 10/hour/IP is generous for a
-// genuine field-recordist (a typical session yields 1-3 uploads), tight
-// enough to make scripted abuse uneconomic.
+// Anonymous uploads need spam protection, but limits are PER IP — and a
+// workshop room full of contributors shares one venue WiFi IP. 60/hour
+// keeps a group productive while still making scripted abuse uneconomic
+// (B2 daily spend caps bound the worst case anyway).
 const uploadLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
-  max: 10,
+  max: 60,
   standardHeaders: true,
   legacyHeaders: false,
   message: { success: false, message: 'Too many uploads from this IP. Try again later.' },
 });
 
 // Read endpoints get a generous bucket — protects against scrape floods
-// without affecting normal browsing.
+// without affecting normal browsing (sized for ~50 people on shared WiFi:
+// each open tab refreshes the recordings list once a minute).
 const readLimiter = rateLimit({
   windowMs: 60 * 1000,
-  max: 120,
+  max: 300,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Rate limited. Slow down.' },
