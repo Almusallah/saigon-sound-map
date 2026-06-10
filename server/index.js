@@ -8,7 +8,7 @@ const mongoose  = require('mongoose');
 const rateLimit = require('express-rate-limit');
 
 const Recording = require('./models/Recording');
-const { syncB2ToMongo, uploadRecording, cleanupOrphans, deleteB2Object, streamB2ObjectAsMp3 } = require('./utils/b2');
+const { syncB2ToMongo, uploadRecording, cleanupOrphans, deleteB2Object, streamB2ObjectAsMp3, transcodeLegacyToMp3 } = require('./utils/b2');
 
 // ── App setup ────────────────────────────────────────────────────────────
 const app  = express();
@@ -350,19 +350,47 @@ app.post('/api/admin/bulk-update', requireAdmin, async (req, res) => {
   }
 });
 
+// One-time migration: re-encode legacy webm/m4a/mp4 recordings to MP3 so
+// they play on Safari. POST {dryRun:true} to list, {dryRun:false, limit:6}
+// to convert a batch; repeat until `remaining` is 0.
+app.post('/api/admin/transcode-legacy', requireAdmin, async (req, res) => {
+  try {
+    const result = await transcodeLegacyToMp3({
+      dryRun: req.body?.dryRun !== false,
+      limit:  Math.min(parseInt(req.body?.limit, 10) || 6, 12),
+    });
+    if (!result.dryRun) await refreshCache();
+    res.json({ success: true, ...result });
+  } catch (err) {
+    console.error('[POST /admin/transcode-legacy]', err.message);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // ── Static files ─────────────────────────────────────────────────────────
 app.use(express.static(path.join(__dirname, '../client')));
 app.get('*', (req, res) => res.sendFile(path.join(__dirname, '../client/index.html')));
 
 // ── Start ────────────────────────────────────────────────────────────────
-async function start() {
-  try {
-    await mongoose.connect(process.env.MONGO_URI);
-    console.log('MongoDB connected');
-  } catch (err) {
-    console.error('MongoDB failed:', err.message);
-    process.exit(1);
+// Atlas occasionally refuses the first connection after a cold start (the
+// cause of Render's "Exited with status 1" alerts). Retry with backoff
+// instead of dying — the container is useless without the DB anyway.
+async function connectWithRetry() {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      await mongoose.connect(process.env.MONGO_URI);
+      console.log('MongoDB connected');
+      return;
+    } catch (err) {
+      const delay = Math.min(30000, 1000 * 2 ** attempt);
+      console.error(`MongoDB connect failed (attempt ${attempt}): ${err.message} — retrying in ${delay}ms`);
+      await new Promise(r => setTimeout(r, delay));
+    }
   }
+}
+
+async function start() {
+  await connectWithRetry();
 
   app.listen(PORT, () => console.log(`Server on port ${PORT}`));
 

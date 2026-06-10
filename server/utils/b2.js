@@ -7,6 +7,7 @@ const { S3Client, ListObjectsV2Command, HeadObjectCommand } = require('@aws-sdk/
 const { Upload } = require('@aws-sdk/lib-storage');
 const { v4: uuidv4 } = require('uuid');
 const Recording = require('../models/Recording');
+const { transcodeToMp3, isMp3Buffer } = require('./transcode');
 
 const AUDIO_EXTENSIONS = new Set(['webm', 'mp3', 'mp4', 'm4a', 'ogg', 'wav', 'aac', 'flac']);
 
@@ -130,15 +131,22 @@ async function syncB2ToMongo() {
 // ── Upload ───────────────────────────────────────────────────────────────
 
 async function uploadRecording(fileBuffer, mimeType, { title, description, category, latitude, longitude, originalFilename }) {
-  const id  = uuidv4();
-  const ext = (originalFilename || '').split('.').pop() || 'webm';
-  const key = buildKey(id, latitude, longitude, ext);
+  const id = uuidv4();
+
+  // Normalise everything to MP3 before it reaches B2 — WebM/Opus uploads
+  // (Chrome/Android recordings) are silent for every Safari listener.
+  if (!isMp3Buffer(fileBuffer)) {
+    const before = fileBuffer.length;
+    fileBuffer = await transcodeToMp3(fileBuffer);
+    console.log(`[upload] transcoded to mp3: ${before} -> ${fileBuffer.length} bytes`);
+  }
+  const key = buildKey(id, latitude, longitude, 'mp3');
 
   console.log(`[upload] ${key} (${fileBuffer.length} bytes)`);
 
   await new Upload({
     client: getS3(),
-    params: { Bucket: getBucket(), Key: key, Body: fileBuffer, ContentType: mimeType },
+    params: { Bucket: getBucket(), Key: key, Body: fileBuffer, ContentType: 'audio/mpeg' },
   }).done();
 
   const doc = new Recording({
@@ -246,7 +254,62 @@ async function streamB2ObjectAsMp3(audioUrl, filename, res) {
   res.on('close', () => { try { ff.kill('SIGKILL'); } catch {} });
 }
 
+// One-time migration: convert every non-MP3 recording in B2 to MP3.
+// Sequential on purpose (free-tier RAM); `limit` keeps each HTTP call well
+// under Render's request timeout — the caller loops until `remaining` is 0.
+async function transcodeLegacyToMp3({ dryRun = true, limit = 6 } = {}) {
+  const { GetObjectCommand } = require('@aws-sdk/client-s3');
+  const s3 = getS3();
+  const prefix = `https://${process.env.B2_ENDPOINT}/${getBucket()}/`;
+
+  const pending = await Recording.find(
+    { audioUrl: { $not: /\.mp3$/i } },
+    'id title audioUrl latitude longitude'
+  ).lean();
+
+  if (dryRun) {
+    return {
+      dryRun: true,
+      remaining: pending.length,
+      files: pending.map(r => ({ id: r.id.slice(0, 8), title: r.title, url: r.audioUrl })),
+    };
+  }
+
+  const done = [], errors = [];
+  for (const rec of pending.slice(0, limit)) {
+    try {
+      const oldKey = rec.audioUrl.slice(prefix.length);
+      const obj = await s3.send(new GetObjectCommand({ Bucket: getBucket(), Key: oldKey }));
+      const chunks = [];
+      for await (const c of obj.Body) chunks.push(c);
+      const original = Buffer.concat(chunks);
+
+      const mp3 = await transcodeToMp3(original);
+      const newKey = buildKey(rec.id, rec.latitude, rec.longitude, 'mp3');
+
+      await new Upload({
+        client: s3,
+        params: { Bucket: getBucket(), Key: newKey, Body: mp3, ContentType: 'audio/mpeg' },
+      }).done();
+
+      await Recording.updateOne(
+        { id: rec.id },
+        { audioUrl: keyToUrl(newKey), fileSize: mp3.length }
+      );
+      await deleteB2Object(rec.audioUrl);
+
+      done.push({ id: rec.id.slice(0, 8), title: rec.title, oldSize: original.length, newSize: mp3.length });
+      console.log(`[transcode-legacy] ${rec.id.slice(0, 8)} ${oldKey} -> ${newKey}`);
+    } catch (err) {
+      errors.push({ id: rec.id.slice(0, 8), error: err.message });
+      console.error(`[transcode-legacy] ${rec.id.slice(0, 8)}:`, err.message);
+    }
+  }
+
+  return { dryRun: false, converted: done, errors, remaining: pending.length - done.length };
+}
+
 module.exports = {
   syncB2ToMongo, uploadRecording, cleanupOrphans,
-  deleteB2Object, streamB2ObjectAsMp3,
+  deleteB2Object, streamB2ObjectAsMp3, transcodeLegacyToMp3,
 };
