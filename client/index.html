@@ -456,6 +456,16 @@
       border: 1px solid rgba(184,255,0,.4);
       letter-spacing: 0.3px;
     }
+    /* Recording date+time (Vietnam time), shown in archive cards and map popups.
+       Dim lime on the black archive panel; gray on the white popup background. */
+    .rec-date {
+      display: inline-block; margin: 6px 0 0 8px;
+      font-size: 10px; font-weight: 500;
+      color: rgba(184,255,0,.55);
+      letter-spacing: 0.3px;
+      vertical-align: middle;
+    }
+    .popup-inner .rec-date { color: var(--text-light); margin: 0 0 12px 8px; }
     .rec-count {
       font-size: 11px; color: rgba(184,255,0,.6);
       padding: 4px 20px 12px; font-weight: 500;
@@ -905,6 +915,24 @@
     return { mp3:'audio/mpeg', webm:'audio/webm', ogg:'audio/ogg', wav:'audio/wav', m4a:'audio/mp4', mp4:'audio/mp4', aac:'audio/mp4' }[ext] || 'audio/mpeg';
   }
 
+  // Recording timestamps are shown in Vietnam time (where the sounds were
+  // captured), not the visitor's local zone — "17:33" should mean Saigon
+  // rush hour no matter where the listener sits.
+  const REC_DATE_FMT = new Intl.DateTimeFormat('en-GB', {
+    day: 'numeric', month: 'short', year: 'numeric',
+    hour: '2-digit', minute: '2-digit', hour12: false,
+    timeZone: 'Asia/Ho_Chi_Minh',
+  });
+  function fmtDate(iso) {
+    if (!iso) return '';
+    const d = new Date(iso);
+    return isNaN(d) ? '' : REC_DATE_FMT.format(d);
+  }
+  function recDateHTML(r) {
+    const t = fmtDate(r.createdAt);
+    return t ? `<span class="rec-date">🕐 ${t}</span>` : '';
+  }
+
   // ── Custom audio player ─────────────────────────────────────────
   // Used in Archive cards AND map marker popups so the visual is
   // identical regardless of codec quirks (older b2-sync MP3s lacking
@@ -1203,7 +1231,7 @@
           <div class="popup-inner">
             <h3>${esc(r.title || 'Untitled')}</h3>
             <p>${esc(r.description || 'No description')}</p>
-            <span class="popup-tag" style="background:${color}">${icon} ${esc(cat)}</span>
+            <span class="popup-tag" style="background:${color}">${icon} ${esc(cat)}</span>${recDateHTML(r)}
             ${audioPlayerHTML(r.audioUrl, audioType(r.audioUrl), r.title, r.id)}
           </div>
         `);
@@ -1616,7 +1644,7 @@
       return `
         <li class="rec-item" data-lat="${r.latitude}" data-lng="${r.longitude}">
           <h3>${esc(r.title || 'Untitled')}</h3>
-          <span class="rec-item-tag">${icon} ${esc(cat)}</span>
+          <span class="rec-item-tag">${icon} ${esc(cat)}</span>${recDateHTML(r)}
           <p>${esc(r.description || 'No description')}</p>
           ${audioPlayerHTML(r.audioUrl, audioType(r.audioUrl), r.title, r.id)}
         </li>`;
