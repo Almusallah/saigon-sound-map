@@ -2,6 +2,7 @@ require('dotenv').config();
 
 const express   = require('express');
 const cors      = require('cors');
+const fs        = require('fs');
 const path      = require('path');
 const multer    = require('multer');
 const mongoose  = require('mongoose');
@@ -97,7 +98,9 @@ app.get('/api/recordings', readLimiter, async (req, res) => {
 
 app.get('/api/search', readLimiter, async (req, res) => {
   try {
-    const q = req.query.q || '';
+    // Escape regex specials — a bare "(" would otherwise throw a 500.
+    const q = String(req.query.q || '').slice(0, 100)
+      .replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const results = await Recording.find({
       $or: [
         { title:       { $regex: q, $options: 'i' } },
@@ -108,6 +111,34 @@ app.get('/api/search', readLimiter, async (req, res) => {
   } catch (err) {
     console.error('[GET /search]', err.message);
     res.status(500).json({ error: 'Search failed' });
+  }
+});
+
+// Full-archive GeoJSON export — for GIS tools, research use, and backups.
+// Example: curl -o saigon-sound-map.geojson .../api/export.geojson
+app.get('/api/export.geojson', readLimiter, async (req, res) => {
+  try {
+    const list = cacheIsFresh() ? cache : await refreshCache();
+    res.set('Content-Disposition', 'inline; filename="saigon-sound-map.geojson"');
+    res.type('application/geo+json').json({
+      type: 'FeatureCollection',
+      features: list.map(r => ({
+        type: 'Feature',
+        geometry: { type: 'Point', coordinates: [r.longitude, r.latitude] },
+        properties: {
+          id:          r.id,
+          title:       r.title,
+          description: r.description || '',
+          category:    r.category,
+          audioUrl:    r.audioUrl,
+          duration:    r.duration || 0,
+          createdAt:   r.createdAt,
+        },
+      })),
+    });
+  } catch (err) {
+    console.error('[GET /export.geojson]', err.message);
+    res.status(500).json({ error: 'Export failed' });
   }
 });
 
@@ -155,6 +186,7 @@ app.get('/api/download/:idPrefix', readLimiter, async (req, res) => {
     // Keep Vietnamese diacritics so saved filenames like "Bánh Bao Đây.mp3"
     // round-trip cleanly through RFC 5987 encoding.
     const safe = (r.title || 'recording')
+      .replace(/^\[[^\]]*\]\s*/, '') // legacy "[Category] " title prefix
       .replace(/[^\w\s\-À-ɏḀ-ỿ]/g, '')
       .replace(/\s+/g, '_')
       .slice(0, 60)
@@ -385,8 +417,50 @@ app.post('/api/admin/backfill-durations', requireAdmin, async (req, res) => {
 });
 
 // ── Static files ─────────────────────────────────────────────────────────
-app.use(express.static(path.join(__dirname, '../client')));
-app.get('*', (req, res) => res.sendFile(path.join(__dirname, '../client/index.html')));
+// index: false so '/' falls through to the OG-injecting handler below —
+// social scrapers don't run JS, so ?rec= share links need their og: tags
+// rewritten server-side to unfurl with the recording's title on WhatsApp/
+// Zalo/Facebook.
+app.use(express.static(path.join(__dirname, '../client'), { index: false }));
+
+const CLIENT_INDEX = fs.readFileSync(path.join(__dirname, '../client/index.html'), 'utf8');
+const SITE_URL = 'https://saigon-soundscape.onrender.com';
+
+function escAttr(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;')
+                  .replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+// Replace an og: meta's content via callback (a "$&" in a recording title
+// would corrupt a string-replacement pattern).
+function setOg(html, prop, value) {
+  return html.replace(
+    new RegExp(`(property="og:${prop}" content=")[^"]*`),
+    (_, p1) => p1 + escAttr(value)
+  );
+}
+
+app.get('*', async (req, res) => {
+  let html = CLIENT_INDEX;
+  const ref = typeof req.query.rec === 'string' ? req.query.rec : null;
+  if (ref && /^[a-f0-9]{4,36}$/i.test(ref)) {
+    try {
+      const list = cacheIsFresh() ? cache : await refreshCache();
+      const r = list.find(x => x.id && x.id.startsWith(ref));
+      if (r) {
+        const title = (r.title || '').replace(/^\[[^\]]*\]\s*/, '').trim() || 'Recording';
+        const desc  = r.description ||
+          `A ${r.category || 'field'} recording from the Saigon_Miền Tây Sound Map.`;
+        html = setOg(html, 'title', `${title} — Saigon_Miền Tây Sound Map`);
+        html = setOg(html, 'description', desc);
+        html = setOg(html, 'url', `${SITE_URL}/?rec=${ref}`);
+      }
+    } catch (err) {
+      console.error('[og-inject]', err.message); // serve defaults on failure
+    }
+  }
+  res.type('html').send(html);
+});
 
 // ── Start ────────────────────────────────────────────────────────────────
 // Atlas occasionally refuses the first connection after a cold start (the

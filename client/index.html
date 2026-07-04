@@ -4,6 +4,15 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>Saigon_Miền Tây Sound Map</title>
+  <meta name="description" content="A living, community-built archive of the everyday sounds of Ho Chi Minh City and the Mekong Delta.">
+  <!-- OG tags: defaults for the site; the server rewrites title/description/url
+       per recording when the page is requested with ?rec=<id> (share links). -->
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Saigon_Miền Tây Sound Map">
+  <meta property="og:title" content="Saigon_Miền Tây Sound Map">
+  <meta property="og:description" content="A living, community-built archive of the everyday sounds of Ho Chi Minh City and the Mekong Delta.">
+  <meta property="og:url" content="https://saigon-soundscape.onrender.com/">
+  <meta name="twitter:card" content="summary">
   <link href="https://api.mapbox.com/mapbox-gl-js/v3.7.0/mapbox-gl.css" rel="stylesheet">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
@@ -83,8 +92,9 @@
       /* invisible padding so the small circle stays easy to tap */
       content: ''; position: absolute; inset: -9px; border-radius: 50%;
     }
-    .marker:hover {
+    .marker:hover, .marker:focus-visible {
       box-shadow: 0 2px 8px rgba(0,0,0,.4), 0 0 0 4px rgba(184,255,0,.25);
+      outline: none;
     }
     .temp-marker {
       width: 24px; height: 24px; border-radius: 50%;
@@ -860,7 +870,10 @@
 </div>
 
 <!-- Loading -->
-<div class="loading" id="loading"><div class="spinner"></div><span>Uploading...</span></div>
+<div class="loading" id="loading">
+  <div class="spinner"></div><span>Uploading...</span>
+  <button class="btn btn-cancel" id="upload-cancel" type="button">Cancel upload</button>
+</div>
 
 <!-- Toast -->
 <div class="toast" id="toast"></div>
@@ -941,8 +954,21 @@
   }
 
   function catInfo(r) {
-    const cat = r.category && r.category !== 'Others' ? r.category : (() => { const m = (r.title || '').match(/^\[(.*?)\]/); return m ? m[1] : (r.category || 'Others'); })();
-    return { cat, ...(CATS[cat] || { color: '#8B9195', icon: '🔊' }) };
+    // The category field is canonical (aliased to the new names at load).
+    // Fall back to a legacy "[Category] Title" prefix, then Background.
+    let cat = CATS[r.category] ? r.category : null;
+    if (!cat) {
+      const m = (r.title || '').match(/^\[(.*?)\]/);
+      const fromTitle = m && (CAT_ALIASES[m[1]] || m[1]);
+      cat = CATS[fromTitle] ? fromTitle : 'Background';
+    }
+    return { cat, ...CATS[cat] };
+  }
+
+  // Titles from older uploads carry a "[Category] " prefix (category is now
+  // its own field) — strip it everywhere we show a title.
+  function displayTitle(r) {
+    return (r.title || '').replace(/^\[[^\]]*\]\s*/, '').trim() || 'Untitled';
   }
 
   function audioType(url) {
@@ -994,9 +1020,14 @@
   }, true);
 
   // /?rec=<id-prefix> — fly to that recording and open its popup.
+  // Runs once per page load: loadRecordings() re-fires every 2 minutes and
+  // must not yank the visitor back to the shared recording each refresh.
+  let deepLinkDone = false;
   function openDeepLink() {
+    if (deepLinkDone) return;
     const ref = new URLSearchParams(location.search).get('rec');
-    if (!ref) return;
+    if (!ref) { deepLinkDone = true; return; }
+    deepLinkDone = true; // recordings are loaded by now; one attempt only
     const r = recordings.find(x => x.id.startsWith(ref));
     if (!r) return;
     map.flyTo({ center: [r.longitude, r.latitude], zoom: 16 });
@@ -1128,13 +1159,25 @@
   }
 
   // ── Map ─────────────────────────────────────────────────────────
+  // Local dev: the production token is URL-locked to the Render domain, so
+  // the style request 403s on localhost and the map never finishes loading
+  // (camera ops queue forever — zoom appears frozen). Fall back to a blank
+  // inline style locally so markers, clusters and popups stay fully
+  // drivable over a plain background. Production is unaffected.
+  const LOCAL_DEV = ['localhost', '127.0.0.1'].includes(location.hostname);
+  const BLANK_STYLE = {
+    version: 8, name: 'blank-local', sources: {},
+    glyphs: 'mapbox://fonts/mapbox/{fontstack}/{range}.pbf',
+    layers: [{ id: 'bg', type: 'background', paint: { 'background-color': '#F5F0E8' } }],
+  };
   function initMap() {
     mapboxgl.accessToken = MAPBOX_TOKEN;
     map = new mapboxgl.Map({
       container: 'map',
-      style: currentStyle,
+      style: LOCAL_DEV ? BLANK_STYLE : currentStyle,
       center: SAIGON, zoom: 12,   minZoom: 5, maxZoom: 18,
     });
+    if (LOCAL_DEV) window.__map = map; // console access for local debugging
     map.addControl(new mapboxgl.NavigationControl(), 'top-left');
     const geolocate = new mapboxgl.GeolocateControl({
       positionOptions: { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 },
@@ -1186,10 +1229,12 @@
 
     // Toggle cluster-mode CSS class on the map container so DOM markers
     // hide at low zoom (where clusters take over) and re-appear on zoom-in.
-    map.on('zoom', () => {
-      const z = map.getZoom();
-      document.body.classList.toggle('clustered', z < CLUSTER_MAX_ZOOM);
-    });
+    const syncClusteredClass = () =>
+      document.body.classList.toggle('clustered', map.getZoom() < CLUSTER_MAX_ZOOM);
+    map.on('zoom', syncClusteredClass);
+    // ...and once at startup: without this, no zoom event has fired yet on
+    // first paint, so markers and cluster circles render on top of each other.
+    syncClusteredClass();
 
     map.on('click', e => {
       if (e.originalEvent.target.closest('.marker') || e.originalEvent.target.closest('.mapboxgl-popup')) return;
@@ -1207,12 +1252,19 @@
   }
 
   // ── Load & render ───────────────────────────────────────────────
+  let lastPayload = null;
   async function loadRecordings() {
     try {
       const res = await fetch(`${API}/recordings`);
       if (!res.ok) throw new Error(res.statusText);
-      const data = await res.json();
+      const text = await res.text();
+      // The 2-minute refresh usually returns identical data. Re-rendering
+      // would tear down every marker and close any open popup mid-listen,
+      // so skip the whole pass when nothing changed.
+      if (text === lastPayload) return;
+      const data = JSON.parse(text);
       if (!Array.isArray(data.recordings)) return;
+      lastPayload = text;
       recordings = data.recordings.filter(r => r && typeof r.latitude === 'number' && typeof r.longitude === 'number' && r.audioUrl).map(r => ({ ...r, category: CAT_ALIASES[r.category] || r.category }));
       $('count-badge').textContent = recordings.length;
       renderMarkers();
@@ -1235,7 +1287,10 @@
       type:           'geojson',
       data:           { type: 'FeatureCollection', features: [] },
       cluster:        true,
-      clusterMaxZoom: CLUSTER_MAX_ZOOM,
+      // One below the CSS unhide threshold: DOM markers appear at
+      // CLUSTER_MAX_ZOOM, so clustering must stop at the tile level just
+      // beneath it or both render together in the 14–15 zoom band.
+      clusterMaxZoom: CLUSTER_MAX_ZOOM - 1,
       clusterRadius:  50,
     });
 
@@ -1320,7 +1375,7 @@
 
         const popup = new mapboxgl.Popup({ offset: 25, maxWidth: '320px' }).setHTML(`
           <div class="popup-inner">
-            <h3>${esc(r.title || 'Untitled')}</h3>
+            <h3>${esc(displayTitle(r))}</h3>
             <p>${esc(r.description || 'No description')}</p>
             <span class="popup-tag" style="background:${color}">${icon} ${esc(cat)}</span>${recDateHTML(r)}${shareBtnHTML(r)}
             ${audioPlayerHTML(r.audioUrl, audioType(r.audioUrl), r.title, r.id, r.duration)}
@@ -1336,6 +1391,15 @@
           .setLngLat([r.longitude, r.latitude])
           .setPopup(popup)
           .addTo(map);
+        // Keyboard / screen-reader access: focusable, named, Enter/Space
+        // toggles the popup like a click. Set after addTo so mapbox's own
+        // attributes don't overwrite ours.
+        el.setAttribute('role', 'button');
+        el.tabIndex = 0;
+        el.setAttribute('aria-label', `${displayTitle(r)} — ${cat}`);
+        el.addEventListener('keydown', ev => {
+          if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); m.togglePopup(); }
+        });
         markers.push(m);
         markersById[r.id] = m;
       } catch (err) {
@@ -1586,6 +1650,8 @@
   $('upload-btn').onclick = openForm;
   $('form-close').onclick = closeForm;
   $('form-cancel').onclick = closeForm;
+  // Abort the in-flight upload; the XHR's onabort path shows the toast.
+  $('upload-cancel').onclick = () => { try { window._currentXhr?.abort(); } catch {} };
   $('form-overlay').onclick = e => { if (e.target === $('form-overlay')) closeForm(); };
 
   $('upload-form').onsubmit = async e => {
@@ -1610,7 +1676,9 @@
 
     const fd = new FormData();
     fd.append('audioFile', blob, filename);
-    fd.append('title', `[${cat}] ${title}`);
+    // Title used to carry a "[Category] " prefix for pre-category-field
+    // clients; category is its own field now, so store the clean title.
+    fd.append('title', title);
     fd.append('description', $('f-desc').value);
     fd.append('category', cat);
     fd.append('latitude', $('f-lat').value);
@@ -1684,7 +1752,7 @@
       if (tempMarker) { tempMarker.remove(); tempMarker = null; }
       loadRecordings();
     } catch (err) {
-      toast('Upload failed: ' + err.message);
+      toast(err.message === 'aborted' ? 'Upload cancelled' : 'Upload failed: ' + err.message);
     } finally {
       $('loading').classList.remove('show');
       $('loading').querySelector('span').textContent = 'Uploading…';
@@ -1789,7 +1857,7 @@
       const { cat, color, icon } = catInfo(r);
       return `
         <li class="rec-item" data-lat="${r.latitude}" data-lng="${r.longitude}">
-          <h3>${esc(r.title || 'Untitled')}</h3>
+          <h3>${esc(displayTitle(r))}</h3>
           <span class="rec-item-tag">${icon} ${esc(cat)}</span>${recDateHTML(r)}${shareBtnHTML(r)}
           <p>${esc(r.description || 'No description')}</p>
           ${audioPlayerHTML(r.audioUrl, audioType(r.audioUrl), r.title, r.id, r.duration)}
