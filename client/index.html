@@ -66,6 +66,19 @@
     }
     .header-btn:hover { background: rgba(184,255,0,.15); }
     .header-btn.active { background: var(--primary); color: var(--header-bg); border-color: var(--primary); }
+    /* City switcher — same visual language as .header-btn, with a lime chevron. */
+    .city-select {
+      appearance: none; -webkit-appearance: none;
+      background: transparent; border: 1px solid var(--primary);
+      border-radius: var(--radius-sm); color: var(--primary);
+      padding: 8px 28px 8px 14px; font-size: 13px; font-weight: 500;
+      font-family: inherit; cursor: pointer; transition: all .2s;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23B8FF00' stroke-width='1.5' fill='none'/%3E%3C/svg%3E");
+      background-repeat: no-repeat; background-position: right 10px center;
+    }
+    .city-select:hover { background-color: rgba(184,255,0,.15); }
+    .city-select:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; }
+    .city-select option { background: var(--header-bg); color: var(--primary); }
     .badge {
       background: var(--header-bg); color: var(--primary); border: 1px solid var(--primary); font-size: 11px; font-weight: 600;
       padding: 2px 8px; border-radius: 12px; margin-left: 6px; display: inline-block;
@@ -709,8 +722,12 @@
     @media (max-width: 600px) {
       header { padding: calc(12px + env(safe-area-inset-top, 0px)) 16px 12px; }
       header h1 { font-size: 16px; }
-      .header-actions { gap: 8px; }
+      /* Two-row header: title on top, controls beneath — four controls no
+         longer fit beside the title on a phone. */
+      header { flex-wrap: wrap; row-gap: 8px; }
+      .header-actions { gap: 8px; width: 100%; justify-content: flex-start; flex-wrap: wrap; row-gap: 6px; }
       .header-btn { padding: 6px 10px; font-size: 12px; }
+      .city-select { padding: 6px 20px 6px 8px; font-size: 12px; max-width: 110px; background-position: right 7px center; }
       .badge { padding: 1px 6px; font-size: 10px; }
       .archive { width: 100%; }
       .filter-bar { top: 8px; left: 60px; transform: none; max-width: calc(100vw - 70px); font-size: 11px; }
@@ -738,6 +755,8 @@
     <h1>SAIGON_MIỀN&nbsp;TÂY SOUND MAP</h1>
   </div>
   <div class="header-actions">
+    <!-- options populated from CITIES at runtime via buildCitySelect() -->
+    <select class="city-select" id="city-select" aria-label="Move the map to a city"></select>
     <button class="header-btn" id="about-btn">About</button>
     <button class="header-btn" id="style-toggle">Satellite</button>
     <button class="header-btn" id="archive-btn">Archive <span class="badge" id="count-badge">0</span></button>
@@ -892,6 +911,23 @@
   const MAPBOX_TOKEN = 'pk.eyJ1Ijoic2lkZXdhbGtjaXR5IiwiYSI6ImNtb3kyZjBlbjA4Y3cydHNqdmp2djNqamwifQ.1FjkXIrL_BEWjzcY542lIw';
   const SAIGON = [106.6953, 10.7765];
   const REFRESH = 120_000;
+
+  // ── Cities ──────────────────────────────────────────────────────
+  // Curated jump points — recording works anywhere (uploads carry their own
+  // lat/lng; nothing server-side is Saigon-specific), these just move the
+  // camera. Saigon stays the home/default view.
+  const CITIES = {
+    'Saigon':   { center: SAIGON,             zoom: 12 },
+    'Hanoi':    { center: [105.8342, 21.0278], zoom: 12 },
+    'Bangkok':  { center: [100.5018, 13.7563], zoom: 12 },
+    'Milan':    { center: [9.1900, 45.4642],   zoom: 12 },
+    'Cagliari': { center: [9.1217, 39.2238],   zoom: 12 },
+    'Tehran':   { center: [51.3890, 35.6892],  zoom: 11 },
+    'Beirut':   { center: [35.5018, 33.8938],  zoom: 12 },
+    'Riyadh':   { center: [46.6753, 24.7136],  zoom: 11 },
+    'Jeddah':   { center: [39.1925, 21.4858],  zoom: 11 },
+  };
+  const DEFAULT_CITY = 'Saigon';
 
   // Feature flag: when false, the District 4 heritage marker is not added
   // to the map AND the heritage modal never opens (the HTML stays in the
@@ -1129,6 +1165,68 @@
     };
   }
 
+  // ── City switcher ───────────────────────────────────────────────
+  function distKm(lat1, lng1, lat2, lng2) { // haversine
+    const rad = Math.PI / 180, R = 6371;
+    const a = Math.sin((lat2 - lat1) * rad / 2) ** 2 +
+              Math.cos(lat1 * rad) * Math.cos(lat2 * rad) *
+              Math.sin((lng2 - lng1) * rad / 2) ** 2;
+    return 2 * R * Math.asin(Math.sqrt(a));
+  }
+
+  // Recordings within 150 km of the city centre — wide enough that Miền Tây
+  // recordings (Bến Tre, Cần Thơ…) count as "Saigon". Safe: the closest
+  // pair of listed cities (Riyadh–Jeddah) is ~850 km apart.
+  function cityCount(name) {
+    const [lng, lat] = CITIES[name].center;
+    return recordings.filter(r => distKm(lat, lng, r.latitude, r.longitude) < 150).length;
+  }
+
+  function buildCitySelect() {
+    const sel = $('city-select');
+    sel.innerHTML = Object.keys(CITIES)
+      .map(c => `<option${c === DEFAULT_CITY ? ' selected' : ''}>${c}</option>`).join('');
+    sel.onchange = () => flyToCity(sel.value, true);
+  }
+
+  function flyToCity(name, announce) {
+    const c = CITIES[name];
+    if (!c) return;
+    // Animated camera moves are dropped while the style is still loading
+    // (slow tiles / the 8s boot fallback) — jump instantly in that case
+    // rather than silently ignoring the click.
+    const move = { center: c.center, zoom: c.zoom };
+    if (map.isStyleLoaded()) map.flyTo(move); else map.jumpTo(move);
+    // Keep the URL shareable (?city=Milan) without polluting history.
+    try {
+      const url = new URL(location);
+      if (name === DEFAULT_CITY) url.searchParams.delete('city');
+      else url.searchParams.set('city', name);
+      history.replaceState(null, '', url);
+    } catch {}
+    if (announce) {
+      // Don't claim "no recordings yet" while the archive is still loading.
+      if (!recordings.length) { toast(`📍 ${name}`); return; }
+      const n = cityCount(name);
+      toast(n ? `📍 ${name} — ${n} recording${n === 1 ? '' : 's'} so far`
+              : `📍 ${name} — no recordings yet. Be the first!`);
+    }
+  }
+
+  // /?city=<name> — start the session in another city. A ?rec deep link
+  // wins: it already flies to its own recording.
+  function openCityLink() {
+    const params = new URLSearchParams(location.search);
+    if (params.get('rec')) return;
+    const want = (params.get('city') || '').toLowerCase();
+    if (!want) return;
+    const name = Object.keys(CITIES).find(c => c.toLowerCase() === want);
+    if (!name || name === DEFAULT_CITY) return;
+    const sel = $('city-select');
+    if (sel) sel.value = name;
+    flyToCity(name, false);
+  }
+
   // ── Build filter chips ──────────────────────────────────────────
   function buildFilterChips() {
     const bar = $('filter-bar');
@@ -1210,6 +1308,7 @@
       try { setupClusters(); } catch (e) { map.once('load', () => { try { setupClusters(); } catch {} }); }
       loadRecordings();
       setInterval(loadRecordings, REFRESH);
+      openCityLink();
       // Heritage marker temporarily hidden — flip HERITAGE_ENABLED below to re-enable.
       if (HERITAGE_ENABLED) addHeritageMarker();
       // Hide the initial loading splash (short delay so users see the map
@@ -1883,6 +1982,7 @@
     buildCategoryDropdowns();
     buildFilterChips();
     initMap();
+    buildCitySelect();
   });
 
 })();
