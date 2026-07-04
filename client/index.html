@@ -66,20 +66,25 @@
     .map-wrap { flex: 1; position: relative; overflow: hidden; }
     #map { position: absolute; inset: 0; }
 
-    /* ── Custom markers (circular, no rotation) ─────────────────────── */
+    /* ── Custom markers (transparent circles, grapes-style) ─────────── */
+    /* Small semi-transparent circle in the category colour with a thin
+       full-opacity ring — same marker language as the Grapes maps.
+       Fill/border colours are set inline per category in renderMarkers().
+       No position:relative here — it would override mapbox's absolute
+       positioning and cause marker drift. */
     .marker {
-      width: 32px; height: 32px; border-radius: 50%;
+      width: 14px; height: 14px; border-radius: 50%;
       cursor: pointer;
-      border: 3px solid #fff; box-shadow: 0 2px 8px rgba(0,0,0,.25);
+      border: 1.5px solid;
+      box-shadow: 0 1px 4px rgba(0,0,0,.25);
       transition: box-shadow .2s;
-      display: flex; align-items: center; justify-content: center;
     }
     .marker::after {
-      content: attr(data-icon); position: absolute;
-      font-size: 16px;
+      /* invisible padding so the small circle stays easy to tap */
+      content: ''; position: absolute; inset: -9px; border-radius: 50%;
     }
     .marker:hover {
-      box-shadow: 0 4px 16px rgba(0,0,0,.4), 0 0 0 4px rgba(196,149,106,.3);
+      box-shadow: 0 2px 8px rgba(0,0,0,.4), 0 0 0 4px rgba(184,255,0,.25);
     }
     .temp-marker {
       width: 24px; height: 24px; border-radius: 50%;
@@ -1310,8 +1315,8 @@
 
         const el = document.createElement('div');
         el.className = 'marker';
-        el.style.backgroundColor = color;
-        el.setAttribute('data-icon', icon);
+        el.style.backgroundColor = color + 'BF'; // 75% fill opacity
+        el.style.borderColor = color;
 
         const popup = new mapboxgl.Popup({ offset: 25, maxWidth: '320px' }).setHTML(`
           <div class="popup-inner">
