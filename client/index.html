@@ -1179,10 +1179,11 @@
   // Recordings within 150 km of the city centre — wide enough that Miền Tây
   // recordings (Bến Tre, Cần Thơ…) count as "Saigon". Safe: the closest
   // pair of listed cities (Riyadh–Jeddah) is ~850 km apart.
-  function cityCount(name) {
+  function cityRecordings(name) {
     const [lng, lat] = CITIES[name].center;
-    return recordings.filter(r => distKm(lat, lng, r.latitude, r.longitude) < 150).length;
+    return recordings.filter(r => distKm(lat, lng, r.latitude, r.longitude) < 150);
   }
+  function cityCount(name) { return cityRecordings(name).length; }
 
   function buildCitySelect() {
     const sel = $('city-select');
@@ -1218,7 +1219,20 @@
     // (slow tiles / the 8s boot fallback) — jump instantly in that case
     // rather than silently ignoring the click.
     const move = { center: c.center, zoom: c.zoom };
-    if (map.isStyleLoaded()) map.flyTo(move); else map.jumpTo(move);
+    // If the city already has recordings, frame them (capped at the preset
+    // zoom) — a lone recording can sit kilometres off the centre-point and
+    // land off-screen on a phone. Saigon keeps its brand home view.
+    const pts = name === DEFAULT_CITY ? [] : cityRecordings(name);
+    if (pts.length && map.isStyleLoaded()) {
+      const b = new mapboxgl.LngLatBounds();
+      pts.forEach(r => b.extend([r.longitude, r.latitude]));
+      b.extend(c.center); // keep the city centre in frame too
+      map.fitBounds(b, { padding: 80, maxZoom: c.zoom });
+    } else if (map.isStyleLoaded()) {
+      map.flyTo(move);
+    } else {
+      map.jumpTo(move);
+    }
     // Keep the URL shareable (?city=Milan) without polluting history.
     try {
       const url = new URL(location);
@@ -1359,6 +1373,11 @@
 
     map.on('click', e => {
       if (e.originalEvent.target.closest('.marker') || e.originalEvent.target.closest('.mapboxgl-popup')) return;
+      // Canvas-rendered recordings (clusters / lone points) have their own
+      // click handlers — don't also drop an upload pin on top of them.
+      try {
+        if (map.queryRenderedFeatures(e.point, { layers: ['cluster-circles', 'single-points'] }).length) return;
+      } catch {} // layers may not exist yet (style still loading)
       const { lng, lat } = e.lngLat;
       setUploadLocation(lat, lng);
       if (pinMode) {
@@ -1445,6 +1464,27 @@
       paint: { 'text-color': '#B8FF00' },
     });
 
+    // Lone (unclustered) recordings: clusters only render for 2+ points and
+    // DOM markers are hidden below CLUSTER_MAX_ZOOM, so without this layer a
+    // city's FIRST recording is invisible at low zoom (how the first Venice
+    // recording went missing). Mirrors the DOM markers' look: category-colour
+    // fill at 75% + thin full-opacity ring. maxzoom hands over to the DOM
+    // markers exactly where they unhide.
+    map.addLayer({
+      id:      'single-points',
+      type:    'circle',
+      source:  'recordings-source',
+      filter:  ['!', ['has', 'point_count']],
+      maxzoom: CLUSTER_MAX_ZOOM,
+      paint: {
+        'circle-color':        ['coalesce', ['get', 'color'], '#8B9195'],
+        'circle-opacity':      0.75,
+        'circle-radius':       7,
+        'circle-stroke-color': ['coalesce', ['get', 'color'], '#8B9195'],
+        'circle-stroke-width': 1.5,
+      },
+    });
+
     // Click cluster to zoom in on it (auto-finds the zoom level that
     // breaks the cluster apart).
     map.on('click', 'cluster-circles', (e) => {
@@ -1457,8 +1497,23 @@
       });
     });
 
-    map.on('mouseenter', 'cluster-circles', () => map.getCanvas().style.cursor = 'pointer');
-    map.on('mouseleave', 'cluster-circles', () => map.getCanvas().style.cursor = '');
+    // Click a lone recording: ease in past the DOM-marker threshold, then
+    // open its popup.
+    map.on('click', 'single-points', (e) => {
+      const f = e.features && e.features[0];
+      if (!f) return;
+      const id = f.properties.id;
+      map.easeTo({ center: f.geometry.coordinates, zoom: CLUSTER_MAX_ZOOM + 0.5 });
+      map.once('moveend', () => {
+        const m = markersById[id];
+        if (m && m.getPopup() && !m.getPopup().isOpen()) m.togglePopup();
+      });
+    });
+
+    ['cluster-circles', 'single-points'].forEach(layer => {
+      map.on('mouseenter', layer, () => map.getCanvas().style.cursor = 'pointer');
+      map.on('mouseleave', layer, () => map.getCanvas().style.cursor = '');
+    });
   }
 
   // Push the current `recordings` array into the GeoJSON source. Called
@@ -1472,7 +1527,8 @@
       features: filtered.map(r => ({
         type: 'Feature',
         geometry: { type: 'Point', coordinates: [r.longitude, r.latitude] },
-        properties: { id: r.id, title: r.title || '', category: catInfo(r).cat },
+        // color drives the single-points circle layer (lone recordings)
+        properties: { id: r.id, title: r.title || '', category: catInfo(r).cat, color: catInfo(r).color },
       })),
     });
   }
