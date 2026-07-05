@@ -751,8 +751,9 @@
 
 <header>
   <div class="logo">
-    <!-- Non-breaking space inside "MIỀN TÂY" so it never wraps to a new line on narrow mobile screens. -->
-    <h1>SAIGON_MIỀN&nbsp;TÂY SOUND MAP</h1>
+    <!-- Non-breaking space inside "MIỀN TÂY" so it never wraps to a new line on narrow
+         mobile screens. Text is swapped per city by setCityTitle(). -->
+    <h1 id="site-title">SAIGON_MIỀN&nbsp;TÂY SOUND MAP</h1>
   </div>
   <div class="header-actions">
     <!-- options populated from CITIES at runtime via buildCitySelect() -->
@@ -1189,9 +1190,29 @@
     sel.onchange = () => flyToCity(sel.value, true);
   }
 
+  // Header + browser-tab title follow the selected city; Saigon keeps the
+  // original brand (with its non-breaking space in MIỀN TÂY).
+  // Captured once at load so the Saigon (home) title round-trips exactly,
+  // non-breaking space and all, without hardcoding the Vietnamese string.
+  const defaultTitleHTML = document.getElementById('site-title')
+    ? document.getElementById('site-title').innerHTML : '';
+  const defaultDocTitle = document.title;
+  function setCityTitle(name) {
+    const h1 = $('site-title');
+    if (!h1) return;
+    if (name === DEFAULT_CITY) {
+      h1.innerHTML = defaultTitleHTML;   // original brand incl. its &nbsp;
+      document.title = defaultDocTitle;
+    } else {
+      h1.textContent = `${name.toUpperCase()} SOUND MAP`;
+      document.title = `${name} Sound Map`;
+    }
+  }
+
   function flyToCity(name, announce) {
     const c = CITIES[name];
     if (!c) return;
+    setCityTitle(name);
     // Animated camera moves are dropped while the style is still loading
     // (slow tiles / the 8s boot fallback) — jump instantly in that case
     // rather than silently ignoring the click.
