@@ -925,9 +925,13 @@
     'Cagliari': { center: [9.1217, 39.2238],   zoom: 12 },
     'Venice':   { center: [12.3155, 45.4408],  zoom: 13 },
     'Tehran':   { center: [51.3890, 35.6892],  zoom: 11 },
+    'Istanbul': { center: [28.9784, 41.0082],  zoom: 11 },
     'Beirut':   { center: [35.5018, 33.8938],  zoom: 12 },
+    'Amman':    { center: [35.9284, 31.9539],  zoom: 11 },
+    'Cairo':    { center: [31.2357, 30.0444],  zoom: 11 },
     'Riyadh':   { center: [46.6753, 24.7136],  zoom: 11 },
     'Jeddah':   { center: [39.1925, 21.4858],  zoom: 11 },
+    'Dammam':   { center: [50.1033, 26.4207],  zoom: 11 },
   };
   const DEFAULT_CITY = 'Saigon';
 
@@ -1514,6 +1518,12 @@
       map.on('mouseenter', layer, () => map.getCanvas().style.cursor = 'pointer');
       map.on('mouseleave', layer, () => map.getCanvas().style.cursor = '');
     });
+
+    // Push whatever recordings are already loaded. Covers the slow-style
+    // boot: the 8s fallback loads recordings BEFORE this source exists, and
+    // the unchanged-payload refresh skip would otherwise leave the source
+    // empty forever.
+    updateClusterData();
   }
 
   // Push the current `recordings` array into the GeoJSON source. Called
