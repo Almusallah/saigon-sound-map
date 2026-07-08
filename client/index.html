@@ -925,14 +925,23 @@
     'Torino':   { center: [7.6869, 45.0703],   zoom: 12 },
     'Cagliari': { center: [9.1217, 39.2238],   zoom: 12 },
     'Venice':   { center: [12.3155, 45.4408],  zoom: 13 },
+    'Kleve':    { center: [6.1385, 51.7852],   zoom: 13, radius: 40 },
+    'Berlin':   { center: [13.4050, 52.5200],  zoom: 11 },
     'Tehran':   { center: [51.3890, 35.6892],  zoom: 11 },
     'Istanbul': { center: [28.9784, 41.0082],  zoom: 11 },
-    'Beirut':   { center: [35.5018, 33.8938],  zoom: 12 },
+    // Beirut and Damascus are ~85 km apart — tight radii keep their
+    // recording counts (and city framing) from bleeding into each other.
+    'Beirut':   { center: [35.5018, 33.8938],  zoom: 12, radius: 60 },
+    'Damascus': { center: [36.2765, 33.5138],  zoom: 11, radius: 60 },
     'Amman':    { center: [35.9284, 31.9539],  zoom: 11 },
     'Cairo':    { center: [31.2357, 30.0444],  zoom: 11 },
     'Riyadh':   { center: [46.6753, 24.7136],  zoom: 11 },
     'Jeddah':   { center: [39.1925, 21.4858],  zoom: 11 },
-    'Dammam':   { center: [50.1033, 26.4207],  zoom: 11 },
+    // Dammam and the Qatar peninsula are ~125 km apart at the closest —
+    // same treatment.
+    'Dammam':   { center: [50.1033, 26.4207],  zoom: 11, radius: 80 },
+    // Qatar as a whole country: zoom 8 frames the entire peninsula.
+    'Qatar':    { center: [51.2000, 25.3000],  zoom: 8,  radius: 100 },
   };
   const DEFAULT_CITY = 'Saigon';
 
@@ -1181,12 +1190,13 @@
     return 2 * R * Math.asin(Math.sqrt(a));
   }
 
-  // Recordings within 150 km of the city centre — wide enough that Miền Tây
-  // recordings (Bến Tre, Cần Thơ…) count as "Saigon". Safe: the closest
-  // pair of listed cities (Riyadh–Jeddah) is ~850 km apart.
+  // Recordings within the city's radius (default 150 km — wide enough that
+  // Miền Tây recordings count as "Saigon"). Cities with close neighbours
+  // (Beirut/Damascus, Dammam/Qatar) set a tighter `radius` in CITIES so
+  // counts and framing don't bleed across borders.
   function cityRecordings(name) {
-    const [lng, lat] = CITIES[name].center;
-    return recordings.filter(r => distKm(lat, lng, r.latitude, r.longitude) < 150);
+    const { center: [lng, lat], radius = 150 } = CITIES[name];
+    return recordings.filter(r => distKm(lat, lng, r.latitude, r.longitude) < radius);
   }
   function cityCount(name) { return cityRecordings(name).length; }
 
