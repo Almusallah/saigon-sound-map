@@ -1,0 +1,47 @@
+# Weekly metadata backup. The MongoDB M0 free tier has NO automated
+# backups, and the curated titles/descriptions/categories exist ONLY in
+# Mongo — B2 filenames encode just uuid+lat+lng, so losing the DB without
+# this file would lose all curation. Every Monday the full archive
+# metadata is exported and committed here; the audio itself is safe in B2.
+# Git history keeps every prior weekly version of the file.
+name: backup
+on:
+  schedule:
+    - cron: '0 3 * * 1'   # Mondays 03:00 UTC (10:00 Saigon)
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Export archive metadata
+        run: |
+          mkdir -p backups
+          curl -fsS -m 120 --retry 3 \
+            https://saigon-soundscape.onrender.com/api/export.geojson \
+            -o backups/latest.geojson
+
+      - name: Sanity-check the export
+        # Never overwrite a good backup with a truncated or error response.
+        run: |
+          python3 - <<'EOF'
+          import json
+          d = json.load(open('backups/latest.geojson'))
+          n = len(d['features'])
+          assert d['type'] == 'FeatureCollection' and n >= 100, f"suspicious export: {n} features"
+          print(f"export OK: {n} features")
+          EOF
+
+      - name: Commit if changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add backups/latest.geojson
+          git diff --cached --quiet && echo "no changes since last week" && exit 0
+          git commit -m "backup: weekly metadata export [skip render]"
+          git push
