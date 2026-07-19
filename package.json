@@ -1,7 +1,7 @@
 {
   "name": "saigon-sound-map",
   "version": "1.0.0",
-  "description": "Saigon Sound Map — interactive field recordings mapped across Ho Chi Minh City",
+  "description": "Saigon Sound Map \u2014 interactive field recordings mapped across Ho Chi Minh City",
   "main": "server/index.js",
   "scripts": {
     "start": "node server/index.js",
@@ -16,9 +16,10 @@
     "express-rate-limit": "^7.4.0",
     "mongoose": "^8.9.5",
     "multer": "^1.4.5-lts.1",
+    "sharp": "^0.35.3",
     "uuid": "^11.0.5"
   },
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=20.9.0"
   }
 }

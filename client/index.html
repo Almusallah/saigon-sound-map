@@ -12,6 +12,7 @@
   <meta property="og:title" content="Saigon_Miền Tây Sound Map">
   <meta property="og:description" content="A living, community-built archive of the everyday sounds of Ho Chi Minh City and the Mekong Delta.">
   <meta property="og:url" content="https://saigon-soundscape.onrender.com/">
+  <!--og:image-->
   <meta name="twitter:card" content="summary">
   <link href="https://api.mapbox.com/mapbox-gl-js/v3.7.0/mapbox-gl.css" rel="stylesheet">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -138,6 +139,24 @@
     }
     .popup-inner audio {
       width: 100%; border-radius: 6px; margin-top: 8px;
+    }
+    /* Recording photo: edge-to-edge above the popup text (the popup's
+       rounded corners clip it), click opens the full image. */
+    .popup-photo {
+      display: block; width: 100%; max-height: 180px;
+      object-fit: cover; cursor: zoom-in;
+    }
+    /* Keep the popup close button legible when it sits over a photo. */
+    .mapboxgl-popup-content:has(.popup-photo) .mapboxgl-popup-close-button {
+      background: rgba(0,0,0,.55); color: #fff;
+      width: 24px; height: 24px; border-radius: 50%; line-height: 22px;
+    }
+    /* Archive card photo */
+    .rec-item-photo {
+      display: block; width: 100%; max-height: 120px;
+      object-fit: cover; border-radius: var(--radius-sm);
+      margin-bottom: 8px; cursor: zoom-in;
+      border: 1px solid rgba(184,255,0,.2);
     }
 
     /* ── FAB (record) ──────────────────────────────────────────────── */
@@ -280,6 +299,12 @@
       font-weight: 600; font-size: 12px;
       cursor: pointer; font-family: inherit;
     }
+    /* Thumbnail of the optional photo, shown once one is chosen. */
+    .photo-preview {
+      display: none; margin-top: 8px; max-height: 90px; max-width: 100%;
+      border-radius: var(--radius-sm); border: 1px solid rgba(184,255,0,.3);
+    }
+    .photo-preview.show { display: block; }
 
     /* ── Buttons ────────────────────────────────────────────────────── */
     .form-actions { display: flex; gap: 12px; justify-content: flex-end; margin-top: 24px; }
@@ -801,6 +826,11 @@
         <input type="file" id="audio-file" accept="audio/*,.webm,.mp3,.m4a,.mp4,.ogg,.wav">
       </div>
       <div class="fg">
+        <label>Add a photo (optional)</label>
+        <input type="file" id="image-file" accept="image/*">
+        <img class="photo-preview" id="photo-preview" alt="Photo preview">
+      </div>
+      <div class="fg">
         <label>Title *</label>
         <input type="text" id="f-title" required placeholder="e.g. Morning market sounds">
       </div>
@@ -905,7 +935,11 @@
   'use strict';
 
   // ── Config ──────────────────────────────────────────────────────
-  const API = 'https://saigon-soundscape.onrender.com/api';
+  // Port 8906 is the local full-stack convention (node server serving both
+  // client and API); the static-client server on 8901 keeps using prod.
+  const API = (['localhost', '127.0.0.1'].includes(location.hostname) && location.port === '8906')
+    ? '/api'
+    : 'https://saigon-soundscape.onrender.com/api';
   // Restricted production token — only valid on saigon-soundscape.onrender.com.
   // If site moves to a custom domain, add it to the token's URL allowlist
   // in the Mapbox console (account/access-tokens) BEFORE deploying.
@@ -1576,6 +1610,7 @@
         el.style.borderColor = color;
 
         const popup = new mapboxgl.Popup({ offset: 25, maxWidth: '320px' }).setHTML(`
+          ${r.imageUrl ? `<a href="${esc(r.imageUrl)}" target="_blank" rel="noopener"><img class="popup-photo" src="${esc(r.imageUrl)}" alt="" loading="lazy"></a>` : ''}
           <div class="popup-inner">
             <h3>${esc(displayTitle(r))}</h3>
             <p>${esc(r.description || 'No description')}</p>
@@ -1796,6 +1831,47 @@
   function openForm()  { updateLocStatus(); $('form-overlay').classList.add('open'); }
   function closeForm() { $('form-overlay').classList.remove('open'); resetRecorder(); }
 
+  // Optional photo: live thumbnail preview beside the input.
+  $('image-file').onchange = () => {
+    const f = $('image-file').files[0];
+    const prev = $('photo-preview');
+    if (prev.src) { try { URL.revokeObjectURL(prev.src); } catch {} }
+    if (f) { prev.src = URL.createObjectURL(f); prev.classList.add('show'); }
+    else { prev.removeAttribute('src'); prev.classList.remove('show'); }
+  };
+  function clearPhotoPreview() {
+    const prev = $('photo-preview');
+    if (prev.src) { try { URL.revokeObjectURL(prev.src); } catch {} }
+    prev.removeAttribute('src'); prev.classList.remove('show');
+  }
+
+  // Downscale the chosen photo in the browser (≤1600px JPEG q0.85) so a
+  // 10 MB phone shot uploads as a few hundred KB — kind to 4G and to the
+  // server. Safari decodes HEIC natively here, so the server never sees
+  // exotic formats. Orientation is baked in via imageOrientation; the
+  // server re-encodes to WebP and strips all metadata regardless. Any
+  // failure falls back to sending the original file untouched.
+  async function preparePhoto(file) {
+    try {
+      let bmp;
+      try { bmp = await createImageBitmap(file, { imageOrientation: 'from-image' }); }
+      catch { bmp = await createImageBitmap(file); }
+      const scale = Math.min(1, 1600 / Math.max(bmp.width, bmp.height));
+      const w = Math.max(1, Math.round(bmp.width * scale));
+      const h = Math.max(1, Math.round(bmp.height * scale));
+      const canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      canvas.getContext('2d').drawImage(bmp, 0, 0, w, h);
+      bmp.close();
+      const blob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', 0.85));
+      if (blob) return blob;
+    } catch {}
+    // Couldn't process locally (exotic format) — send the original and let
+    // the server try, but only if it won't blow the 25 MB request cap or
+    // waste minutes of 4G. Otherwise drop the photo; audio always wins.
+    return file.size <= 15 * 1024 * 1024 ? file : null;
+  }
+
   // Location can be set three ways: tapping the map before opening the
   // form, the "Use my location" button, or "Drop a pin" (which closes the
   // form, waits for one map tap, then reopens it).
@@ -1886,6 +1962,20 @@
     fd.append('latitude', $('f-lat').value);
     fd.append('longitude', $('f-lng').value);
 
+    // Optional photo — downscaled client-side before it travels. The submit
+    // button is locked BEFORE the (possibly seconds-long) processing so a
+    // second tap can't start a duplicate upload.
+    $('form-submit').disabled = true;
+    const photoFile = $('image-file').files[0];
+    let photoAppended = false;
+    if (photoFile) {
+      $('loading').querySelector('span').textContent = 'Preparing photo…';
+      $('loading').classList.add('show');
+      const pblob = await preparePhoto(photoFile);
+      if (pblob) { fd.append('imageFile', pblob, 'photo.jpg'); photoAppended = true; }
+      else toast('Photo too large to attach — uploading the sound without it');
+    }
+
     const sizeMB = (blob.size / (1024*1024)).toFixed(2);
     $('loading').querySelector('span').textContent = `Uploading ${sizeMB} MB… 0%`;
     // Warn on slow connections or large files before committing to upload
@@ -1896,7 +1986,7 @@
       if (slow || big) {
         const reason = slow ? `slow connection (${conn.effectiveType})` : 'large file';
         const ok = confirm(`Heads up: ${reason}. Upload ${sizeMB} MB anyway?`);
-        if (!ok) { $('form-submit').disabled = false; return; }
+        if (!ok) { $('loading').classList.remove('show'); $('form-submit').disabled = false; return; }
       }
     } catch (_) { /* navigator.connection unavailable; proceed */ }
     $('loading').classList.add('show');
@@ -1926,7 +2016,7 @@
     });
 
     try {
-      let lastErr;
+      let lastErr, lastResponse;
       const MAX_ATTEMPTS = 3;
       for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
         try {
@@ -1937,7 +2027,7 @@
             const delays = [0, 2000, 5000];
             await new Promise(r => setTimeout(r, delays[attempt - 1] || 5000));
           }
-          await uploadOnce();
+          lastResponse = await uploadOnce();
           lastErr = null;
           break;
         } catch (e) {
@@ -1948,9 +2038,15 @@
         }
       }
       if (lastErr) throw lastErr;
-      toast('✓ Upload successful!');
+      // Be honest if the server had to skip a photo we sent (bad decode).
+      let photoSaved = true;
+      if (photoAppended) {
+        try { photoSaved = !!JSON.parse(lastResponse)?.recording?.imageUrl; } catch {}
+      }
+      toast(photoSaved ? '✓ Upload successful!' : '✓ Sound saved — the photo could not be processed');
       closeForm();
       $('upload-form').reset();
+      clearPhotoPreview();
       if (tempMarker) { tempMarker.remove(); tempMarker = null; }
       loadRecordings();
     } catch (err) {
@@ -2059,6 +2155,7 @@
       const { cat, color, icon } = catInfo(r);
       return `
         <li class="rec-item" data-lat="${r.latitude}" data-lng="${r.longitude}">
+          ${r.imageUrl ? `<a class="rec-photo-link" href="${esc(r.imageUrl)}" target="_blank" rel="noopener"><img class="rec-item-photo" src="${esc(r.imageUrl)}" alt="" loading="lazy"></a>` : ''}
           <h3>${esc(displayTitle(r))}</h3>
           <span class="rec-item-tag">${icon} ${esc(cat)}</span>${recDateHTML(r)}${shareBtnHTML(r)}
           <p>${esc(r.description || 'No description')}</p>
@@ -2071,8 +2168,9 @@
 
     list.querySelectorAll('.rec-item').forEach(el => {
       el.onclick = e => {
-        // Don't fly-to-pin if the click was inside the audio player
-        if (e.target.closest('.apc')) return;
+        // Don't fly-to-pin if the click was inside the audio player or
+        // on the photo (which opens the full image instead)
+        if (e.target.closest('.apc') || e.target.closest('.rec-photo-link')) return;
         map.flyTo({ center: [parseFloat(el.dataset.lng), parseFloat(el.dataset.lat)], zoom: 15 });
         $('archive-panel').classList.remove('open');
       };

@@ -59,7 +59,14 @@ function requireAdmin(req, res, next) {
 
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 25 * 1024 * 1024 }, // 25 MB
+  limits: { fileSize: 25 * 1024 * 1024 }, // 25 MB per file
+  // A picked "photo" that isn't actually an image (raw HEIC/DNG fallback
+  // from the client sends application/octet-stream) is silently dropped —
+  // a bad attachment must never reject the audio that came with it.
+  fileFilter: (req, file, cb) => {
+    if (file.fieldname === 'imageFile' && !/^image\//.test(file.mimetype)) return cb(null, false);
+    cb(null, true);
+  },
 });
 
 // ── Cache ────────────────────────────────────────────────────────────────
@@ -131,6 +138,7 @@ app.get('/api/export.geojson', readLimiter, async (req, res) => {
           description: r.description || '',
           category:    r.category,
           audioUrl:    r.audioUrl,
+          imageUrl:    r.imageUrl || '',
           duration:    r.duration || 0,
           createdAt:   r.createdAt,
         },
@@ -199,21 +207,27 @@ app.get('/api/download/:idPrefix', readLimiter, async (req, res) => {
   }
 });
 
-app.post('/api/upload', uploadLimiter, upload.single('audioFile'), async (req, res) => {
+app.post('/api/upload', uploadLimiter, upload.fields([
+  { name: 'audioFile', maxCount: 1 },
+  { name: 'imageFile', maxCount: 1 }, // optional photo
+]), async (req, res) => {
   try {
-    if (!req.file) return res.status(400).json({ success: false, message: 'No audio file' });
+    const audio = req.files?.audioFile?.[0];
+    const image = req.files?.imageFile?.[0]; // non-images already dropped by fileFilter
+    if (!audio) return res.status(400).json({ success: false, message: 'No audio file' });
 
     const lat = parseFloat(req.body.latitude);
     const lng = parseFloat(req.body.longitude);
     if (isNaN(lat) || isNaN(lng)) return res.status(400).json({ success: false, message: 'Invalid coordinates' });
 
-    const recording = await uploadRecording(req.file.buffer, req.file.mimetype, {
+    const recording = await uploadRecording(audio.buffer, audio.mimetype, {
       title:            req.body.title,
       description:      req.body.description,
       category:         req.body.category,
       latitude:         lat,
       longitude:        lng,
-      originalFilename: req.file.originalname,
+      originalFilename: audio.originalname,
+      imageBuffer:      image ? image.buffer : null,
     });
 
     cache = [recording.toObject(), ...cache];
@@ -355,6 +369,11 @@ app.post('/api/admin/bulk-update', requireAdmin, async (req, res) => {
         if (alsoDeleteB2) {
           try { await deleteB2Object(r.audioUrl); entry.b2Deleted = true; }
           catch (e) { entry.b2Error = e.message; }
+          // attached photo (if any) goes with it
+          if (r.imageUrl) {
+            try { await deleteB2Object(r.imageUrl); entry.b2ImageDeleted = true; }
+            catch (e) { entry.b2ImageError = e.message; }
+          }
         }
         result.deleted.push(entry);
       }
@@ -454,12 +473,27 @@ app.get('*', async (req, res) => {
         html = setOg(html, 'title', `${title} — Saigon_Miền Tây Sound Map`);
         html = setOg(html, 'description', desc);
         html = setOg(html, 'url', `${SITE_URL}/?rec=${ref}`);
+        // Recording photos make share links unfurl with a picture.
+        if (r.imageUrl) {
+          html = html.replace('<!--og:image-->',
+            `<meta property="og:image" content="${escAttr(r.imageUrl)}">`);
+        }
       }
     } catch (err) {
       console.error('[og-inject]', err.message); // serve defaults on failure
     }
   }
   res.type('html').send(html);
+});
+
+// Multer errors (file too large etc.) must come back as JSON 400, not
+// Express's default HTML 500 — the client's retry loop treats non-4xx as
+// retryable and would pointlessly re-send the full payload twice more.
+app.use((err, req, res, next) => {
+  if (err instanceof multer.MulterError) {
+    return res.status(400).json({ success: false, message: `Upload rejected: ${err.message}` });
+  }
+  next(err);
 });
 
 // ── Start ────────────────────────────────────────────────────────────────

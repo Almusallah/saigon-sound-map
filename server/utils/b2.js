@@ -130,7 +130,11 @@ async function syncB2ToMongo() {
 
 // ── Upload ───────────────────────────────────────────────────────────────
 
-async function uploadRecording(fileBuffer, mimeType, { title, description, category, latitude, longitude, originalFilename }) {
+function buildImageKey(id, lat, lng, ext) {
+  return `images/${id}_${lat}_${lng}.${ext}`;
+}
+
+async function uploadRecording(fileBuffer, mimeType, { title, description, category, latitude, longitude, originalFilename, imageBuffer }) {
   const id = uuidv4();
 
   // Normalise everything to MP3 before it reaches B2 — WebM/Opus uploads
@@ -150,9 +154,28 @@ async function uploadRecording(fileBuffer, mimeType, { title, description, categ
     params: { Bucket: getBucket(), Key: key, Body: fileBuffer, ContentType: 'audio/mpeg' },
   }).done();
 
+  // Optional photo. Best-effort: a photo that fails to decode must never
+  // sink the sound itself — the image is simply skipped.
+  let imageUrl = '';
+  if (imageBuffer && imageBuffer.length) {
+    try {
+      const { processImage } = require('./image');
+      const img = await processImage(imageBuffer);
+      const imgKey = buildImageKey(id, latitude, longitude, img.ext);
+      await new Upload({
+        client: getS3(),
+        params: { Bucket: getBucket(), Key: imgKey, Body: img.buffer, ContentType: img.mime },
+      }).done();
+      imageUrl = keyToUrl(imgKey);
+      console.log(`[upload] photo ${imgKey} (${imageBuffer.length} -> ${img.buffer.length} bytes)`);
+    } catch (err) {
+      console.error('[upload] photo skipped:', err.message);
+    }
+  }
+
   const doc = new Recording({
     id, title: title || 'New Recording', description: description || '',
-    category: category || 'Background', audioUrl: keyToUrl(key),
+    category: category || 'Background', audioUrl: keyToUrl(key), imageUrl,
     latitude: parseFloat(latitude), longitude: parseFloat(longitude),
     source: 'upload', fileSize: fileBuffer.length, duration,
   });

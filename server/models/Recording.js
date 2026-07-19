@@ -24,6 +24,9 @@ const recordingSchema = new mongoose.Schema({
   description: { type: String, default: '', trim: true },
   category:    { type: String, enum: CATEGORIES, default: 'Background' },
   audioUrl:    { type: String, required: true },
+  // Optional photo attached to the recording — normalised WebP in B2
+  // under images/ (see utils/image.js). Empty string when none.
+  imageUrl:    { type: String, default: '' },
   latitude:    { type: Number, required: true },
   longitude:   { type: Number, required: true },
   // GeoJSON Point for proximity queries via 2dsphere index.
