@@ -241,6 +241,13 @@ app.post('/api/upload', uploadLimiter, upload.fields([
 
 app.delete('/api/recordings/:id', requireAdmin, async (req, res) => {
   try {
+    // This route intentionally leaves the AUDIO in B2 (the next sync
+    // re-imports it), but a photo can never be re-linked by the sync —
+    // delete it so it doesn't strand in the bucket.
+    const doc = await Recording.findOne({ id: req.params.id }, 'imageUrl').lean();
+    if (doc?.imageUrl) {
+      try { await deleteB2Object(doc.imageUrl); } catch {}
+    }
     await Recording.deleteOne({ id: req.params.id });
     cache = cache.filter(r => r.id !== req.params.id);
     res.json({ success: true });
@@ -477,6 +484,8 @@ app.get('*', async (req, res) => {
         if (r.imageUrl) {
           html = html.replace('<!--og:image-->',
             `<meta property="og:image" content="${escAttr(r.imageUrl)}">`);
+          html = html.replace('name="twitter:card" content="summary"',
+            'name="twitter:card" content="summary_large_image"');
         }
       }
     } catch (err) {

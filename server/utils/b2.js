@@ -179,7 +179,16 @@ async function uploadRecording(fileBuffer, mimeType, { title, description, categ
     latitude: parseFloat(latitude), longitude: parseFloat(longitude),
     source: 'upload', fileSize: fileBuffer.length, duration,
   });
-  await doc.save();
+  try {
+    await doc.save();
+  } catch (err) {
+    // The audio object gets re-imported by the next B2 sync, but nothing
+    // could ever re-link the photo — remove it so it can't strand in B2.
+    if (imageUrl) {
+      try { await deleteB2Object(imageUrl); } catch {}
+    }
+    throw err;
+  }
   console.log(`[upload] Saved ${id}`);
   return doc;
 }
@@ -188,23 +197,30 @@ async function uploadRecording(fileBuffer, mimeType, { title, description, categ
 
 async function cleanupOrphans() {
   const s3 = getS3();
-  const all = await Recording.find({}, 'audioUrl').lean();
+  const all = await Recording.find({}, 'audioUrl imageUrl').lean();
   const toRemove = [];
 
   for (const rec of all) {
     const key = rec.audioUrl.split(`${getBucket()}/`)[1];
-    if (!key) { toRemove.push(rec._id); continue; }
+    if (!key) { toRemove.push(rec); continue; }
     try {
       await s3.send(new HeadObjectCommand({ Bucket: getBucket(), Key: key }));
     } catch (err) {
       if (err.name === 'NotFound' || err.$metadata?.httpStatusCode === 404) {
-        toRemove.push(rec._id);
+        toRemove.push(rec);
       }
     }
   }
 
   if (toRemove.length > 0) {
-    await Recording.deleteMany({ _id: { $in: toRemove } });
+    // A removed doc's photo would otherwise strand in B2 with nothing
+    // referencing it — delete images along with the docs.
+    for (const rec of toRemove) {
+      if (rec.imageUrl) {
+        try { await deleteB2Object(rec.imageUrl); } catch {}
+      }
+    }
+    await Recording.deleteMany({ _id: { $in: toRemove.map(r => r._id) } });
     console.log(`[cleanup] Removed ${toRemove.length} orphans`);
   }
   return toRemove.length;
