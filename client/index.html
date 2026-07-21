@@ -305,6 +305,14 @@
       border-radius: var(--radius-sm); border: 1px solid rgba(184,255,0,.3);
     }
     .photo-preview.show { display: block; }
+    /* Remove button appears only while a photo is selected. */
+    .photo-remove { display: none; }
+    .photo-remove.show { display: inline-block; }
+    /* On mouse-driven devices `capture` is ignored and both buttons open
+       the same picker — hide the camera one to avoid a confusing twin. */
+    @media (hover: hover) and (pointer: fine) {
+      #photo-camera-btn { display: none; }
+    }
 
     /* ── Buttons ────────────────────────────────────────────────────── */
     .form-actions { display: flex; gap: 12px; justify-content: flex-end; margin-top: 24px; }
@@ -827,7 +835,15 @@
       </div>
       <div class="fg">
         <label>Add a photo (optional)</label>
-        <input type="file" id="image-file" accept="image/*">
+        <div class="loc-row">
+          <button type="button" class="loc-btn" id="photo-camera-btn">📷 Take a photo</button>
+          <button type="button" class="loc-btn" id="photo-gallery-btn">🖼️ From gallery</button>
+          <button type="button" class="loc-btn photo-remove" id="photo-remove-btn">✕ Remove</button>
+        </div>
+        <!-- Two inputs on purpose: `capture` forces the camera app on
+             phones; the plain one opens the gallery/file picker. -->
+        <input type="file" id="image-camera" accept="image/*" capture="environment" hidden>
+        <input type="file" id="image-gallery" accept="image/*" hidden>
         <img class="photo-preview" id="photo-preview" alt="Photo preview">
       </div>
       <div class="fg">
@@ -1831,18 +1847,26 @@
   function openForm()  { updateLocStatus(); $('form-overlay').classList.add('open'); }
   function closeForm() { $('form-overlay').classList.remove('open'); resetRecorder(); }
 
-  // Optional photo: live thumbnail preview beside the input.
-  $('image-file').onchange = () => {
-    const f = $('image-file').files[0];
+  // Optional photo: camera or gallery, whichever was used last wins.
+  function pickedPhoto() {
+    return $('image-camera').files[0] || $('image-gallery').files[0];
+  }
+  function refreshPhotoPreview() {
+    const f = pickedPhoto();
     const prev = $('photo-preview');
     if (prev.src) { try { URL.revokeObjectURL(prev.src); } catch {} }
     if (f) { prev.src = URL.createObjectURL(f); prev.classList.add('show'); }
     else { prev.removeAttribute('src'); prev.classList.remove('show'); }
-  };
+    $('photo-remove-btn').classList.toggle('show', !!f);
+  }
+  $('photo-camera-btn').onclick  = () => $('image-camera').click();
+  $('photo-gallery-btn').onclick = () => $('image-gallery').click();
+  $('image-camera').onchange  = () => { if ($('image-camera').files.length)  $('image-gallery').value = ''; refreshPhotoPreview(); };
+  $('image-gallery').onchange = () => { if ($('image-gallery').files.length) $('image-camera').value  = ''; refreshPhotoPreview(); };
+  $('photo-remove-btn').onclick = () => { $('image-camera').value = ''; $('image-gallery').value = ''; refreshPhotoPreview(); };
   function clearPhotoPreview() {
-    const prev = $('photo-preview');
-    if (prev.src) { try { URL.revokeObjectURL(prev.src); } catch {} }
-    prev.removeAttribute('src'); prev.classList.remove('show');
+    $('image-camera').value = ''; $('image-gallery').value = '';
+    refreshPhotoPreview();
   }
 
   // Downscale the chosen photo in the browser (≤1600px JPEG q0.85) so a
@@ -1966,7 +1990,7 @@
     // button is locked BEFORE the (possibly seconds-long) processing so a
     // second tap can't start a duplicate upload.
     $('form-submit').disabled = true;
-    const photoFile = $('image-file').files[0];
+    const photoFile = pickedPhoto();
     let photoAppended = false;
     if (photoFile) {
       $('loading').querySelector('span').textContent = 'Preparing photo…';
