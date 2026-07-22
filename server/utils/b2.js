@@ -173,17 +173,28 @@ async function uploadRecording(fileBuffer, mimeType, { title, description, categ
     }
   }
 
+  // Unknown category values must never sink an upload. Browser
+  // auto-translate once submitted "Casa" for "Home" — coerce anything
+  // off-list to Background instead of failing enum validation.
+  const safeCategory = Recording.CATEGORIES.includes(category) ? category : 'Background';
+  if (safeCategory !== category && category) {
+    console.log(`[upload] unknown category ${JSON.stringify(category)} -> Background`);
+  }
+
   const doc = new Recording({
     id, title: title || 'New Recording', description: description || '',
-    category: category || 'Background', audioUrl: keyToUrl(key), imageUrl,
+    category: safeCategory, audioUrl: keyToUrl(key), imageUrl,
     latitude: parseFloat(latitude), longitude: parseFloat(longitude),
     source: 'upload', fileSize: fileBuffer.length, duration,
   });
   try {
     await doc.save();
   } catch (err) {
-    // The audio object gets re-imported by the next B2 sync, but nothing
-    // could ever re-link the photo — remove it so it can't strand in B2.
+    // An unsaved recording must leave nothing behind in B2: a leftover
+    // audio object gets re-imported by the next sync as an anonymous
+    // "Auto-discovered recording" (junk — exactly what the failed "Casa"
+    // uploads produced), and nothing could ever re-link the photo.
+    try { await deleteB2Object(keyToUrl(key)); } catch {}
     if (imageUrl) {
       try { await deleteB2Object(imageUrl); } catch {}
     }

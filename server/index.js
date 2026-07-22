@@ -235,7 +235,11 @@ app.post('/api/upload', uploadLimiter, upload.fields([
     res.json({ success: true, recording });
   } catch (err) {
     console.error('[POST /upload]', err.message);
-    res.status(500).json({ success: false, message: 'Upload failed', error: err.message });
+    // Bad client data is a 400, not a 500 — the client retries 5xx with
+    // the full payload, which is how one failed upload once became six
+    // orphaned B2 objects.
+    const status = err.name === 'ValidationError' ? 400 : 500;
+    res.status(status).json({ success: false, message: 'Upload failed', error: err.message });
   }
 });
 
