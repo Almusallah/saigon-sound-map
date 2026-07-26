@@ -25,7 +25,7 @@ function isMp3Buffer(buf) {
   return buf[0] === 0xff && (buf[1] & 0xe0) === 0xe0;
 }
 
-async function transcodeToMp3(inputBuffer) {
+async function transcodeToMp3(inputBuffer, panFilter = null) {
   const stamp  = uuidv4();
   const tmpIn  = path.join(os.tmpdir(), `tc-in-${stamp}`);
   const tmpOut = path.join(os.tmpdir(), `tc-out-${stamp}.mp3`);
@@ -36,6 +36,7 @@ async function transcodeToMp3(inputBuffer) {
         '-hide_banner', '-loglevel', 'error', '-y',
         '-i', tmpIn,
         '-vn',                    // mp4/m4a uploads sometimes carry a video track
+        ...(panFilter ? ['-af', panFilter] : []),
         '-acodec', 'libmp3lame',
         '-b:a', '192k',
         '-ar', '44100',
@@ -52,6 +53,47 @@ async function transcodeToMp3(inputBuffer) {
   } finally {
     fs.promises.unlink(tmpIn).catch(() => {});
     fs.promises.unlink(tmpOut).catch(() => {});
+  }
+}
+
+// Detect "fake stereo": a 2-channel file where exactly one channel is
+// digitally dead. Some phones (observed on iPhone 12 Safari, some
+// Androids) hand the browser a stereo stream with only one live mic
+// channel — stored as-is it plays in one earbud only. Returns a pan
+// filter selecting the live channel, or null for mono / true stereo /
+// any analysis failure (never block an upload over this).
+// 76 of the archive's first 155 files had this defect before the guard.
+const DEAD_CHANNEL_DB = -100;
+async function detectFakeStereoPan(inputBuffer) {
+  const stamp = uuidv4();
+  const tmpIn = path.join(os.tmpdir(), `cs-${stamp}`);
+  await fs.promises.writeFile(tmpIn, inputBuffer);
+  try {
+    const probe = await new Promise((resolve) => {
+      const fp = spawn('ffprobe', ['-v', 'error', '-select_streams', 'a:0',
+        '-show_entries', 'stream=channels', '-of', 'csv=p=0', tmpIn]);
+      let out = ''; fp.stdout.on('data', d => out += d);
+      fp.on('error', () => resolve('')); fp.on('close', () => resolve(out.trim()));
+    });
+    if (parseInt(probe, 10) < 2) return null;
+
+    const stats = await new Promise((resolve) => {
+      const ff = spawn('ffmpeg', ['-i', tmpIn,
+        '-af', 'astats=measure_perchannel=RMS_level:measure_overall=none',
+        '-f', 'null', '-']);
+      let err = ''; ff.stderr.on('data', d => err += d);
+      ff.on('error', () => resolve('')); ff.on('close', () => resolve(err));
+    });
+    const rms = [...stats.matchAll(/Channel: (\d+)\s[\s\S]*?RMS level dB: (-?[\d.]+|-inf)/g)]
+      .map(m => ({ ch: parseInt(m[1], 10) - 1, db: m[2] === '-inf' ? -400 : parseFloat(m[2]) }));
+    if (rms.length < 2) return null;
+    const live = rms.filter(r => r.db >= DEAD_CHANNEL_DB);
+    if (live.length !== 1) return null; // mono-ish silence or true stereo
+    return `pan=mono|c0=c${live[0].ch}`;
+  } catch {
+    return null;
+  } finally {
+    fs.promises.unlink(tmpIn).catch(() => {});
   }
 }
 
@@ -81,4 +123,4 @@ async function probeDuration(buffer) {
   }
 }
 
-module.exports = { transcodeToMp3, isMp3Buffer, probeDuration };
+module.exports = { transcodeToMp3, isMp3Buffer, probeDuration, detectFakeStereoPan };

@@ -7,7 +7,7 @@ const { S3Client, ListObjectsV2Command, HeadObjectCommand } = require('@aws-sdk/
 const { Upload } = require('@aws-sdk/lib-storage');
 const { v4: uuidv4 } = require('uuid');
 const Recording = require('../models/Recording');
-const { transcodeToMp3, isMp3Buffer, probeDuration } = require('./transcode');
+const { transcodeToMp3, isMp3Buffer, probeDuration, detectFakeStereoPan } = require('./transcode');
 
 const AUDIO_EXTENSIONS = new Set(['webm', 'mp3', 'mp4', 'm4a', 'ogg', 'wav', 'aac', 'flac']);
 
@@ -139,10 +139,14 @@ async function uploadRecording(fileBuffer, mimeType, { title, description, categ
 
   // Normalise everything to MP3 before it reaches B2 — WebM/Opus uploads
   // (Chrome/Android recordings) are silent for every Safari listener.
-  if (!isMp3Buffer(fileBuffer)) {
+  // Also collapse "fake stereo" (one digitally dead channel — some phone
+  // browsers deliver this) to mono from the live channel, or the file
+  // plays in one earbud only. True stereo passes through untouched.
+  const pan = await detectFakeStereoPan(fileBuffer);
+  if (!isMp3Buffer(fileBuffer) || pan) {
     const before = fileBuffer.length;
-    fileBuffer = await transcodeToMp3(fileBuffer);
-    console.log(`[upload] transcoded to mp3: ${before} -> ${fileBuffer.length} bytes`);
+    fileBuffer = await transcodeToMp3(fileBuffer, pan);
+    console.log(`[upload] transcoded to mp3${pan ? ' +fake-stereo->mono' : ''}: ${before} -> ${fileBuffer.length} bytes`);
   }
   const key = buildKey(id, latitude, longitude, 'mp3');
   const duration = await probeDuration(fileBuffer);
