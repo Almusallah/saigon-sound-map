@@ -532,13 +532,20 @@ async function start() {
 
   app.listen(PORT, () => console.log(`Server on port ${PORT}`));
 
+  // The B2->Mongo sync used to run on every boot. On the free tier the
+  // service cold-starts many times a day, so that meant re-listing the
+  // whole bucket and re-scanning the collection for nothing — and it is
+  // what resurrected orphaned objects as "Auto-discovered recording"
+  // junk after the auto-translate incident. Recovery is still one call
+  // to the admin route /api/resync away; set BOOT_SYNC=true to restore
+  // the old behaviour.
   try {
-    await syncB2ToMongo();
+    if (process.env.BOOT_SYNC === 'true') await syncB2ToMongo();
     await refreshCache();
     console.log(`Cache: ${cache.length} recordings`);
   } catch (err) {
-    console.error('Initial sync failed (non-fatal):', err.message);
-    await refreshCache();
+    console.error('Initial cache load failed (non-fatal):', err.message);
+    await refreshCache().catch(() => {});
   }
 }
 

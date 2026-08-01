@@ -20,7 +20,12 @@
 name: keepalive
 on:
   schedule:
-    - cron: '*/10 * * * *'
+    # Every 6 h, not every 10 min. Each run wakes the instance and Render
+    # then holds it up for its 15-min idle window, so the old cadence
+    # (~13 real runs/day after throttling) burned ~97 instance-hours a
+    # month — 13% of the free budget — to check a site nobody was visiting.
+    # 4 runs/day costs ~30 h and still catches an outage the same day.
+    - cron: '0 */6 * * *'
   workflow_dispatch:
 
 jobs:

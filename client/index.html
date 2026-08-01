@@ -1418,7 +1418,19 @@
       // (setupClusters is idempotent via its getSource guard).
       try { setupClusters(); } catch (e) { map.once('load', () => { try { setupClusters(); } catch {} }); }
       loadRecordings();
-      setInterval(loadRecordings, REFRESH);
+      // Poll only while the tab is actually on screen. A forgotten
+      // background tab refreshing every 2 min would keep the Render free
+      // instance from ever hitting its 15-min idle timeout — one such tab
+      // burns ~720 instance-hours/month, effectively the whole free
+      // budget — besides waking phone radios for nothing.
+      let refreshTimer = null;
+      const startPolling = () => { refreshTimer = refreshTimer || setInterval(loadRecordings, REFRESH); };
+      const stopPolling  = () => { clearInterval(refreshTimer); refreshTimer = null; };
+      document.addEventListener('visibilitychange', () => {
+        if (document.hidden) stopPolling();
+        else { loadRecordings(); startPolling(); } // catch up once, then resume
+      });
+      if (!document.hidden) startPolling();
       openCityLink();
       // Heritage marker temporarily hidden — flip HERITAGE_ENABLED below to re-enable.
       if (HERITAGE_ENABLED) addHeritageMarker();
