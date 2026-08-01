@@ -1,11 +1,22 @@
-# Keeps the Render free instance warm so visitors never hit the ~40 s
-# cold start. Render sleeps a free service after 15 idle minutes; a ping
-# every 10 minutes prevents that. One always-on service uses ~744 of the
-# 750 free instance-hours per month.
+# Wakes the Render free instance and reports genuine downtime.
+#
+# Reality check (measured 2026-08-01 across 60 runs): GitHub throttles this
+# schedule hard — the median gap between runs is ~99 minutes, not the 10
+# requested. Render spins a free service down after 15 idle minutes, so the
+# service is asleep for most of every gap and nearly every run here is
+# itself waking a cold container. A normal wake takes ~30 s; the free tier
+# occasionally needs far longer (one run waited 4.5 min and failed while the
+# site was perfectly healthy either side of it — a false alarm).
+#
+# So this job cannot keep anything warm; treat it as an uptime CHECK. It
+# retries over a generous window so a slow wake-up is never reported as an
+# outage, and fails (emailing the repo owner) only when the service is
+# genuinely unreachable. To actually keep the site warm for visitors, point
+# an external pinger (cron-job.org, UptimeRobot) at /api/health every ~10
+# minutes — but check the workspace's remaining free instance-hours first.
 #
 # Note: GitHub pauses scheduled workflows after 60 days without repo
-# activity — any commit resets the clock. Failures also act as a crude
-# downtime alert (GitHub emails the repo owner when a run fails).
+# activity. The weekly backup workflow commits, which keeps that reset.
 name: keepalive
 on:
   schedule:
@@ -16,7 +27,16 @@ jobs:
   ping:
     runs-on: ubuntu-latest
     steps:
-      - name: Ping health endpoint
+      - name: Ping health endpoint (tolerant of slow cold starts)
         run: |
-          curl -fsS -m 90 --retry 2 https://saigon-soundscape.onrender.com/api/health
-
+          for attempt in 1 2 3 4 5 6; do
+            if curl -fsS -m 120 https://saigon-soundscape.onrender.com/api/health; then
+              echo
+              echo "healthy on attempt $attempt"
+              exit 0
+            fi
+            echo "attempt $attempt got no answer; waiting 30 s before retry"
+            sleep 30
+          done
+          echo "::error::/api/health did not answer in ~14 minutes — likely a real outage"
+          exit 1
