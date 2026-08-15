@@ -1169,10 +1169,23 @@
     // opening mid-flight anchored it to where the marker used to be —
     // on a shared link that left the play button below the fold.
     const m = markersById[r.id];
-    const openIt = () => { if (m && m.getPopup() && !m.getPopup().isOpen()) m.togglePopup(); };
+    let opened = false, fallback = null;
+    const openIt = () => {
+      if (opened) return;          // once only — never resurrect a popup
+      opened = true;               // the visitor has since closed
+      clearTimeout(fallback);
+      if (m && m.getPopup() && !m.getPopup().isOpen()) m.togglePopup();
+    };
     map.flyTo({ center: [r.longitude, r.latitude], zoom: 16 });
     map.once('moveend', openIt);
-    setTimeout(openIt, 4000); // fallback if the fly is interrupted
+    // Safety net for a flight that never reports finishing — but it must
+    // never fire mid-flight: opening runs ensurePopupVisible, whose panBy
+    // aborts a running animation (mapbox's easeTo calls _stop first), which
+    // would strand the visitor part-way. Flight time scales with distance
+    // (Saigon->Venice is ~10s), so re-check instead of using a fixed delay.
+    (function arm() {
+      fallback = setTimeout(() => { if (map.isMoving()) arm(); else openIt(); }, 4000);
+    })();
   }
 
   // Nudge the map so a freshly-opened popup is fully on screen. Mapbox
@@ -1214,7 +1227,12 @@
       // Animate only when the tab is on screen: mapbox eases via rAF, which
       // is frozen in a background tab, so a shared link opened in one would
       // otherwise sit mispositioned until the visitor switched to it.
-      if (dx || dy) map.panBy([dx, dy], { duration: document.hidden ? 0 : 300 });
+      if (!dx && !dy) return;
+      // Never pan while the camera is animating: panBy stops the running
+      // animation dead (easeTo calls _stop), so correcting a popup opened
+      // during a fly-to would cancel that fly-to. Wait for it to land.
+      if (map.isMoving()) { map.once('moveend', () => ensurePopupVisible(popup)); return; }
+      map.panBy([dx, dy], { duration: document.hidden ? 0 : 300 });
     });
   }
 
