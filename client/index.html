@@ -38,7 +38,11 @@
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     body {
       font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      display: flex; flex-direction: column; height: 100vh;
+      display: flex; flex-direction: column;
+      /* 100vh on iOS Safari is the TALL viewport (toolbars hidden), so the
+         bottom of the page hides behind the browser toolbar. dvh tracks the
+         viewport that is actually visible; vh stays as the fallback. */
+      height: 100vh; height: 100dvh;
       background: var(--bg); color: var(--text);
       overflow: hidden;
     }
@@ -129,7 +133,7 @@
       /* Hard guarantee the popup can never be taller than the screen:
          with a photo it runs ~400px, which used to push the play button
          off the bottom on a shared ?rec= link. */
-      max-height: 68vh;
+      max-height: 68vh; max-height: 68dvh;
     }
     /* Sit above the record FAB (z-index 10), which otherwise paints over
        an open popup's category badge and player. */
@@ -219,6 +223,12 @@
     /* ── Modal / Overlay ────────────────────────────────────────────── */
     .overlay {
       display: none; position: fixed; inset: 0;
+      /* Fixed elements size to the LAYOUT viewport, which on phones runs
+         under the browser toolbars — without this the upload form centres
+         too low and its Submit button hides behind the chrome. Height wins
+         over `bottom` when both are set, so this pins the overlay to the
+         visible area. */
+      height: 100vh; height: 100dvh;
       background: rgba(45,62,45,.5); backdrop-filter: blur(4px);
       z-index: 1000; justify-content: center; align-items: center;
     }
@@ -230,7 +240,7 @@
       background: var(--header-bg); color: var(--primary);
       border: 1px solid var(--primary);
       border-radius: var(--radius);
-      padding: 28px; width: 92%; max-width: 500px; max-height: 88vh;
+      padding: 28px; width: 92%; max-width: 500px; max-height: 88vh; max-height: 88dvh;
       overflow-y: auto; position: relative;
       box-shadow: var(--shadow-lg);
     }
@@ -255,7 +265,7 @@
     /* ── About Modal ────────────────────────────────────────────────── */
     .about-card {
       background: var(--card); border-radius: var(--radius);
-      padding: 32px; width: 92%; max-width: 520px; max-height: 88vh;
+      padding: 32px; width: 92%; max-width: 520px; max-height: 88vh; max-height: 88dvh;
       overflow-y: auto; position: relative; box-shadow: var(--shadow-lg);
     }
     .about-card h2 {
@@ -415,7 +425,8 @@
        accents, subtle lime-tinted cards. Functionally identical to the
        previous panel — only the visual identity changed. */
     .archive {
-      position: fixed; top: 0; right: 0; width: 400px; height: 100%;
+      position: fixed; top: 0; right: 0; width: 400px;
+      height: 100%; height: 100dvh; /* see .overlay — phone toolbars */
       transform: translateX(100%); will-change: transform;
       background: var(--header-bg); color: var(--primary);
       border-left: 1px solid var(--primary);
@@ -638,7 +649,7 @@
     .welcome-card {
       background: var(--header-bg); color: var(--primary);
       border: 1px solid var(--primary); border-radius: var(--radius);
-      padding: 28px 26px; width: 92%; max-width: 520px; max-height: 88vh;
+      padding: 28px 26px; width: 92%; max-width: 520px; max-height: 88vh; max-height: 88dvh;
       overflow-y: auto; position: relative;
       box-shadow: var(--shadow-lg);
     }
@@ -681,7 +692,7 @@
     #heritage-overlay { display: none !important; }
     .heritage-card {
       background: var(--header-bg); color: var(--primary);
-      width: 92%; max-width: 880px; max-height: 90vh; overflow-y: auto;
+      width: 92%; max-width: 880px; max-height: 90vh; max-height: 90dvh; overflow-y: auto;
       border-radius: var(--radius); padding: 32px 28px;
       border: 1px solid var(--primary);
       box-shadow: var(--shadow-lg);
@@ -1178,12 +1189,26 @@
       if (!el) return;
       const box = (el.querySelector('.mapboxgl-popup-content') || el).getBoundingClientRect();
       const wrap = map.getContainer().getBoundingClientRect();
+      // Clamp to the VISUAL viewport, not just the map box: on iOS Safari
+      // the layout viewport runs underneath the browser toolbar, so a popup
+      // can sit inside the map element and still be hidden behind the
+      // chrome. visualViewport also accounts for pinch-zoom and the
+      // on-screen keyboard.
+      const vv = window.visualViewport;
+      const seenTop    = vv ? vv.offsetTop : 0;
+      const seenBottom = vv ? vv.offsetTop + vv.height : window.innerHeight;
+      const seenLeft   = vv ? vv.offsetLeft : 0;
+      const seenRight  = vv ? vv.offsetLeft + vv.width : window.innerWidth;
+      const top    = Math.max(wrap.top, seenTop);
+      const bottom = Math.min(wrap.bottom, seenBottom);
+      const left   = Math.max(wrap.left, seenLeft);
+      const right  = Math.min(wrap.right, seenRight);
       const pad = 12;
       let dx = 0, dy = 0;
-      if (box.bottom > wrap.bottom - pad)   dy = box.bottom - (wrap.bottom - pad);
-      else if (box.top < wrap.top + pad)    dy = box.top - (wrap.top + pad);
-      if (box.right > wrap.right - pad)     dx = box.right - (wrap.right - pad);
-      else if (box.left < wrap.left + pad)  dx = box.left - (wrap.left + pad);
+      if (box.bottom > bottom - pad)   dy = box.bottom - (bottom - pad);
+      else if (box.top < top + pad)    dy = box.top - (top + pad);
+      if (box.right > right - pad)     dx = box.right - (right - pad);
+      else if (box.left < left + pad)  dx = box.left - (left + pad);
       // panBy moves the camera by the offset, so content shifts the other
       // way — a positive dy (overflowing the bottom) lifts the popup up.
       // Animate only when the tab is on screen: mapbox eases via rAF, which

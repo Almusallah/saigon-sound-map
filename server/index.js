@@ -496,6 +496,10 @@ app.get('*', async (req, res) => {
       console.error('[og-inject]', err.message); // serve defaults on failure
     }
   }
+  // The whole app is this one HTML file, so a cached copy pins a visitor
+  // to an old build until they clear it by hand. Revalidate every load —
+  // it is a few KB, and fixes must actually reach people.
+  res.set('Cache-Control', 'no-cache');
   res.type('html').send(html);
 });
 
