@@ -2,7 +2,13 @@ services:
   - type: web
     name: saigon-sound-map
     runtime: docker
-    plan: free
+    # Starter, not free: 0.5 CPU instead of 0.1 (uploads transcode through
+    # ffmpeg, and 25 people uploading at once took 44s on the free tier)
+    # and paid instances never spin down, so there is no ~30s cold start
+    # for the first visitor. Keep this in sync with the dashboard — if a
+    # blueprint sync ever runs against `free`, it would downgrade the
+    # service silently.
+    plan: starter
     region: oregon
     dockerfilePath: ./Dockerfile
     envVars:
