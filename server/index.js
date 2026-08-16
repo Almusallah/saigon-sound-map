@@ -30,7 +30,11 @@ app.use(express.urlencoded({ extended: true }));
 // (B2 daily spend caps bound the worst case anyway).
 const uploadLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
-  max: 60,
+  // Per IP — and a whole workshop can share one. Vietnamese mobile
+  // carriers put many subscribers behind the same public address (CGNAT),
+  // so 25 walkers on Viettel can look like a single uploader. 300 leaves
+  // room for a group session; B2 spend caps still bound real abuse.
+  max: 300,
   standardHeaders: true,
   legacyHeaders: false,
   message: { success: false, message: 'Too many uploads from this IP. Try again later.' },
@@ -41,7 +45,7 @@ const uploadLimiter = rateLimit({
 // each open tab refreshes the recordings list once a minute).
 const readLimiter = rateLimit({
   windowMs: 60 * 1000,
-  max: 300,
+  max: 600, // same CGNAT reasoning; a group all opening the map at once
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Rate limited. Slow down.' },
