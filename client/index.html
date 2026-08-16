@@ -1729,6 +1729,28 @@
 
     const filtered = activeFilter ? recordings.filter(r => catInfo(r).cat === activeFilter) : recordings;
 
+    // Recordings made without moving — several sounds from one spot, or a
+    // group all standing together — land on identical coordinates and draw
+    // exactly on top of each other, so only the last one can be clicked.
+    // Fan each such pile out around its point (in pixels, so the spread
+    // holds at every zoom). 5 decimals ≈ 1 m, which is the resolution at
+    // which two pins are visually the same place anyway.
+    const piles = new Map();
+    filtered.forEach(r => {
+      const key = r.latitude.toFixed(5) + ',' + r.longitude.toFixed(5);
+      if (!piles.has(key)) piles.set(key, []);
+      piles.get(key).push(r.id);
+    });
+    const fanOffset = (r) => {
+      const key = r.latitude.toFixed(5) + ',' + r.longitude.toFixed(5);
+      const pile = piles.get(key);
+      if (!pile || pile.length < 2) return [0, 0];
+      const i = pile.indexOf(r.id);
+      const radius = 12 + 2.2 * pile.length;      // grows so big piles stay legible
+      const angle = (i / pile.length) * 2 * Math.PI;
+      return [radius * Math.sin(angle), -radius * Math.cos(angle)];
+    };
+
     for (const r of filtered) {
       try {
         const { cat, color, icon } = catInfo(r);
@@ -1754,7 +1776,7 @@
           ensurePopupVisible(popup);
         });
 
-        const m = new mapboxgl.Marker({ element: el })
+        const m = new mapboxgl.Marker({ element: el, offset: fanOffset(r) })
           .setLngLat([r.longitude, r.latitude])
           .setPopup(popup)
           .addTo(map);
