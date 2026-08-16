@@ -1,0 +1,50 @@
+# Keeps the site awake for a workshop or sound walk.
+#
+# Render's free tier spins the service down after 15 idle minutes, and a
+# cold wake costs the next visitor ~30 s. During a walk there are natural
+# quiet stretches — people are listening, not uploading — so without this
+# the service sleeps mid-session and whoever uploads next pays the wait.
+#
+# Trigger it by hand ~10 minutes before the session starts:
+#   gh workflow run warmup -f hours=4
+# or from the repo's Actions tab -> warmup -> Run workflow.
+#
+# Cost: nothing. The repo is public so Actions minutes are free, and the
+# instance-hours it burns come out of the 750/month free allowance
+# (a 4-hour session ≈ 4 hours ≈ 0.5% of it).
+name: warmup
+on:
+  workflow_dispatch:
+    inputs:
+      hours:
+        description: 'Hours to keep the site awake (max 6)'
+        required: false
+        default: '4'
+
+jobs:
+  keep-warm:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - name: Ping every minute
+        run: |
+          HOURS="${{ github.event.inputs.hours }}"
+          HOURS="${HOURS:-4}"
+          HOURS="${HOURS%%.*}"
+          [ "$HOURS" -ge 1 ] 2>/dev/null || HOURS=4
+          [ "$HOURS" -le 6 ] || HOURS=6
+          END=$(( $(date +%s) + HOURS * 3600 ))
+          echo "keeping saigon-soundscape awake for ${HOURS}h"
+          n=0; fails=0
+          while [ "$(date +%s)" -lt "$END" ]; do
+            n=$((n + 1))
+            code=$(curl -s -o /dev/null -w '%{http_code}' -m 60 \
+              https://saigon-soundscape.onrender.com/api/health || echo "ERR")
+            [ "$code" = "200" ] || fails=$((fails + 1))
+            # only log every 10th ping so the run log stays readable
+            if [ $((n % 10)) -eq 1 ] || [ "$code" != "200" ]; then
+              echo "$(date -u +%H:%M:%S) ping #$n -> $code"
+            fi
+            sleep 60
+          done
+          echo "finished: $n pings, $fails non-200"
