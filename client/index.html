@@ -14,6 +14,15 @@
   <meta property="og:url" content="https://saigon-soundscape.onrender.com/">
   <!--og:image-->
   <meta name="twitter:card" content="summary">
+  <!-- PWA: installable from the browser on Android (Install app) and iOS
+       (Share -> Add to Home Screen); also the base for the Android TWA. -->
+  <link rel="manifest" href="/manifest.webmanifest">
+  <meta name="theme-color" content="#000000">
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="apple-mobile-web-app-title" content="Sound Map">
   <link href="https://api.mapbox.com/mapbox-gl-js/v3.7.0/mapbox-gl.css" rel="stylesheet">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
@@ -2338,6 +2347,14 @@
   }
 
   // ── Init ────────────────────────────────────────────────────────
+  // PWA service worker (installability + cached shell). Registered late so
+  // it never competes with the map boot for bandwidth.
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('/sw.js').catch(() => {});
+    });
+  }
+
   document.addEventListener('DOMContentLoaded', () => {
     console.log('Saigon Sound Map v2.0');
     buildCategoryDropdowns();
