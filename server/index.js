@@ -474,6 +474,25 @@ function setOg(html, prop, value) {
   );
 }
 
+// App download page (Android APK + iOS install steps)
+app.get('/app', (req, res) => {
+  res.set('Cache-Control', 'no-cache');
+  res.sendFile(path.join(__dirname, '../client/app.html'));
+});
+
+// Digital Asset Links: lets the Android TWA app open full-screen without
+// a browser bar. Fingerprint = SHA-256 of the APK signing key.
+app.get('/.well-known/assetlinks.json', (req, res) => {
+  res.json([{
+    relation: ['delegate_permission/common.handle_all_urls'],
+    target: {
+      namespace: 'android_app',
+      package_name: 'com.officinegap.soundmap',
+      sha256_cert_fingerprints: [process.env.APK_CERT_SHA256 || 'PLACEHOLDER'],
+    },
+  }]);
+});
+
 app.get('*', async (req, res) => {
   let html = CLIENT_INDEX;
   const ref = typeof req.query.rec === 'string' ? req.query.rec : null;
