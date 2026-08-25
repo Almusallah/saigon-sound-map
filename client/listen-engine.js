@@ -6,7 +6,8 @@
      rolling swung ro-minimal groove after dark. Synths stay minimal.                      */
 'use strict';
 
-const BPM = 122, BEAT = 60 / BPM, SWING = 0.06 * BEAT;
+const BPM = 122, BEAT = 60 / BPM;
+const swingT = () => state.swing * 0.12 * BEAT;
 const HCMC = { latMin: 10.62, latMax: 10.98, lngMin: 106.52, lngMax: 106.98 };
 const IS_DEV = location.port === '8342';
 
@@ -16,6 +17,7 @@ const state = {
   listener: { lat: 10.79, lng: 106.70 },
   hour: null,                 // null = live Saigon time
   dream: 0.35, percDensity: null, bright: 0.8,   // percDensity null = follow the day
+  echo: 0.35, space: 0.4, reso: 0.12, sub: 0.5, swing: 0.5, pitch: 0,
   lastTouch: 0,
   slots: {}, nowPlaying: new Map(), onNowPlaying: () => {},
 };
@@ -137,6 +139,7 @@ async function startLayer(slotName, rec, { fadeIn = 6, level = 1 } = {}) {
   let buf;
   try { buf = await getBuffer(rec); } catch (e) { console.warn('audio fail', rec.title, e); return; }
   const src = c.createBufferSource(); src.buffer = buf; src.loop = buf.duration > 8;
+  src.playbackRate.value = Math.pow(2, state.pitch / 12);
   const g = c.createGain(); g.gain.value = 0;
   const dSend = c.createGain(), rSend = c.createGain();
   src.connect(g); g.connect(fieldBus); g.connect(dSend); g.connect(rSend);
@@ -197,7 +200,7 @@ function schedulePercStep(t, step) {
   const g = grooveAmt();
   if (g < 0.05) return;
   const inBar = step % 16, isDown = inBar % 4 === 0, isAnd = inBar % 4 === 2;
-  const ts = t + (inBar % 2 === 1 ? SWING : 0);      // swing the off-16ths
+  const ts = t + (inBar % 2 === 1 ? swingT() : 0);   // swing the off-16ths
   // voice A: rolling body — solid repeating downbeat, ghosted 16ths between
   if (percBufA && percOffA.length) {
     if (isDown) {
@@ -225,7 +228,7 @@ const midiHz = m => 440 * Math.pow(2, (m - 69) / 12);
 function scheduleSynthStep(t, step) {
   const g = grooveAmt(), sec = section(curHour());
   const bar = Math.floor(step / 16), inBar = step % 16;
-  const ts = t + (inBar % 2 === 1 ? SWING : 0);
+  const ts = t + (inBar % 2 === 1 ? swingT() : 0);
   // sub: silent by day, sparse deep syncopation as the groove emerges
   if (g > 0.35) {
     if (inBar === 2) subNote(ts, 28, 0.35, 0.4 + g * 0.25);
@@ -238,7 +241,8 @@ function scheduleSynthStep(t, step) {
     for (const m of CHORD_SETS[sec]) chordNote(ts + rnd(0, 0.02), m, 0.4, 0.1, 'triangle');
   }
 }
-function subNote(t, midi, dur, vel) {
+function subNote(t, midi, dur, vel0) {
+  const vel = vel0 * (0.25 + state.sub * 1.5);
   const c = state.ctx, o = c.createOscillator(), g = c.createGain();
   o.type = 'sine'; o.frequency.value = midiHz(midi);
   g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(vel * 0.5, t + 0.02);
@@ -308,8 +312,13 @@ window.Room = {
   applyControls() {
     if (!state.started) return;
     lowpass.frequency.setTargetAtTime(800 * Math.pow(22.5, state.bright), state.ctx.currentTime, 0.3);
+    lowpass.Q.setTargetAtTime(0.3 + state.reso * 9, state.ctx.currentTime, 0.3);
     synthBus.gain.setTargetAtTime(0.1 + Math.pow(state.dream, 1.2) * 0.4, state.ctx.currentTime, 0.5);
-    delayFb.gain.value = 0.35 + state.dream * 0.25;
+    delaySend.gain.setTargetAtTime(0.05 + state.echo * 0.55, state.ctx.currentTime, 0.3);
+    delayFb.gain.value = Math.min(0.85, 0.25 + state.echo * 0.5 + state.dream * 0.1);
+    reverbSend.gain.setTargetAtTime(0.05 + state.space * 0.65, state.ctx.currentTime, 0.3);
+    const rate = Math.pow(2, state.pitch / 12);
+    for (const l of Object.values(state.slots)) if (l) { try { l.src.playbackRate.setTargetAtTime(rate, state.ctx.currentTime, 0.5); } catch (e) {} }
     for (const l of Object.values(state.slots)) if (l) updateSendMix(l.dSend, l.rSend, l.rec.role);
     percBus.gain.setTargetAtTime(0.25 + grooveAmt() * 0.75, state.ctx.currentTime, 0.3);
   },

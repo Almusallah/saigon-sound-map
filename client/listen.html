@@ -2,38 +2,64 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Phòng nghe — Saigon_Miền Tây Sound Map</title>
 <meta property="og:title" content="Phòng nghe · The Listening Room">
-<meta property="og:description" content="An evolving composition made from the sounds of the city — live from the Saigon_Miền Tây Sound Map.">
+<meta property="og:description" content="An evolving composition made from the sounds of the city — live from the Saigon_Miền Tây Sound Map. Play it.">
 <style>
-  :root { --lime: #B8FF00; --bg: #0a0a0a; --paper: #F5F0E8; }
-  * { box-sizing: border-box; margin: 0; }
-  body { background: var(--bg); color: var(--paper); font: 15px/1.5 Inter, system-ui, sans-serif; min-height: 100dvh; display: flex; flex-direction: column; align-items: center; padding: 24px 16px 48px; }
-  h1 { font-size: 20px; letter-spacing: .02em; color: var(--lime); font-weight: 600; margin-bottom: 2px; }
+  :root { --lime: #B8FF00; --bg: #0a0a0a; --paper: #F5F0E8; --water: #6B9DAE;
+          --capA: #C9302C; --capB: #E17314; --capC: #E8B547; --capD: #F5F0E8; }
+  * { box-sizing: border-box; margin: 0; -webkit-tap-highlight-color: transparent; }
+  body { background: var(--bg); color: var(--paper); font: 15px/1.5 Inter, system-ui, sans-serif;
+         min-height: 100dvh; display: flex; flex-direction: column; align-items: center; padding: 20px 14px 48px; }
+  h1 { font-size: clamp(17px, 4.5vw, 21px); letter-spacing: .02em; color: var(--lime); font-weight: 600; margin-bottom: 2px; text-align: center; }
   .sub { opacity: .55; font-size: 13px; margin-bottom: 8px; text-align: center; }
-  .intro { max-width: 520px; text-align: center; font-size: 13px; opacity: .7; margin-bottom: 14px; }
-  #start { background: var(--lime); color: #000; border: 0; font: 600 17px Inter, sans-serif; padding: 14px 42px; border-radius: 999px; cursor: pointer; margin: 22px 0; }
-  #start:hover { transform: scale(1.04); }
+  .intro { max-width: 520px; text-align: center; font-size: 13px; opacity: .7; margin-bottom: 10px; }
+  #start { background: var(--lime); color: #000; border: 0; font: 600 17px Inter, sans-serif;
+           padding: 14px 42px; border-radius: 999px; cursor: pointer; margin: 20px 0; }
   #start:disabled { opacity: .6; }
-  .room { display: none; width: 100%; max-width: 720px; }
+  .room { display: none; width: 100%; max-width: 760px; }
   .room.on { display: block; }
-  #map { width: 100%; height: 260px; background: #111; border: 1px solid #222; border-radius: 12px; cursor: crosshair; touch-action: none; }
-  .maplabel { font-size: 11px; opacity: .5; margin: 4px 2px 16px; }
-  .ctl { margin: 14px 0; }
-  .ctl label { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 4px; }
-  .ctl label b { color: var(--lime); font-weight: 600; }
-  input[type=range] { width: 100%; accent-color: var(--lime); }
-  .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
-  .pill { background: #1a1a1a; border: 1px solid #333; color: var(--paper); border-radius: 999px; padding: 5px 14px; font-size: 12px; cursor: pointer; }
+  #map { width: 100%; height: clamp(210px, 38vw, 300px); background: #0d0d0d; border: 1px solid #222;
+         border-radius: 12px; cursor: crosshair; touch-action: none; display: block; }
+  .maplabel { font-size: 11px; opacity: .5; margin: 4px 2px 14px; }
+
+  /* ---- Roland-inspired knob panel ---- */
+  .panel { background: linear-gradient(180deg, #161616, #101010); border: 1px solid #262626;
+           border-radius: 14px; padding: 16px 12px 10px; margin-top: 4px; }
+  .panel .stripe { height: 4px; border-radius: 2px; margin: -16px -12px 14px;
+                   background: linear-gradient(90deg, var(--capA) 0 25%, var(--capB) 25% 50%, var(--capC) 50% 75%, var(--capD) 75% 100%); opacity: .8; }
+  .knobs { display: flex; flex-wrap: wrap; justify-content: center; gap: 14px 10px; }
+  .kn { width: 76px; display: flex; flex-direction: column; align-items: center; user-select: none; touch-action: none; }
+  .kn .dial { width: 58px; height: 58px; border-radius: 50%; position: relative; cursor: ns-resize;
+              background: radial-gradient(circle at 35% 30%, #2e2e2e, #151515 70%);
+              border: 2px solid #333; box-shadow: 0 3px 8px #000a, inset 0 1px 0 #ffffff14; }
+  .kn .dial::after { content: ""; position: absolute; inset: 17px; border-radius: 50%; background: var(--cap, #444);
+                     box-shadow: inset 0 -2px 4px #0007, 0 1px 2px #0009; }
+  .kn .ptr { position: absolute; left: 50%; top: 50%; width: 2.5px; height: 26px; margin-left: -1.25px;
+             transform-origin: 50% 0%; background: transparent; z-index: 2; }
+  .kn .ptr::before { content: ""; position: absolute; top: 17px; left: 0; width: 2.5px; height: 10px;
+                     background: var(--paper); border-radius: 2px; box-shadow: 0 0 4px #000; }
+  .kn label { font-size: 10px; letter-spacing: .12em; text-transform: uppercase; opacity: .75; margin-top: 6px; }
+  .kn .val { font-size: 10px; color: var(--lime); opacity: .9; min-height: 14px; }
+  .fader { margin: 14px 2px 4px; }
+  .fader label { display: flex; justify-content: space-between; font-size: 11px; letter-spacing: .1em;
+                 text-transform: uppercase; opacity: .75; margin-bottom: 4px; }
+  .fader label b { color: var(--lime); }
+  .fader .row { display: flex; gap: 10px; align-items: center; }
+  input[type=range] { width: 100%; accent-color: var(--lime); min-height: 28px; }
+  .pill { background: #1a1a1a; border: 1px solid #333; color: var(--paper); border-radius: 999px;
+          padding: 6px 14px; font-size: 12px; cursor: pointer; }
   .pill.on { background: var(--lime); color: #000; border-color: var(--lime); }
-  #phase { font-size: 12px; opacity: .6; margin-top: 8px; }
-  #now { margin-top: 22px; border-top: 1px solid #222; padding-top: 14px; }
+  #phase { font-size: 12px; opacity: .6; }
+  .below { display: flex; gap: 10px; align-items: center; margin-top: 12px; flex-wrap: wrap; }
+  #now { margin-top: 20px; border-top: 1px solid #222; padding-top: 12px; }
   #now h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .1em; opacity: .5; margin-bottom: 8px; }
   #nowlist div { font-size: 13px; padding: 2px 0; opacity: .85; }
   #nowlist .cat { color: var(--lime); opacity: .8; font-size: 11px; margin-left: 6px; }
-  .credit { margin-top: 26px; font-size: 11px; opacity: .45; line-height: 1.7; }
+  .credit { margin-top: 24px; font-size: 11px; opacity: .45; line-height: 1.7; }
   .credit a { color: var(--lime); text-decoration: none; }
+  @media (max-width: 480px) { .kn { width: 68px; } .kn .dial { width: 52px; height: 52px; } .kn .dial::after { inset: 15px; } }
 </style>
 </head>
 <body>
@@ -43,31 +69,23 @@
   <button id="start">Enter the room</button>
 
   <div class="room" id="room">
-    <canvas id="map" width="720" height="260"></canvas>
+    <canvas id="map"></canvas>
     <div class="maplabel">You are the circle — drag yourself through the city; nearby recordings rise to meet you.</div>
 
-    <div class="ctl">
-      <label><span>Time of the city</span><b id="hourLabel">live</b></label>
-      <div class="row">
-        <input type="range" id="hour" min="0" max="24" step="0.25" value="12" style="flex:1">
-        <button class="pill on" id="liveBtn">live Saigon</button>
+    <div class="panel">
+      <div class="stripe"></div>
+      <div class="knobs" id="knobs"></div>
+      <div class="fader">
+        <label><span>Time of the city</span><b id="hourLabel">live</b></label>
+        <div class="row">
+          <input type="range" id="hour" min="0" max="24" step="0.25" value="12" style="flex:1">
+          <button class="pill on" id="liveBtn">live Saigon</button>
+        </div>
       </div>
-    </div>
-    <div class="ctl">
-      <label><span>City ↔ Dream</span><b id="dreamLabel">35%</b></label>
-      <input type="range" id="dream" min="0" max="1" step="0.01" value="0.35">
-    </div>
-    <div class="ctl">
-      <label><span>Groove</span><b id="percLabel">follows the night</b></label>
-      <input type="range" id="perc" min="0" max="1" step="0.01" value="0.35">
-    </div>
-    <div class="ctl">
-      <label><span>Colour</span><b id="brightLabel">bright</b></label>
-      <input type="range" id="bright" min="0" max="1" step="0.01" value="0.8">
-    </div>
-    <div class="row" style="margin-top:10px">
-      <button class="pill" id="reroll">↻ new sounds</button>
-      <span id="phase"></span>
+      <div class="below">
+        <button class="pill" id="reroll">↻ new sounds</button>
+        <span id="phase"></span>
+      </div>
     </div>
 
     <div id="now"><h2>Sounding now</h2><div id="nowlist"></div></div>
@@ -77,12 +95,25 @@
     </div>
   </div>
 
-<script src="listen-engine.js?v=3"></script>
+<script src="listen-engine.js?v=4"></script>
 <script>
 'use strict';
 const $ = id => document.getElementById(id);
 const HB = { latMin: 10.62, latMax: 10.98, lngMin: 106.52, lngMax: 106.98 };
 let pts = [];
+
+/* ---- Sông Sài Gòn, drawn from memory of its bends (artsy, not cartographic) ---- */
+const RIVER = [[10.98,106.665],[10.94,106.685],[10.905,106.715],[10.88,106.735],[10.872,106.72],[10.862,106.705],
+  [10.85,106.70],[10.845,106.715],[10.848,106.735],[10.842,106.755],[10.828,106.762],[10.815,106.755],
+  [10.81,106.738],[10.815,106.72],[10.808,106.708],[10.795,106.705],[10.783,106.712],[10.777,106.727],
+  [10.78,106.742],[10.772,106.755],[10.758,106.758],[10.747,106.75],[10.742,106.735],[10.747,106.72],
+  [10.74,106.708],[10.727,106.703],[10.712,106.71],[10.70,106.73],[10.69,106.755],[10.675,106.78],
+  [10.66,106.81],[10.645,106.845],[10.63,106.88]];
+const CANALS = [
+  [[10.801,106.64],[10.795,106.66],[10.79,106.678],[10.793,106.693],[10.79,106.702],[10.795,106.705]],   // Nhiêu Lộc–Thị Nghè
+  [[10.752,106.645],[10.758,106.665],[10.764,106.685],[10.762,106.70],[10.757,106.716]],                  // Bến Nghé–Tàu Hủ
+  [[10.752,106.645],[10.74,106.625],[10.728,106.605],[10.715,106.59]],                                    // Kênh Đôi, heading for Miền Tây
+];
 
 $('start').onclick = async () => {
   $('start').disabled = true; $('start').textContent = 'opening…';
@@ -90,33 +121,56 @@ $('start').onclick = async () => {
   $('start').style.display = 'none';
   $('room').classList.add('on');
   pts = Room.state.recs.filter(r => r.lat >= HB.latMin && r.lat <= HB.latMax && r.lng >= HB.lngMin && r.lng <= HB.lngMax);
-  drawMap(); renderNow(); phase();
+  sizeMap(); drawMap(); renderNow(); phase();
   setInterval(phase, 10000);
 };
 
 function phase() {
-  const g = Math.round(Room.grooveAmt() * 100);
-  $('phase').textContent = Room.section() + ' · groove ' + g + '%';
+  $('phase').textContent = Room.section() + ' · groove ' + Math.round(Room.grooveAmt() * 100) + '%';
 }
+
+/* ---------- map ---------- */
+function sizeMap() {
+  const c = $('map'), dpr = Math.min(2, window.devicePixelRatio || 1);
+  c.width = c.clientWidth * dpr; c.height = c.clientHeight * dpr;
+}
+window.addEventListener('resize', () => { sizeMap(); drawMap(); });
 function xy(r) {
   const c = $('map');
-  return [(r.lng - HB.lngMin) / (HB.lngMax - HB.lngMin) * c.width,
-          (1 - (r.lat - HB.latMin) / (HB.latMax - HB.latMin)) * c.height];
+  return [(r.lng ?? r[1]) === undefined ? 0 : ((r.lng ?? r[1]) - HB.lngMin) / (HB.lngMax - HB.lngMin) * c.width,
+          (1 - ((r.lat ?? r[0]) - HB.latMin) / (HB.latMax - HB.latMin)) * c.height];
+}
+function drawPath(g, path, w, color, glow) {
+  g.beginPath();
+  path.forEach((p, i) => { const [x, y] = xy({ lat: p[0], lng: p[1] }); i ? g.lineTo(x, y) : g.moveTo(x, y); });
+  g.lineWidth = w; g.strokeStyle = color; g.lineJoin = g.lineCap = 'round';
+  g.shadowColor = glow; g.shadowBlur = 8; g.stroke(); g.shadowBlur = 0;
 }
 function drawMap() {
   const c = $('map'), g = c.getContext('2d');
   g.clearRect(0, 0, c.width, c.height);
+  const s = c.width / 760;
+  // the river and its canals — enough of a signature that it reads as Saigon
+  drawPath(g, RIVER, 4 * s, 'rgba(107,157,174,0.55)', 'rgba(107,157,174,0.5)');
+  for (const k of CANALS) drawPath(g, k, 1.6 * s, 'rgba(107,157,174,0.35)', 'rgba(107,157,174,0.3)');
+  g.font = `${11 * s}px Inter, sans-serif`; g.fillStyle = 'rgba(245,240,232,0.30)';
+  g.fillText('Thanh Đa', ...offset(xy({ lat: 10.845, lng: 106.735 }), 8 * s, -8 * s));
+  g.fillText('Thủ Thiêm', ...offset(xy({ lat: 10.772, lng: 106.742 }), 10 * s, 4 * s));
+  g.fillStyle = 'rgba(184,255,0,0.30)'; g.font = `600 ${13 * s}px Inter, sans-serif`;
+  g.fillText('SÀI GÒN', 18 * s, c.height - 16 * s);
   const activeIds = new Set([...Room.state.nowPlaying.values()].map(r => r.id));
   for (const r of pts) {
     const [x, y] = xy(r);
-    g.beginPath(); g.arc(x, y, activeIds.has(r.id) ? 5 : 2.2, 0, 7);
-    g.fillStyle = activeIds.has(r.id) ? '#B8FF00' : 'rgba(245,240,232,0.28)';
-    g.fill();
+    g.beginPath(); g.arc(x, y, (activeIds.has(r.id) ? 5.5 : 2.6) * s, 0, 7);
+    g.fillStyle = activeIds.has(r.id) ? '#B8FF00' : 'rgba(245,240,232,0.45)';
+    if (activeIds.has(r.id)) { g.shadowColor = '#B8FF00'; g.shadowBlur = 10; }
+    g.fill(); g.shadowBlur = 0;
   }
   const [lx, ly] = xy(Room.state.listener);
-  g.beginPath(); g.arc(lx, ly, 9, 0, 7); g.strokeStyle = '#B8FF00'; g.lineWidth = 2; g.stroke();
-  g.beginPath(); g.arc(lx, ly, 3.5, 0, 7); g.fillStyle = '#B8FF00'; g.fill();
+  g.beginPath(); g.arc(lx, ly, 10 * s, 0, 7); g.strokeStyle = '#B8FF00'; g.lineWidth = 2 * s; g.stroke();
+  g.beginPath(); g.arc(lx, ly, 4 * s, 0, 7); g.fillStyle = '#B8FF00'; g.fill();
 }
+const offset = ([x, y], dx, dy) => [x + dx, y + dy];
 function mapEvent(e) {
   const c = $('map'), b = c.getBoundingClientRect();
   const px = (e.touches ? e.touches[0].clientX : e.clientX) - b.left;
@@ -131,6 +185,67 @@ window.addEventListener('pointermove', e => dragging && mapEvent(e));
 window.addEventListener('pointerup', () => dragging = false);
 window.addEventListener('room-drift', drawMap);
 
+/* ---------- knobs (Roland spirit: rows of colored caps, drag up/down) ---------- */
+const KNOBS = [
+  { key: 'dream', label: 'Dream', cap: 'var(--capA)', min: 0, max: 1, get: () => Room.state.dream, fmt: v => Math.round(v * 100) + '%' },
+  { key: 'percDensity', label: 'Groove', cap: 'var(--capA)', min: 0, max: 1,
+    get: () => Room.state.percDensity === null ? Room.grooveAmt() : Room.state.percDensity,
+    fmt: v => Room.state.percDensity === null ? 'day' : Math.round(v * 100) + '%' },
+  { key: 'sub', label: 'Sub', cap: 'var(--capA)', min: 0, max: 1, get: () => Room.state.sub, fmt: v => Math.round(v * 100) + '%' },
+  { key: 'bright', label: 'Cutoff', cap: 'var(--capB)', min: 0, max: 1, get: () => Room.state.bright, fmt: v => v > .66 ? 'bright' : v > .33 ? 'warm' : 'dark' },
+  { key: 'reso', label: 'Reso', cap: 'var(--capB)', min: 0, max: 1, get: () => Room.state.reso, fmt: v => Math.round(v * 100) + '%' },
+  { key: 'echo', label: 'Echo', cap: 'var(--capC)', min: 0, max: 1, get: () => Room.state.echo, fmt: v => Math.round(v * 100) + '%' },
+  { key: 'space', label: 'Space', cap: 'var(--capC)', min: 0, max: 1, get: () => Room.state.space, fmt: v => Math.round(v * 100) + '%' },
+  { key: 'swing', label: 'Swing', cap: 'var(--capD)', min: 0, max: 1, get: () => Room.state.swing, fmt: v => Math.round(v * 100) + '%' },
+  { key: 'pitch', label: 'Pitch', cap: 'var(--capD)', min: -3, max: 3, get: () => Room.state.pitch, fmt: v => (v > 0 ? '+' : '') + v.toFixed(1) + ' st' },
+];
+function buildKnobs() {
+  const host = $('knobs');
+  for (const k of KNOBS) {
+    const el = document.createElement('div'); el.className = 'kn';
+    el.innerHTML = `<div class="dial" style="--cap:${k.cap}"><div class="ptr"></div></div><label>${k.label}</label><div class="val"></div>`;
+    host.appendChild(el);
+    const dial = el.querySelector('.dial'), ptr = el.querySelector('.ptr'), val = el.querySelector('.val');
+    const draw = () => {
+      const v = k.get();
+      const t = (v - k.min) / (k.max - k.min);
+      ptr.style.transform = `rotate(${-135 + t * 270}deg)`;
+      val.textContent = k.fmt(v);
+    };
+    draw();
+    let startY = null, startV = null;
+    dial.addEventListener('pointerdown', e => {
+      dial.setPointerCapture(e.pointerId);
+      startY = e.clientY; startV = k.get();
+      e.preventDefault();
+    });
+    dial.addEventListener('pointermove', e => {
+      if (startY === null) return;
+      const range = k.max - k.min;
+      let v = startV + (startY - e.clientY) / 150 * range;
+      v = Math.max(k.min, Math.min(k.max, v));
+      Room.set(k.key, v); draw(); if (k.key === 'percDensity') phase();
+    });
+    const end = () => { startY = null; };
+    dial.addEventListener('pointerup', end); dial.addEventListener('pointercancel', end);
+    dial.addEventListener('wheel', e => {
+      e.preventDefault();
+      const range = k.max - k.min;
+      let v = k.get() + (e.deltaY < 0 ? 1 : -1) * range * 0.04;
+      v = Math.max(k.min, Math.min(k.max, v));
+      Room.set(k.key, v); draw(); if (k.key === 'percDensity') phase();
+    }, { passive: false });
+    dial.addEventListener('dblclick', () => {
+      if (k.key === 'percDensity') { Room.state.percDensity = null; Room.applyControls(); }
+      else Room.set(k.key, k.key === 'pitch' ? 0 : (k.key === 'bright' ? 0.8 : 0.35));
+      draw(); phase();
+    });
+    k._draw = draw;
+  }
+}
+buildKnobs();
+
+/* ---------- time fader ---------- */
 $('hour').oninput = e => {
   Room.setHour(+e.target.value);
   $('liveBtn').classList.remove('on');
@@ -138,9 +253,6 @@ $('hour').oninput = e => {
   phase();
 };
 $('liveBtn').onclick = () => { Room.setLive(); $('liveBtn').classList.add('on'); $('hourLabel').textContent = 'live'; phase(); };
-$('dream').oninput = e => { Room.set('dream', +e.target.value); $('dreamLabel').textContent = Math.round(e.target.value * 100) + '%'; };
-$('perc').oninput = e => { Room.set('percDensity', +e.target.value); $('percLabel').textContent = Math.round(e.target.value * 100) + '%'; phase(); };
-$('bright').oninput = e => { Room.set('bright', +e.target.value); $('brightLabel').textContent = e.target.value > 0.66 ? 'bright' : e.target.value > 0.33 ? 'warm' : 'dark'; };
 $('reroll').onclick = () => Room.reroll();
 
 function renderNow() {
