@@ -68,8 +68,9 @@ function section(h) {
 }
 // how much the dance groove has emerged (the evolution macro)
 function grooveAmt() {
-  const g = { morning: 0.12, midday: 0.28, evening: 0.55, night: 0.85 }[section(curHour())];
-  return state.percDensity === null ? g : g * 0.4 + state.percDensity * 0.6;
+  // untouched: follow the day; touched: the visitor's slider is the truth
+  if (state.percDensity !== null) return state.percDensity;
+  return { morning: 0.12, midday: 0.28, evening: 0.55, night: 0.85 }[section(curHour())];
 }
 const rnd = (a, b) => a + Math.random() * (b - a);
 const choice = arr => arr[Math.floor(Math.random() * arr.length)];
@@ -165,7 +166,14 @@ function updateSendMix(dSend, rSend, role) {
 }
 
 /* ---------- found percussion: two voices, swung ---------- */
-let percBufA = null, percBufB = null;
+let percBufA = null, percBufB = null, percOffA = [], percOffB = [];
+function stableOffsets(buf, n) {
+  // fixed hit-points per buffer: the SAME transients return every bar — that
+  // repetition is what makes found sound read as groove instead of collage
+  const out = [];
+  for (let i = 0; i < n; i++) out.push(rnd(0, Math.max(0.1, buf.duration - 0.4)));
+  return out;
+}
 async function loadPerc() {
   const cand = state.recs.filter(r => r.role === 'rhythm' && r.onset > 2.5);
   const pool = cand.length >= 2 ? cand : state.recs.filter(r => r.role === 'rhythm');
@@ -173,29 +181,38 @@ async function loadPerc() {
   const a = choice(pool), b = choice(pool.filter(r => r.id !== a.id)) || a;
   percBufA = await getBuffer(a).catch(() => null);
   percBufB = await getBuffer(b).catch(() => null);
+  if (percBufA) percOffA = stableOffsets(percBufA, 4);
+  if (percBufB) percOffB = stableOffsets(percBufB, 3);
 }
-function grain(buf, t, vel, rate, bus) {
+function grain(buf, t, vel, rate, offset, dur) {
   const c = state.ctx, src = c.createBufferSource();
   src.buffer = buf; src.playbackRate.value = rate;
   const g = c.createGain();
-  g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(vel, t + 0.005);
-  g.gain.exponentialRampToValueAtTime(0.001, t + rnd(0.08, 0.14));
-  src.connect(g); g.connect(bus); g.connect(delaySend);
-  src.start(t, rnd(0, Math.max(0.1, buf.duration - 0.3)), 0.22);
+  g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(vel, t + 0.004);
+  g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+  src.connect(g); g.connect(percBus); g.connect(delaySend);
+  src.start(t, offset, dur + 0.05);
 }
 function schedulePercStep(t, step) {
   const g = grooveAmt();
   if (g < 0.05) return;
   const inBar = step % 16, isDown = inBar % 4 === 0, isAnd = inBar % 4 === 2;
   const ts = t + (inBar % 2 === 1 ? SWING : 0);      // swing the off-16ths
-  // voice A: rolling body
-  if (percBufA) {
-    const p = isDown ? 0.85 * g + 0.1 : (inBar % 2 === 0 ? 0.5 : 0.28) * g;
-    if (Math.random() < p) grain(percBufA, ts, isDown ? rnd(0.3, 0.5) : rnd(0.1, 0.28), choice([0.5, 0.75, 1, 1]), percBus);
+  // voice A: rolling body — solid repeating downbeat, ghosted 16ths between
+  if (percBufA && percOffA.length) {
+    if (isDown) {
+      grain(percBufA, ts, 0.45 + g * 0.4, 1, percOffA[0], 0.12);           // the anchor hit
+    } else {
+      const p = (inBar % 2 === 0 ? 0.55 : 0.32) * g;
+      if (Math.random() < p)
+        grain(percBufA, ts, rnd(0.12, 0.3) * (0.5 + g), choice([0.75, 1, 1]),
+              percOffA[1 + (inBar % (percOffA.length - 1))], rnd(0.07, 0.12));
+    }
   }
   // voice B: offbeat ticks (the ro-minimal "ands")
-  if (percBufB && isAnd && Math.random() < 0.8 * g) {
-    grain(percBufB, ts, rnd(0.08, 0.2), choice([1, 1.5]), percBus);
+  if (percBufB && percOffB.length && isAnd && Math.random() < 0.25 + 0.65 * g) {
+    grain(percBufB, ts, rnd(0.12, 0.28) * (0.5 + g), choice([1, 1.5]),
+          percOffB[(step >> 2) % percOffB.length], 0.08);
   }
 }
 
@@ -294,7 +311,7 @@ window.Room = {
     synthBus.gain.setTargetAtTime(0.1 + Math.pow(state.dream, 1.2) * 0.4, state.ctx.currentTime, 0.5);
     delayFb.gain.value = 0.35 + state.dream * 0.25;
     for (const l of Object.values(state.slots)) if (l) updateSendMix(l.dSend, l.rSend, l.rec.role);
-    percBus.gain.setTargetAtTime(0.25 + grooveAmt() * 0.5, state.ctx.currentTime, 0.3);
+    percBus.gain.setTargetAtTime(0.25 + grooveAmt() * 0.75, state.ctx.currentTime, 0.3);
   },
   moveListener(lat, lng) { state.listener = { lat, lng }; state.lastTouch = Date.now(); rotate(true); },
   setHour(h) { state.hour = h; state.lastTouch = Date.now(); this.applyControls(); rotate(true); },
