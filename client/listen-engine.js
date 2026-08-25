@@ -18,6 +18,7 @@ const state = {
   hour: null,                 // null = live Saigon time
   dream: 0.35, percDensity: null, bright: 0.8,   // percDensity null = follow the day
   echo: 0.35, space: 0.4, reso: 0.12, sub: 0.5, swing: 0.5, pitch: 0,
+  synthOn: true, synthLevel: 0.5, synthWave: 0.35, synthTone: 0.45, synthShape: 0.3, synthDetune: 0.25,
   lastTouch: 0,
   slots: {}, nowPlaying: new Map(), onNowPlaying: () => {},
 };
@@ -226,6 +227,7 @@ const CHORD_SETS = {
 };
 const midiHz = m => 440 * Math.pow(2, (m - 69) / 12);
 function scheduleSynthStep(t, step) {
+  if (!state.synthOn) return;
   const g = grooveAmt(), sec = section(curHour());
   const bar = Math.floor(step / 16), inBar = step % 16;
   const ts = t + (inBar % 2 === 1 ? swingT() : 0);
@@ -235,10 +237,10 @@ function scheduleSynthStep(t, step) {
     else if (inBar === 11 && bar % 2 === 0) subNote(ts, 28, 0.25, 0.3 + g * 0.2);
     else if (inBar === 13 && bar % 4 === 3) subNote(ts, 31, 0.3, 0.28);
   }
-  // chords: rare soft dub stabs, rarer as groove rises
-  const every = g > 0.5 ? 12 : 6;
-  if (inBar === 6 && bar % every === 4) {
-    for (const m of CHORD_SETS[sec]) chordNote(ts + rnd(0, 0.02), m, 0.4, 0.1, 'triangle');
+  // chords: soft dub stabs; the Level knob also makes them come more often
+  const every = Math.max(2, Math.round((g > 0.5 ? 12 : 6) * (1.2 - state.synthLevel * 0.9)));
+  if (inBar === 6 && bar % every === every - 2) {
+    for (const m of CHORD_SETS[sec]) chordNote(ts + rnd(0, 0.02), m, 0.4, 0.1);
   }
 }
 function subNote(t, midi, dur, vel0) {
@@ -249,14 +251,34 @@ function subNote(t, midi, dur, vel0) {
   g.gain.setTargetAtTime(0, t + dur, 0.08);
   o.connect(g); g.connect(synthBus); o.start(t); o.stop(t + dur + 0.6);
 }
-function chordNote(t, midi, dur, vel, type) {
-  const c = state.ctx, o = c.createOscillator(), f = c.createBiquadFilter(), g = c.createGain();
-  o.type = type; o.frequency.value = midiHz(midi);
-  f.type = 'lowpass'; f.frequency.value = 1600; f.Q.value = 2;
-  g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(vel, t + 0.03);
-  g.gain.setTargetAtTime(0, t + dur, 0.25);
-  o.connect(f); f.connect(g); g.connect(synthBus); g.connect(delaySend); g.connect(reverbSend);
-  o.start(t); o.stop(t + dur + 1.5);
+function synthWaveType() {
+  return state.synthWave < 0.33 ? 'triangle' : state.synthWave < 0.66 ? 'sawtooth' : 'square';
+}
+function chordNote(t, midi, dur, vel) {
+  const c = state.ctx, f = c.createBiquadFilter(), g = c.createGain();
+  const attack = 0.01 + state.synthShape * 1.0;          // stab ... pad
+  const relTau = 0.12 + state.synthShape * 1.2;
+  const hold = dur + state.synthShape * 2.0;
+  f.type = 'lowpass'; f.frequency.value = 400 * Math.pow(2, state.synthTone * 3.9); f.Q.value = 1 + state.reso * 6;
+  g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(vel, t + attack);
+  g.gain.setTargetAtTime(0, t + attack + hold, relTau);
+  const cents = state.synthDetune * 25;
+  for (const det of [-cents, cents]) {
+    const o = c.createOscillator();
+    o.type = synthWaveType(); o.frequency.value = midiHz(midi); o.detune.value = det;
+    o.connect(f); o.start(t); o.stop(t + attack + hold + relTau * 5);
+  }
+  f.connect(g); g.connect(synthBus); g.connect(delaySend); g.connect(reverbSend);
+}
+let previewAt = 0;
+function previewStab() {
+  // instant audition when a synth knob moves
+  if (!state.started || !state.synthOn) return;
+  const now = state.ctx.currentTime;
+  if (now - previewAt < 0.25) return;
+  previewAt = now;
+  const sec = section(curHour());
+  for (const m of CHORD_SETS[sec].slice(0, 3)) chordNote(now + 0.01, m, 0.3, 0.14);
 }
 
 /* ---------- scheduler & rotation ---------- */
@@ -313,7 +335,8 @@ window.Room = {
     if (!state.started) return;
     lowpass.frequency.setTargetAtTime(800 * Math.pow(22.5, state.bright), state.ctx.currentTime, 0.3);
     lowpass.Q.setTargetAtTime(0.3 + state.reso * 9, state.ctx.currentTime, 0.3);
-    synthBus.gain.setTargetAtTime(0.1 + Math.pow(state.dream, 1.2) * 0.4, state.ctx.currentTime, 0.5);
+    const synthG = state.synthOn ? (0.06 + state.synthLevel * 0.65) * (0.55 + state.dream * 0.7) : 0;
+    synthBus.gain.setTargetAtTime(synthG, state.ctx.currentTime, 0.4);
     delaySend.gain.setTargetAtTime(0.05 + state.echo * 0.55, state.ctx.currentTime, 0.3);
     delayFb.gain.value = Math.min(0.85, 0.25 + state.echo * 0.5 + state.dream * 0.1);
     reverbSend.gain.setTargetAtTime(0.05 + state.space * 0.65, state.ctx.currentTime, 0.3);
@@ -325,6 +348,9 @@ window.Room = {
   moveListener(lat, lng) { state.listener = { lat, lng }; state.lastTouch = Date.now(); rotate(true); },
   setHour(h) { state.hour = h; state.lastTouch = Date.now(); this.applyControls(); rotate(true); },
   setLive() { state.hour = null; state.lastTouch = Date.now(); this.applyControls(); },
-  set(key, v) { state[key] = v; state.lastTouch = Date.now(); this.applyControls(); },
+  set(key, v) {
+    state[key] = v; state.lastTouch = Date.now(); this.applyControls();
+    if (key.startsWith('synth') && key !== 'synthOn') previewStab();
+  },
   reroll() { state.lastTouch = Date.now(); rotate(true); loadPerc(); },
 };

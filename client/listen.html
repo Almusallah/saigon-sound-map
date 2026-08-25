@@ -28,7 +28,7 @@
   .panel { background: linear-gradient(180deg, #161616, #101010); border: 1px solid #262626;
            border-radius: 14px; padding: 16px 12px 10px; margin-top: 4px; }
   .panel .stripe { height: 4px; border-radius: 2px; margin: -16px -12px 14px;
-                   background: linear-gradient(90deg, var(--capA) 0 25%, var(--capB) 25% 50%, var(--capC) 50% 75%, var(--capD) 75% 100%); opacity: .8; }
+                   background: linear-gradient(90deg, var(--capA) 0 20%, var(--capB) 20% 40%, var(--capC) 40% 60%, var(--capD) 60% 80%, var(--lime) 80% 100%); opacity: .8; }
   .knobs { display: flex; flex-wrap: wrap; justify-content: center; gap: 14px 10px; }
   .kn { width: 76px; display: flex; flex-direction: column; align-items: center; user-select: none; touch-action: none; }
   .kn .dial { width: 58px; height: 58px; border-radius: 50%; position: relative; cursor: ns-resize;
@@ -75,6 +75,13 @@
     <div class="panel">
       <div class="stripe"></div>
       <div class="knobs" id="knobs"></div>
+      <div class="fader" style="margin-top:16px">
+        <label><span>Synth</span><b id="synthState">on</b></label>
+        <div class="row">
+          <button class="pill on" id="synthBtn">synth on/off</button>
+          <div class="knobs" id="synthKnobs" style="flex:1; justify-content:flex-start"></div>
+        </div>
+      </div>
       <div class="fader">
         <label><span>Time of the city</span><b id="hourLabel">live</b></label>
         <div class="row">
@@ -95,7 +102,7 @@
     </div>
   </div>
 
-<script src="listen-engine.js?v=4"></script>
+<script src="listen-engine.js?v=5"></script>
 <script>
 'use strict';
 const $ = id => document.getElementById(id);
@@ -199,9 +206,9 @@ const KNOBS = [
   { key: 'swing', label: 'Swing', cap: 'var(--capD)', min: 0, max: 1, get: () => Room.state.swing, fmt: v => Math.round(v * 100) + '%' },
   { key: 'pitch', label: 'Pitch', cap: 'var(--capD)', min: -3, max: 3, get: () => Room.state.pitch, fmt: v => (v > 0 ? '+' : '') + v.toFixed(1) + ' st' },
 ];
-function buildKnobs() {
-  const host = $('knobs');
-  for (const k of KNOBS) {
+function buildKnobs() { buildKnobSet(KNOBS, $('knobs')); }
+function buildKnobSet(list, host) {
+  for (const k of list) {
     const el = document.createElement('div'); el.className = 'kn';
     el.innerHTML = `<div class="dial" style="--cap:${k.cap}"><div class="ptr"></div></div><label>${k.label}</label><div class="val"></div>`;
     host.appendChild(el);
@@ -244,6 +251,22 @@ function buildKnobs() {
   }
 }
 buildKnobs();
+
+/* ---------- synth section ---------- */
+const SYNTH_KNOBS = [
+  { key: 'synthLevel', label: 'Level', cap: 'var(--lime)', min: 0, max: 1, get: () => Room.state.synthLevel, fmt: v => Math.round(v * 100) + '%' },
+  { key: 'synthWave', label: 'Wave', cap: 'var(--lime)', min: 0, max: 1, get: () => Room.state.synthWave, fmt: v => v < .33 ? 'tri' : v < .66 ? 'saw' : 'sqr' },
+  { key: 'synthTone', label: 'Tone', cap: 'var(--lime)', min: 0, max: 1, get: () => Room.state.synthTone, fmt: v => Math.round(400 * Math.pow(2, v * 3.9)) + ' Hz' },
+  { key: 'synthShape', label: 'Shape', cap: 'var(--lime)', min: 0, max: 1, get: () => Room.state.synthShape, fmt: v => v < .33 ? 'stab' : v < .7 ? 'pluck' : 'pad' },
+  { key: 'synthDetune', label: 'Detune', cap: 'var(--lime)', min: 0, max: 1, get: () => Room.state.synthDetune, fmt: v => Math.round(v * 25) + ' ct' },
+];
+buildKnobSet(SYNTH_KNOBS, document.getElementById('synthKnobs'));
+document.getElementById('synthBtn').onclick = () => {
+  const on = !Room.state.synthOn;
+  Room.set('synthOn', on);
+  document.getElementById('synthBtn').classList.toggle('on', on);
+  document.getElementById('synthState').textContent = on ? 'on' : 'off';
+};
 
 /* ---------- time fader ---------- */
 $('hour').oninput = e => {
