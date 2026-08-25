@@ -1,0 +1,304 @@
+/* Saigon_Miền Tây Sound Map — Phòng nghe / listening room engine (v2)
+   A generative Web Audio conductor over the live archive.
+   - corpus = /api/recordings (live, grows with every upload) + listen-features.json (offline analysis)
+   - aesthetic tuned in the studio 2026-08-25: field recordings foreground ("the city speaks"),
+     dub delay + long reverb dream layer, and a day-evolution: ambient documentary by day,
+     rolling swung ro-minimal groove after dark. Synths stay minimal.                      */
+'use strict';
+
+const BPM = 122, BEAT = 60 / BPM, SWING = 0.06 * BEAT;
+const HCMC = { latMin: 10.62, latMax: 10.98, lngMin: 106.52, lngMax: 106.98 };
+const IS_DEV = location.port === '8342';
+
+const state = {
+  ctx: null, started: false,
+  recs: [], buffers: new Map(),
+  listener: { lat: 10.79, lng: 106.70 },
+  hour: null,                 // null = live Saigon time
+  dream: 0.35, percDensity: null, bright: 0.8,   // percDensity null = follow the day
+  lastTouch: 0,
+  slots: {}, nowPlaying: new Map(), onNowPlaying: () => {},
+};
+
+/* ---------- corpus ---------- */
+const ROLE_BY_CAT = {
+  'Conversations': 'voice', 'Nature': 'bed', 'Background': 'bed', 'Waterways': 'bed',
+  'Vehicles': 'texture', 'Music': 'tonal', 'Ritual & Ceremony': 'voice',
+  'Announcements & Signals': 'voice', 'Street Vendors': 'voice',
+};
+async function loadCorpus() {
+  let feats = [];
+  try { feats = await (await fetch('listen-features.json')).json(); } catch (e) {}
+  const fmap = new Map(feats.map(f => [f.id, f]));
+  let api = [];
+  try {
+    const r = await (await fetch('/api/recordings')).json();
+    api = r.recordings || r;
+  } catch (e) { /* dev without API: fall back to features only */ }
+  const source = api.length ? api : feats;
+  state.recs = source.map(r => {
+    const id8 = (r.id || '').slice(0, 8);
+    const f = fmap.get(id8) || {};
+    const created = r.createdAt || '';
+    return {
+      id: id8, title: r.title || f.title, category: r.category || f.category || 'Background',
+      lat: r.latitude ?? f.lat, lng: r.longitude ?? f.lng,
+      duration: r.duration || f.duration || 30,
+      hour: f.hour ?? (created ? (parseInt(created.slice(11, 13), 10) + 7) % 24 : null),
+      lufs: f.lufs ?? -32,
+      role: f.role || ROLE_BY_CAT[r.category || f.category] || ((r.duration || 30) >= 40 ? 'bed' : 'texture'),
+      onset: f.onset ?? 1,
+      audioUrl: r.audioUrl || null, file: f.file || null,
+    };
+  }).filter(r => r.lat && r.lng);
+}
+function audioSrc(rec) {
+  if (IS_DEV && rec.file) return 'audio/' + encodeURIComponent(rec.file);
+  return rec.audioUrl || ('audio/' + encodeURIComponent(rec.file || ''));
+}
+
+/* ---------- utils ---------- */
+const saigonHour = () => (new Date().getUTCHours() + 7) % 24 + new Date().getUTCMinutes() / 60;
+const curHour = () => state.hour === null ? saigonHour() : state.hour;
+function section(h) {
+  if (h >= 5 && h < 11) return 'morning';
+  if (h >= 11 && h < 17) return 'midday';
+  if (h >= 17 && h < 22) return 'evening';
+  return 'night';
+}
+// how much the dance groove has emerged (the evolution macro)
+function grooveAmt() {
+  const g = { morning: 0.12, midday: 0.28, evening: 0.55, night: 0.85 }[section(curHour())];
+  return state.percDensity === null ? g : g * 0.4 + state.percDensity * 0.6;
+}
+const rnd = (a, b) => a + Math.random() * (b - a);
+const choice = arr => arr[Math.floor(Math.random() * arr.length)];
+const kmDist = (a, b) => Math.hypot((a.lng - b.lng) * 102, (a.lat - b.lat) * 111);
+const gainForLufs = (lufs, t = -28) => Math.min(8, Math.max(0.05, Math.pow(10, (t - lufs) / 20)));
+
+/* ---------- graph ---------- */
+let master, lowpass, comp, delaySend, delayNode, delayFb, delayFilter, reverbSend, convolver, synthBus, percBus, fieldBus;
+function buildGraph() {
+  const c = state.ctx;
+  master = c.createGain(); master.gain.value = 0.9;
+  lowpass = c.createBiquadFilter(); lowpass.type = 'lowpass'; lowpass.frequency.value = 16000; lowpass.Q.value = 0.4;
+  comp = c.createDynamicsCompressor();
+  comp.threshold.value = -18; comp.ratio.value = 3; comp.attack.value = 0.02; comp.release.value = 0.3;
+  master.connect(lowpass); lowpass.connect(comp); comp.connect(c.destination);
+  fieldBus = c.createGain(); fieldBus.connect(master);
+  synthBus = c.createGain(); synthBus.gain.value = 0.25; synthBus.connect(master);
+  percBus = c.createGain(); percBus.gain.value = 0.5; percBus.connect(master);
+  delaySend = c.createGain(); delaySend.gain.value = 0.25;
+  delayNode = c.createDelay(2); delayNode.delayTime.value = BEAT * 0.75;
+  delayFb = c.createGain(); delayFb.gain.value = 0.45;
+  delayFilter = c.createBiquadFilter(); delayFilter.type = 'bandpass'; delayFilter.frequency.value = 1400; delayFilter.Q.value = 0.5;
+  delaySend.connect(delayNode); delayNode.connect(delayFilter); delayFilter.connect(delayFb);
+  delayFb.connect(delayNode); delayFilter.connect(master);
+  reverbSend = c.createGain(); reverbSend.gain.value = 0.3;
+  convolver = c.createConvolver(); convolver.buffer = makeImpulse(5.0, 2.4);
+  reverbSend.connect(convolver); convolver.connect(master);
+}
+function makeImpulse(seconds, decay) {
+  const c = state.ctx, len = c.sampleRate * seconds, buf = c.createBuffer(2, len, c.sampleRate);
+  for (let ch = 0; ch < 2; ch++) {
+    const d = buf.getChannelData(ch);
+    for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, decay);
+  }
+  return buf;
+}
+
+/* ---------- field-recording layers ---------- */
+async function getBuffer(rec) {
+  if (state.buffers.has(rec.id)) return state.buffers.get(rec.id);
+  const res = await fetch(audioSrc(rec));
+  const buf = await state.ctx.decodeAudioData(await res.arrayBuffer());
+  if (state.buffers.size > 24) state.buffers.delete(state.buffers.keys().next().value);
+  state.buffers.set(rec.id, buf);
+  return buf;
+}
+function weight(rec) {
+  const inCity = rec.lat >= HCMC.latMin && rec.lat <= HCMC.latMax && rec.lng >= HCMC.lngMin && rec.lng <= HCMC.lngMax;
+  const wDist = inCity ? Math.exp(-kmDist(state.listener, rec) / 2.5) : 0.05;
+  let wHour = 1;
+  if (rec.hour !== null && rec.hour !== undefined) {
+    const dh = Math.min(Math.abs(rec.hour - curHour()), 24 - Math.abs(rec.hour - curHour()));
+    wHour = 0.35 + 0.65 * Math.exp(-dh / 4);
+  }
+  return wDist * wHour * (0.3 + Math.random());
+}
+function pickRec(roles, excludeIds) {
+  const pool = state.recs.filter(r => roles.includes(r.role) && !excludeIds.has(r.id));
+  if (!pool.length) return null;
+  return pool.map(r => [weight(r), r]).sort((a, b) => b[0] - a[0])[0][1];
+}
+async function startLayer(slotName, rec, { fadeIn = 6, level = 1 } = {}) {
+  const c = state.ctx;
+  let buf;
+  try { buf = await getBuffer(rec); } catch (e) { console.warn('audio fail', rec.title, e); return; }
+  const src = c.createBufferSource(); src.buffer = buf; src.loop = buf.duration > 8;
+  const g = c.createGain(); g.gain.value = 0;
+  const dSend = c.createGain(), rSend = c.createGain();
+  src.connect(g); g.connect(fieldBus); g.connect(dSend); g.connect(rSend);
+  dSend.connect(delaySend); rSend.connect(reverbSend);
+  g.gain.linearRampToValueAtTime(gainForLufs(rec.lufs) * level, c.currentTime + fadeIn);
+  updateSendMix(dSend, rSend, rec.role);
+  src.start(0, Math.random() * Math.max(0, buf.duration - 20));
+  const old = state.slots[slotName];
+  if (old) stopLayer(old, 8);
+  state.slots[slotName] = { src, g, dSend, rSend, rec };
+  state.nowPlaying.set(slotName, rec);
+  state.onNowPlaying();
+}
+function stopLayer(layer, fade = 8) {
+  const c = state.ctx;
+  try {
+    layer.g.gain.cancelScheduledValues(c.currentTime);
+    layer.g.gain.setValueAtTime(layer.g.gain.value, c.currentTime);
+    layer.g.gain.linearRampToValueAtTime(0, c.currentTime + fade);
+    layer.src.stop(c.currentTime + fade + 0.1);
+  } catch (e) {}
+}
+function updateSendMix(dSend, rSend, role) {
+  const wet = 0.06 + state.dream * 0.55;
+  dSend.gain.value = role === 'bed' ? wet * 0.3 : wet * 0.8;
+  rSend.gain.value = role === 'bed' ? wet : wet * 0.6;
+}
+
+/* ---------- found percussion: two voices, swung ---------- */
+let percBufA = null, percBufB = null;
+async function loadPerc() {
+  const cand = state.recs.filter(r => r.role === 'rhythm' && r.onset > 2.5);
+  const pool = cand.length >= 2 ? cand : state.recs.filter(r => r.role === 'rhythm');
+  if (!pool.length) return;
+  const a = choice(pool), b = choice(pool.filter(r => r.id !== a.id)) || a;
+  percBufA = await getBuffer(a).catch(() => null);
+  percBufB = await getBuffer(b).catch(() => null);
+}
+function grain(buf, t, vel, rate, bus) {
+  const c = state.ctx, src = c.createBufferSource();
+  src.buffer = buf; src.playbackRate.value = rate;
+  const g = c.createGain();
+  g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(vel, t + 0.005);
+  g.gain.exponentialRampToValueAtTime(0.001, t + rnd(0.08, 0.14));
+  src.connect(g); g.connect(bus); g.connect(delaySend);
+  src.start(t, rnd(0, Math.max(0.1, buf.duration - 0.3)), 0.22);
+}
+function schedulePercStep(t, step) {
+  const g = grooveAmt();
+  if (g < 0.05) return;
+  const inBar = step % 16, isDown = inBar % 4 === 0, isAnd = inBar % 4 === 2;
+  const ts = t + (inBar % 2 === 1 ? SWING : 0);      // swing the off-16ths
+  // voice A: rolling body
+  if (percBufA) {
+    const p = isDown ? 0.85 * g + 0.1 : (inBar % 2 === 0 ? 0.5 : 0.28) * g;
+    if (Math.random() < p) grain(percBufA, ts, isDown ? rnd(0.3, 0.5) : rnd(0.1, 0.28), choice([0.5, 0.75, 1, 1]), percBus);
+  }
+  // voice B: offbeat ticks (the ro-minimal "ands")
+  if (percBufB && isAnd && Math.random() < 0.8 * g) {
+    grain(percBufB, ts, rnd(0.08, 0.2), choice([1, 1.5]), percBus);
+  }
+}
+
+/* ---------- minimal synth layer (recedes behind the city) ---------- */
+const CHORD_SETS = {
+  morning: [64, 68, 71, 75], midday: [64, 69, 71, 76],
+  evening: [55, 59, 64], night: [52, 59, 62],
+};
+const midiHz = m => 440 * Math.pow(2, (m - 69) / 12);
+function scheduleSynthStep(t, step) {
+  const g = grooveAmt(), sec = section(curHour());
+  const bar = Math.floor(step / 16), inBar = step % 16;
+  const ts = t + (inBar % 2 === 1 ? SWING : 0);
+  // sub: silent by day, sparse deep syncopation as the groove emerges
+  if (g > 0.35) {
+    if (inBar === 2) subNote(ts, 28, 0.35, 0.4 + g * 0.25);
+    else if (inBar === 11 && bar % 2 === 0) subNote(ts, 28, 0.25, 0.3 + g * 0.2);
+    else if (inBar === 13 && bar % 4 === 3) subNote(ts, 31, 0.3, 0.28);
+  }
+  // chords: rare soft dub stabs, rarer as groove rises
+  const every = g > 0.5 ? 12 : 6;
+  if (inBar === 6 && bar % every === 4) {
+    for (const m of CHORD_SETS[sec]) chordNote(ts + rnd(0, 0.02), m, 0.4, 0.1, 'triangle');
+  }
+}
+function subNote(t, midi, dur, vel) {
+  const c = state.ctx, o = c.createOscillator(), g = c.createGain();
+  o.type = 'sine'; o.frequency.value = midiHz(midi);
+  g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(vel * 0.5, t + 0.02);
+  g.gain.setTargetAtTime(0, t + dur, 0.08);
+  o.connect(g); g.connect(synthBus); o.start(t); o.stop(t + dur + 0.6);
+}
+function chordNote(t, midi, dur, vel, type) {
+  const c = state.ctx, o = c.createOscillator(), f = c.createBiquadFilter(), g = c.createGain();
+  o.type = type; o.frequency.value = midiHz(midi);
+  f.type = 'lowpass'; f.frequency.value = 1600; f.Q.value = 2;
+  g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(vel, t + 0.03);
+  g.gain.setTargetAtTime(0, t + dur, 0.25);
+  o.connect(f); f.connect(g); g.connect(synthBus); g.connect(delaySend); g.connect(reverbSend);
+  o.start(t); o.stop(t + dur + 1.5);
+}
+
+/* ---------- scheduler & rotation ---------- */
+let nextStepTime = 0, stepCount = 0;
+function tick() {
+  const c = state.ctx;
+  while (nextStepTime < c.currentTime + 0.15) {
+    schedulePercStep(nextStepTime, stepCount);
+    scheduleSynthStep(nextStepTime, stepCount);
+    nextStepTime += BEAT / 4; stepCount++;
+  }
+}
+async function rotate(force) {
+  const active = new Set(Object.values(state.slots).filter(Boolean).map(l => l.rec.id));
+  const plan = [
+    ['bedA', ['bed'], 1.0], ['bedB', ['bed', 'texture'], 0.8],
+    ['texA', ['texture'], 0.85], ['texB', ['texture', 'rhythm'], 0.7],
+    ['voice', ['voice'], 0.8],
+  ];
+  const empty = plan.filter(([s]) => !state.slots[s]);
+  const target = empty.length ? empty : (force ? [choice(plan)] : []);
+  for (const [slot, roles, level] of target.slice(0, empty.length ? 2 : 1)) {
+    const rec = pickRec(roles, active);
+    if (rec) { await startLayer(slot, rec, { level, fadeIn: empty.length ? 4 : 8 }); active.add(rec.id); }
+  }
+}
+
+/* ---------- public API ---------- */
+window.Room = {
+  state, grooveAmt, section: () => section(curHour()),
+  async start() {
+    if (state.started) return;
+    state.ctx = new (window.AudioContext || window.webkitAudioContext)();
+    buildGraph();
+    await loadCorpus();
+    state.started = true;
+    nextStepTime = state.ctx.currentTime + 0.2;
+    setInterval(tick, 60);
+    await rotate(true);
+    loadPerc();
+    setInterval(() => rotate(false), 9000);
+    setInterval(() => rotate(true), 50000);
+    setInterval(loadCorpus, 5 * 60 * 1000);          // the archive keeps growing under the piece
+    setInterval(() => {
+      if (Date.now() - state.lastTouch > 90000) {
+        state.listener.lat += rnd(-0.004, 0.004);
+        state.listener.lng += rnd(-0.004, 0.004);
+        window.dispatchEvent(new Event('room-drift'));
+      }
+    }, 15000);
+    this.applyControls();
+  },
+  applyControls() {
+    if (!state.started) return;
+    lowpass.frequency.setTargetAtTime(800 * Math.pow(22.5, state.bright), state.ctx.currentTime, 0.3);
+    synthBus.gain.setTargetAtTime(0.1 + Math.pow(state.dream, 1.2) * 0.4, state.ctx.currentTime, 0.5);
+    delayFb.gain.value = 0.35 + state.dream * 0.25;
+    for (const l of Object.values(state.slots)) if (l) updateSendMix(l.dSend, l.rSend, l.rec.role);
+    percBus.gain.setTargetAtTime(0.25 + grooveAmt() * 0.5, state.ctx.currentTime, 0.3);
+  },
+  moveListener(lat, lng) { state.listener = { lat, lng }; state.lastTouch = Date.now(); rotate(true); },
+  setHour(h) { state.hour = h; state.lastTouch = Date.now(); this.applyControls(); rotate(true); },
+  setLive() { state.hour = null; state.lastTouch = Date.now(); this.applyControls(); },
+  set(key, v) { state[key] = v; state.lastTouch = Date.now(); this.applyControls(); },
+  reroll() { state.lastTouch = Date.now(); rotate(true); loadPerc(); },
+};

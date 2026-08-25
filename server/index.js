@@ -480,6 +480,13 @@ app.get('/app', (req, res) => {
   res.sendFile(path.join(__dirname, '../client/app.html'));
 });
 
+// Phòng nghe — the virtual listening room (generative Web Audio composition
+// over the live archive; audio streams direct from B2, which allows this origin)
+app.get('/listen', (req, res) => {
+  res.set('Cache-Control', 'no-cache');
+  res.sendFile(path.join(__dirname, '../client/listen.html'));
+});
+
 // Digital Asset Links: lets the Android TWA app open full-screen without
 // a browser bar. Fingerprint = SHA-256 of the APK signing key.
 app.get('/.well-known/assetlinks.json', (req, res) => {

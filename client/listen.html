@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Phòng nghe — Saigon_Miền Tây Sound Map</title>
+<meta property="og:title" content="Phòng nghe · The Listening Room">
+<meta property="og:description" content="An evolving composition made from the sounds of the city — live from the Saigon_Miền Tây Sound Map.">
+<style>
+  :root { --lime: #B8FF00; --bg: #0a0a0a; --paper: #F5F0E8; }
+  * { box-sizing: border-box; margin: 0; }
+  body { background: var(--bg); color: var(--paper); font: 15px/1.5 Inter, system-ui, sans-serif; min-height: 100dvh; display: flex; flex-direction: column; align-items: center; padding: 24px 16px 48px; }
+  h1 { font-size: 20px; letter-spacing: .02em; color: var(--lime); font-weight: 600; margin-bottom: 2px; }
+  .sub { opacity: .55; font-size: 13px; margin-bottom: 8px; text-align: center; }
+  .intro { max-width: 520px; text-align: center; font-size: 13px; opacity: .7; margin-bottom: 14px; }
+  #start { background: var(--lime); color: #000; border: 0; font: 600 17px Inter, sans-serif; padding: 14px 42px; border-radius: 999px; cursor: pointer; margin: 22px 0; }
+  #start:hover { transform: scale(1.04); }
+  #start:disabled { opacity: .6; }
+  .room { display: none; width: 100%; max-width: 720px; }
+  .room.on { display: block; }
+  #map { width: 100%; height: 260px; background: #111; border: 1px solid #222; border-radius: 12px; cursor: crosshair; touch-action: none; }
+  .maplabel { font-size: 11px; opacity: .5; margin: 4px 2px 16px; }
+  .ctl { margin: 14px 0; }
+  .ctl label { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 4px; }
+  .ctl label b { color: var(--lime); font-weight: 600; }
+  input[type=range] { width: 100%; accent-color: var(--lime); }
+  .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .pill { background: #1a1a1a; border: 1px solid #333; color: var(--paper); border-radius: 999px; padding: 5px 14px; font-size: 12px; cursor: pointer; }
+  .pill.on { background: var(--lime); color: #000; border-color: var(--lime); }
+  #phase { font-size: 12px; opacity: .6; margin-top: 8px; }
+  #now { margin-top: 22px; border-top: 1px solid #222; padding-top: 14px; }
+  #now h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .1em; opacity: .5; margin-bottom: 8px; }
+  #nowlist div { font-size: 13px; padding: 2px 0; opacity: .85; }
+  #nowlist .cat { color: var(--lime); opacity: .8; font-size: 11px; margin-left: 6px; }
+  .credit { margin-top: 26px; font-size: 11px; opacity: .45; line-height: 1.7; }
+  .credit a { color: var(--lime); text-decoration: none; }
+</style>
+</head>
+<body>
+  <h1>Phòng nghe · The Listening Room</h1>
+  <div class="sub">Saigon_Miền Tây Sound Map</div>
+  <div class="intro">An endless composition made from the archive's field recordings. It follows the real time of the city — documentary by day, a quiet rolling groove after dark — and it grows every time someone records. You can listen, or you can play it.</div>
+  <button id="start">Enter the room</button>
+
+  <div class="room" id="room">
+    <canvas id="map" width="720" height="260"></canvas>
+    <div class="maplabel">You are the circle — drag yourself through the city; nearby recordings rise to meet you.</div>
+
+    <div class="ctl">
+      <label><span>Time of the city</span><b id="hourLabel">live</b></label>
+      <div class="row">
+        <input type="range" id="hour" min="0" max="24" step="0.25" value="12" style="flex:1">
+        <button class="pill on" id="liveBtn">live Saigon</button>
+      </div>
+    </div>
+    <div class="ctl">
+      <label><span>City ↔ Dream</span><b id="dreamLabel">35%</b></label>
+      <input type="range" id="dream" min="0" max="1" step="0.01" value="0.35">
+    </div>
+    <div class="ctl">
+      <label><span>Groove</span><b id="percLabel">follows the night</b></label>
+      <input type="range" id="perc" min="0" max="1" step="0.01" value="0.35">
+    </div>
+    <div class="ctl">
+      <label><span>Colour</span><b id="brightLabel">bright</b></label>
+      <input type="range" id="bright" min="0" max="1" step="0.01" value="0.8">
+    </div>
+    <div class="row" style="margin-top:10px">
+      <button class="pill" id="reroll">↻ new sounds</button>
+      <span id="phase"></span>
+    </div>
+
+    <div id="now"><h2>Sounding now</h2><div id="nowlist"></div></div>
+    <div class="credit">
+      A community archive curated by Officine Gặp — recordings by the people of the city.<br>
+      Add your own sound to the piece on <a href="/">the map</a>.
+    </div>
+  </div>
+
+<script src="listen-engine.js"></script>
+<script>
+'use strict';
+const $ = id => document.getElementById(id);
+const HB = { latMin: 10.62, latMax: 10.98, lngMin: 106.52, lngMax: 106.98 };
+let pts = [];
+
+$('start').onclick = async () => {
+  $('start').disabled = true; $('start').textContent = 'opening…';
+  try { await Room.start(); } catch (e) { $('start').textContent = 'could not open — retry'; $('start').disabled = false; return; }
+  $('start').style.display = 'none';
+  $('room').classList.add('on');
+  pts = Room.state.recs.filter(r => r.lat >= HB.latMin && r.lat <= HB.latMax && r.lng >= HB.lngMin && r.lng <= HB.lngMax);
+  drawMap(); renderNow(); phase();
+  setInterval(phase, 10000);
+};
+
+function phase() {
+  const g = Math.round(Room.grooveAmt() * 100);
+  $('phase').textContent = Room.section() + ' · groove ' + g + '%';
+}
+function xy(r) {
+  const c = $('map');
+  return [(r.lng - HB.lngMin) / (HB.lngMax - HB.lngMin) * c.width,
+          (1 - (r.lat - HB.latMin) / (HB.latMax - HB.latMin)) * c.height];
+}
+function drawMap() {
+  const c = $('map'), g = c.getContext('2d');
+  g.clearRect(0, 0, c.width, c.height);
+  const activeIds = new Set([...Room.state.nowPlaying.values()].map(r => r.id));
+  for (const r of pts) {
+    const [x, y] = xy(r);
+    g.beginPath(); g.arc(x, y, activeIds.has(r.id) ? 5 : 2.2, 0, 7);
+    g.fillStyle = activeIds.has(r.id) ? '#B8FF00' : 'rgba(245,240,232,0.28)';
+    g.fill();
+  }
+  const [lx, ly] = xy(Room.state.listener);
+  g.beginPath(); g.arc(lx, ly, 9, 0, 7); g.strokeStyle = '#B8FF00'; g.lineWidth = 2; g.stroke();
+  g.beginPath(); g.arc(lx, ly, 3.5, 0, 7); g.fillStyle = '#B8FF00'; g.fill();
+}
+function mapEvent(e) {
+  const c = $('map'), b = c.getBoundingClientRect();
+  const px = (e.touches ? e.touches[0].clientX : e.clientX) - b.left;
+  const py = (e.touches ? e.touches[0].clientY : e.clientY) - b.top;
+  Room.moveListener(HB.latMin + (1 - py / b.height) * (HB.latMax - HB.latMin),
+                    HB.lngMin + px / b.width * (HB.lngMax - HB.lngMin));
+  drawMap();
+}
+let dragging = false;
+$('map').addEventListener('pointerdown', e => { dragging = true; mapEvent(e); });
+window.addEventListener('pointermove', e => dragging && mapEvent(e));
+window.addEventListener('pointerup', () => dragging = false);
+window.addEventListener('room-drift', drawMap);
+
+$('hour').oninput = e => {
+  Room.setHour(+e.target.value);
+  $('liveBtn').classList.remove('on');
+  $('hourLabel').textContent = String(Math.floor(+e.target.value)).padStart(2, '0') + ':' + String(Math.round((+e.target.value % 1) * 60)).padStart(2, '0');
+  phase();
+};
+$('liveBtn').onclick = () => { Room.setLive(); $('liveBtn').classList.add('on'); $('hourLabel').textContent = 'live'; phase(); };
+$('dream').oninput = e => { Room.set('dream', +e.target.value); $('dreamLabel').textContent = Math.round(e.target.value * 100) + '%'; };
+$('perc').oninput = e => { Room.set('percDensity', +e.target.value); $('percLabel').textContent = Math.round(e.target.value * 100) + '%'; phase(); };
+$('bright').oninput = e => { Room.set('bright', +e.target.value); $('brightLabel').textContent = e.target.value > 0.66 ? 'bright' : e.target.value > 0.33 ? 'warm' : 'dark'; };
+$('reroll').onclick = () => Room.reroll();
+
+function renderNow() {
+  const el = $('nowlist'); el.innerHTML = '';
+  for (const [slot, r] of Room.state.nowPlaying) {
+    const d = document.createElement('div');
+    d.textContent = r.title || '';
+    const s = document.createElement('span'); s.className = 'cat'; s.textContent = r.category;
+    d.appendChild(s); el.appendChild(d);
+  }
+  drawMap();
+}
+Room.state.onNowPlaying = renderNow;
+</script>
+</body>
+</html>
