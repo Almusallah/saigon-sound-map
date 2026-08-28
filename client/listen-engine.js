@@ -48,12 +48,62 @@ async function loadCorpus() {
       lat: r.latitude ?? f.lat, lng: r.longitude ?? f.lng,
       duration: r.duration || f.duration || 30,
       hour: f.hour ?? (created ? (parseInt(created.slice(11, 13), 10) + 7) % 24 : null),
+      createdDay: created ? created.slice(0, 10) : null,
       lufs: f.lufs ?? -32,
       role: f.role || ROLE_BY_CAT[r.category || f.category] || ((r.duration || 30) >= 40 ? 'bed' : 'texture'),
       onset: f.onset ?? 1,
       audioUrl: r.audioUrl || null, file: f.file || null,
     };
   }).filter(r => r.lat && r.lng);
+  applyRoomFilter();
+}
+
+/* ---------- site-specific rooms (?near= ?walk= ?date= ?cat= ?hours=) ---------- */
+const WALKS = {
+  'thanh-da': { near: [10.837, 106.727, 2500], label: 'Thanh Đa' },
+};
+function applyRoomFilter() {
+  const q = new URLSearchParams(location.search);
+  let pool = state.recs, labels = [];
+  const walk = q.get('walk') && WALKS[q.get('walk').toLowerCase()];
+  const near = walk ? walk.near.join(',') : q.get('near');
+  if (near) {
+    const [la, ln, m] = near.split(',').map(Number);
+    if (isFinite(la) && isFinite(ln)) {
+      const km = (isFinite(m) ? m : 1000) / 1000;
+      pool = pool.filter(r => kmDist({ lat: la, lng: ln }, r) <= km);
+      labels.push(walk ? walk.label : 'within ' + Math.round(km * 1000) + ' m');
+    }
+  }
+  if (q.get('date')) {
+    const days = q.get('date').split(',');
+    pool = pool.filter(r => r.createdDay && days.includes(r.createdDay));
+    labels.push(q.get('date'));
+  }
+  if (q.get('cat')) {
+    const cats = q.get('cat').toLowerCase().split(',');
+    pool = pool.filter(r => cats.includes((r.category || '').toLowerCase()));
+    labels.push(q.get('cat'));
+  }
+  if (q.get('hours')) {
+    const [h0, h1] = q.get('hours').split('-').map(Number);
+    if (isFinite(h0) && isFinite(h1)) {
+      pool = pool.filter(r => r.hour !== null && (h0 <= h1 ? (r.hour >= h0 && r.hour <= h1) : (r.hour >= h0 || r.hour <= h1)));
+      labels.push(q.get('hours') + 'h');
+    }
+  }
+  if (!labels.length || pool.length < 3) { state.roomFilter = null; return; }
+  state.recs = pool;
+  const lats = pool.map(r => r.lat), lngs = pool.map(r => r.lng);
+  const padLat = Math.max(0.004, (Math.max(...lats) - Math.min(...lats)) * 0.2);
+  const padLng = Math.max(0.004, (Math.max(...lngs) - Math.min(...lngs)) * 0.2);
+  const bounds = { latMin: Math.min(...lats) - padLat, latMax: Math.max(...lats) + padLat,
+                   lngMin: Math.min(...lngs) - padLng, lngMax: Math.max(...lngs) + padLng };
+  state.roomFilter = { label: labels.join(' · '), count: pool.length, bounds };
+  if (!state._filterInit) {   // center the listener once; re-polls must not move them
+    state._filterInit = true;
+    state.listener = { lat: (bounds.latMin + bounds.latMax) / 2, lng: (bounds.lngMin + bounds.lngMax) / 2 };
+  }
 }
 function audioSrc(rec) {
   if (IS_DEV && rec.file) return 'audio/' + encodeURIComponent(rec.file);
@@ -121,8 +171,9 @@ async function getBuffer(rec) {
   return buf;
 }
 function weight(rec) {
-  const inCity = rec.lat >= HCMC.latMin && rec.lat <= HCMC.latMax && rec.lng >= HCMC.lngMin && rec.lng <= HCMC.lngMax;
-  const wDist = inCity ? Math.exp(-kmDist(state.listener, rec) / 2.5) : 0.05;
+  const inCity = state.roomFilter ? true :
+    (rec.lat >= HCMC.latMin && rec.lat <= HCMC.latMax && rec.lng >= HCMC.lngMin && rec.lng <= HCMC.lngMax);
+  const wDist = inCity ? Math.exp(-kmDist(state.listener, rec) / (state.roomFilter ? 0.6 : 2.5)) : 0.05;
   let wHour = 1;
   if (rec.hour !== null && rec.hour !== undefined) {
     const dh = Math.min(Math.abs(rec.hour - curHour()), 24 - Math.abs(rec.hour - curHour()));
@@ -324,8 +375,10 @@ window.Room = {
     setInterval(loadCorpus, 5 * 60 * 1000);          // the archive keeps growing under the piece
     setInterval(() => {
       if (Date.now() - state.lastTouch > 90000) {
-        state.listener.lat += rnd(-0.004, 0.004);
-        state.listener.lng += rnd(-0.004, 0.004);
+        const b = state.roomFilter ? state.roomFilter.bounds : HCMC;
+        const step = state.roomFilter ? 0.0015 : 0.004;
+        state.listener.lat = Math.min(b.latMax, Math.max(b.latMin, state.listener.lat + rnd(-step, step)));
+        state.listener.lng = Math.min(b.lngMax, Math.max(b.lngMin, state.listener.lng + rnd(-step, step)));
         window.dispatchEvent(new Event('room-drift'));
       }
     }, 15000);

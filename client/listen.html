@@ -102,11 +102,11 @@
     </div>
   </div>
 
-<script src="listen-engine.js?v=5"></script>
+<script src="listen-engine.js?v=6"></script>
 <script>
 'use strict';
 const $ = id => document.getElementById(id);
-const HB = { latMin: 10.62, latMax: 10.98, lngMin: 106.52, lngMax: 106.98 };
+let HB = { latMin: 10.62, latMax: 10.98, lngMin: 106.52, lngMax: 106.98 };
 let pts = [];
 
 /* ---- Sông Sài Gòn, drawn from memory of its bends (artsy, not cartographic) ---- */
@@ -127,6 +127,11 @@ $('start').onclick = async () => {
   try { await Room.start(); } catch (e) { $('start').textContent = 'could not open — retry'; $('start').disabled = false; return; }
   $('start').style.display = 'none';
   $('room').classList.add('on');
+  if (Room.state.roomFilter) {
+    HB = Room.state.roomFilter.bounds;
+    document.querySelector('.sub').textContent =
+      'Saigon_Miền Tây Sound Map — ' + Room.state.roomFilter.label + ' · ' + Room.state.roomFilter.count + ' sounds';
+  }
   pts = Room.state.recs.filter(r => r.lat >= HB.latMin && r.lat <= HB.latMax && r.lng >= HB.lngMin && r.lng <= HB.lngMax);
   sizeMap(); drawMap(); renderNow(); phase();
   setInterval(phase, 10000);
@@ -160,11 +165,14 @@ function drawMap() {
   // the river and its canals — enough of a signature that it reads as Saigon
   drawPath(g, RIVER, 4 * s, 'rgba(107,157,174,0.55)', 'rgba(107,157,174,0.5)');
   for (const k of CANALS) drawPath(g, k, 1.6 * s, 'rgba(107,157,174,0.35)', 'rgba(107,157,174,0.3)');
+  const cityScale = (HB.latMax - HB.latMin) > 0.15;
   g.font = `${11 * s}px Inter, sans-serif`; g.fillStyle = 'rgba(245,240,232,0.30)';
-  g.fillText('Thanh Đa', ...offset(xy({ lat: 10.845, lng: 106.735 }), 8 * s, -8 * s));
-  g.fillText('Thủ Thiêm', ...offset(xy({ lat: 10.772, lng: 106.742 }), 10 * s, 4 * s));
+  if (cityScale) {
+    g.fillText('Thanh Đa', ...offset(xy({ lat: 10.845, lng: 106.735 }), 8 * s, -8 * s));
+    g.fillText('Thủ Thiêm', ...offset(xy({ lat: 10.772, lng: 106.742 }), 10 * s, 4 * s));
+  }
   g.fillStyle = 'rgba(184,255,0,0.30)'; g.font = `600 ${13 * s}px Inter, sans-serif`;
-  g.fillText('SÀI GÒN', 18 * s, c.height - 16 * s);
+  g.fillText(Room.state.roomFilter ? Room.state.roomFilter.label.toUpperCase() : 'SÀI GÒN', 18 * s, c.height - 16 * s);
   const activeIds = new Set([...Room.state.nowPlaying.values()].map(r => r.id));
   for (const r of pts) {
     const [x, y] = xy(r);
