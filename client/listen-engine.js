@@ -128,7 +128,7 @@ function grooveAmt() {
 const rnd = (a, b) => a + Math.random() * (b - a);
 const choice = arr => arr[Math.floor(Math.random() * arr.length)];
 const kmDist = (a, b) => Math.hypot((a.lng - b.lng) * 102, (a.lat - b.lat) * 111);
-const gainForLufs = (lufs, t = -28) => Math.min(8, Math.max(0.05, Math.pow(10, (t - lufs) / 20)));
+const gainForLufs = (lufs, t = -28) => Math.min(3.2, Math.max(0.05, Math.pow(10, (t - lufs) / 20)));
 
 /* ---------- graph ---------- */
 let master, lowpass, comp, delaySend, delayNode, delayFb, delayFilter, reverbSend, convolver, synthBus, percBus, fieldBus;
@@ -182,7 +182,7 @@ function weight(rec) {
   return wDist * wHour * (0.3 + Math.random());
 }
 function pickRec(roles, excludeIds) {
-  const pool = state.recs.filter(r => roles.includes(r.role) && !excludeIds.has(r.id));
+  const pool = state.recs.filter(r => roles.includes(r.role) && !excludeIds.has(r.id) && r.lufs > -55);
   if (!pool.length) return null;
   return pool.map(r => [weight(r), r]).sort((a, b) => b[0] - a[0])[0][1];
 }
@@ -190,7 +190,8 @@ async function startLayer(slotName, rec, { fadeIn = 6, level = 1 } = {}) {
   const c = state.ctx;
   let buf;
   try { buf = await getBuffer(rec); } catch (e) { console.warn('audio fail', rec.title, e); return; }
-  const src = c.createBufferSource(); src.buffer = buf; src.loop = buf.duration > 8;
+  const src = c.createBufferSource(); src.buffer = buf;
+  src.loop = buf.duration > 8 && rec.role !== 'voice';   // announcements & voices never loop
   src.playbackRate.value = Math.pow(2, state.pitch / 12);
   const g = c.createGain(); g.gain.value = 0;
   const dSend = c.createGain(), rSend = c.createGain();
@@ -201,9 +202,20 @@ async function startLayer(slotName, rec, { fadeIn = 6, level = 1 } = {}) {
   src.start(0, Math.random() * Math.max(0, buf.duration - 20));
   const old = state.slots[slotName];
   if (old) stopLayer(old, 8);
-  state.slots[slotName] = { src, g, dSend, rSend, rec };
+  const layer = { src, g, dSend, rSend, rec };
+  state.slots[slotName] = layer;
   state.nowPlaying.set(slotName, rec);
   state.onNowPlaying();
+  // nothing sounds forever: voices bow out after one pass, others after 50-90s
+  const life = rec.role === 'voice' ? Math.min(buf.duration + fadeIn, 70) : rnd(50, 90);
+  setTimeout(() => {
+    if (state.slots[slotName] === layer) {
+      stopLayer(layer, 6);
+      delete state.slots[slotName];
+      state.nowPlaying.delete(slotName);
+      state.onNowPlaying();
+    }
+  }, life * 1000);
 }
 function stopLayer(layer, fade = 8) {
   const c = state.ctx;
