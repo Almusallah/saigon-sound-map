@@ -1,4 +1,4 @@
-/* Saigon_Miền Tây Sound Map — Phòng nghe / listening room engine (v2)
+/* Saigon_Miền Tây Sound Map — Phòng nghe / listening room engine (v9)
    A generative Web Audio conductor over the live archive.
    - corpus = /api/recordings (live, grows with every upload) + listen-features.json (offline analysis)
    - aesthetic tuned in the studio 2026-08-25: field recordings foreground ("the city speaks"),
@@ -9,10 +9,32 @@
 const BPM = 122, BEAT = 60 / BPM;
 const swingT = () => state.swing * 0.12 * BEAT;
 const HCMC = { latMin: 10.62, latMax: 10.98, lngMin: 106.52, lngMax: 106.98 };
-const IS_DEV = location.port === '8342';
+const IS_DEV = ['localhost', '127.0.0.1', '[::1]'].includes(location.hostname) && location.port === '8342';
+const DEFAULTS = Object.freeze({
+  dream: .35, percDensity: null, bright: .8, echo: .35, space: .4, reso: .12,
+  sub: .5, swing: .5, pitch: 0, synthOn: false, synthLevel: .5,
+  synthWave: .35, synthTone: .45, synthShape: .3, synthDetune: .25,
+});
+const pendingBuffers = new Map(), failedBuffers = new Map();
+const timers = [];
+let startPromise = null, rotation = null, percussionLoad = null;
+const CACHE_BYTES = 64 * 1024 * 1024;
+function announce(message) {
+  state.message = message;
+  window.dispatchEvent(new Event('room-status'));
+}
+async function request(url, json = true) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 20000);
+  try {
+    const response = await fetch(url, { signal: controller.signal });
+    if (!response.ok) throw new Error('Request failed (' + response.status + ')');
+    return await (json ? response.json() : response.arrayBuffer());
+  } finally { clearTimeout(timeout); }
+}
 
 const state = {
-  ctx: null, started: false,
+  ctx: null, started: false, paused: false, volume: .7, muted: false, touring: true, message: '', bufferBytes: 0,
   recs: [], buffers: new Map(),
   listener: { lat: 10.79, lng: 106.70 },
   hour: null,                 // null = live Saigon time
@@ -30,32 +52,38 @@ const ROLE_BY_CAT = {
   'Announcements & Signals': 'voice', 'Street Vendors': 'voice',
 };
 async function loadCorpus() {
-  let feats = [];
-  try { feats = await (await fetch('listen-features.json')).json(); } catch (e) {}
+  const [featuresResult, apiResult] = await Promise.allSettled([
+    request('listen-features.json'), IS_DEV ? Promise.resolve(null) : request('/api/recordings'),
+  ]);
+  const feats = featuresResult.status === 'fulfilled' && Array.isArray(featuresResult.value) ? featuresResult.value : [];
   const fmap = new Map(feats.map(f => [f.id, f]));
-  let api = [];
-  try {
-    const r = await (await fetch('/api/recordings')).json();
-    api = r.recordings || r;
-  } catch (e) { /* dev without API: fall back to features only */ }
-  const source = api.length ? api : feats;
-  state.recs = source.map(r => {
-    const id8 = (r.id || '').slice(0, 8);
-    const f = fmap.get(id8) || {};
-    const created = r.createdAt || '';
+  const data = apiResult.status === 'fulfilled' ? apiResult.value : null;
+  const source = IS_DEV ? feats : (Array.isArray(data) ? data : data?.recordings);
+  if (!Array.isArray(source)) throw new Error('The archive is unavailable. Please try again.');
+  const recs = source.map(r => {
+    const shortId = (r.id || '').slice(0, 8);
+    const f = IS_DEV ? r : (fmap.get(shortId) || {});
     return {
-      id: id8, title: r.title || f.title, category: r.category || f.category || 'Background',
-      lat: r.latitude ?? f.lat, lng: r.longitude ?? f.lng,
+      id: r.id, title: r.title || f.title || 'Untitled recording', category: r.category || f.category || 'Background',
+      lat: Number(r.latitude ?? f.lat), lng: Number(r.longitude ?? f.lng),
       duration: r.duration || f.duration || 30,
-      hour: f.hour ?? (created ? (parseInt(created.slice(11, 13), 10) + 7) % 24 : null),
-      createdDay: created ? created.slice(0, 10) : null,
-      lufs: f.lufs ?? -32,
+      // Upload time is not evidence of the recording's time of day.
+      hour: Number.isFinite(f.hour) ? f.hour : null,
+      createdDay: r.createdAt ? r.createdAt.slice(0, 10) : null,
+      lufs: Number.isFinite(f.lufs) ? f.lufs : -32,
       role: f.role || ROLE_BY_CAT[r.category || f.category] || ((r.duration || 30) >= 40 ? 'bed' : 'texture'),
       onset: f.onset ?? 1,
       audioUrl: r.audioUrl || null, file: f.file || null,
     };
-  }).filter(r => r.lat && r.lng);
+  }).filter(r => r.id && Number.isFinite(r.lat) && Number.isFinite(r.lng) && (IS_DEV ? r.file : r.audioUrl));
+  const previous = state.recs, previousFilter = state.roomFilter;
+  state.recs = recs;
   applyRoomFilter();
+  if (!state.recs.length) {
+    state.recs = previous; state.roomFilter = previousFilter;
+    throw new Error('No recordings match this room. Try the whole-city room.');
+  }
+  window.dispatchEvent(new Event('room-corpus'));
 }
 
 /* ---------- site-specific rooms (?near= ?walk= ?date= ?cat= ?hours=) ---------- */
@@ -92,7 +120,8 @@ function applyRoomFilter() {
       labels.push(q.get('hours') + 'h');
     }
   }
-  if (!labels.length || pool.length < 3) { state.roomFilter = null; return; }
+  if (!labels.length) { state.roomFilter = null; return; }
+  if (!pool.length) { state.recs = []; return; }
   state.recs = pool;
   const lats = pool.map(r => r.lat), lngs = pool.map(r => r.lng);
   const padLat = Math.max(0.004, (Math.max(...lats) - Math.min(...lats)) * 0.2);
@@ -111,7 +140,7 @@ function audioSrc(rec) {
 }
 
 /* ---------- utils ---------- */
-const saigonHour = () => (new Date().getUTCHours() + 7) % 24 + new Date().getUTCMinutes() / 60;
+const saigonHour = () => { const now = new Date(); return (now.getUTCHours() + 7) % 24 + now.getUTCMinutes() / 60; };
 const curHour = () => state.hour === null ? saigonHour() : state.hour;
 function section(h) {
   if (h >= 5 && h < 11) return 'morning';
@@ -131,14 +160,14 @@ const kmDist = (a, b) => Math.hypot((a.lng - b.lng) * 102, (a.lat - b.lat) * 111
 const gainForLufs = (lufs, t = -28) => Math.min(3.2, Math.max(0.05, Math.pow(10, (t - lufs) / 20)));
 
 /* ---------- graph ---------- */
-let master, lowpass, comp, delaySend, delayNode, delayFb, delayFilter, reverbSend, convolver, synthBus, percBus, fieldBus;
+let output, master, lowpass, comp, delaySend, delayNode, delayFb, delayFilter, reverbSend, convolver, synthBus, percBus, fieldBus;
 function buildGraph() {
   const c = state.ctx;
   master = c.createGain(); master.gain.value = 0.9;
   lowpass = c.createBiquadFilter(); lowpass.type = 'lowpass'; lowpass.frequency.value = 16000; lowpass.Q.value = 0.4;
   comp = c.createDynamicsCompressor();
   comp.threshold.value = -18; comp.ratio.value = 3; comp.attack.value = 0.02; comp.release.value = 0.3;
-  master.connect(lowpass); lowpass.connect(comp); comp.connect(c.destination);
+  master.connect(lowpass); lowpass.connect(comp); output = c.createGain(); output.gain.value = 0; comp.connect(output); output.connect(c.destination);
   fieldBus = c.createGain(); fieldBus.connect(master);
   synthBus = c.createGain(); synthBus.gain.value = 0.25; synthBus.connect(master);
   percBus = c.createGain(); percBus.gain.value = 0.5; percBus.connect(master);
@@ -163,13 +192,37 @@ function makeImpulse(seconds, decay) {
 
 /* ---------- field-recording layers ---------- */
 async function getBuffer(rec) {
-  if (state.buffers.has(rec.id)) return state.buffers.get(rec.id);
-  const res = await fetch(audioSrc(rec));
-  const buf = await state.ctx.decodeAudioData(await res.arrayBuffer());
-  if (state.buffers.size > 24) state.buffers.delete(state.buffers.keys().next().value);
-  state.buffers.set(rec.id, buf);
-  return buf;
+  if (state.buffers.has(rec.id)) {
+    const buffer = state.buffers.get(rec.id);
+    state.buffers.delete(rec.id); state.buffers.set(rec.id, buffer);
+    return buffer;
+  }
+  if (pendingBuffers.has(rec.id)) return pendingBuffers.get(rec.id);
+  if ((failedBuffers.get(rec.id) || 0) > Date.now()) throw new Error('Recording temporarily unavailable');
+  const context = state.ctx;
+  const job = (async () => {
+    try {
+      const bytes = await request(audioSrc(rec), false);
+      const buf = await context.decodeAudioData(bytes);
+      const size = buf.length * buf.numberOfChannels * 4;
+      while (state.buffers.size && (state.bufferBytes + size > CACHE_BYTES || state.buffers.size >= 16)) {
+        const oldest = state.buffers.keys().next().value, old = state.buffers.get(oldest);
+        state.bufferBytes -= old.length * old.numberOfChannels * 4;
+        state.buffers.delete(oldest);
+      }
+      if (size <= CACHE_BYTES) { state.buffers.set(rec.id, buf); state.bufferBytes += size; }
+      failedBuffers.delete(rec.id);
+      return buf;
+    } catch (error) {
+      failedBuffers.set(rec.id, Date.now() + 30000);
+      announce('A recording could not load. Trying another sound…');
+      throw error;
+    } finally { pendingBuffers.delete(rec.id); }
+  })();
+  pendingBuffers.set(rec.id, job);
+  return job;
 }
+
 function weight(rec) {
   const inCity = state.roomFilter ? true :
     (rec.lat >= HCMC.latMin && rec.lat <= HCMC.latMax && rec.lng >= HCMC.lngMin && rec.lng <= HCMC.lngMax);
@@ -182,41 +235,58 @@ function weight(rec) {
   return wDist * wHour * (0.3 + Math.random());
 }
 function pickRec(roles, excludeIds) {
-  const pool = state.recs.filter(r => roles.includes(r.role) && !excludeIds.has(r.id) && r.lufs > -55);
+  const pool = state.recs.filter(r => roles.includes(r.role) && !excludeIds.has(r.id) && r.lufs > -55 && (failedBuffers.get(r.id) || 0) <= Date.now());
   if (!pool.length) return null;
   return pool.map(r => [weight(r), r]).sort((a, b) => b[0] - a[0])[0][1];
 }
 async function startLayer(slotName, rec, { fadeIn = 6, level = 1 } = {}) {
   const c = state.ctx;
   let buf;
-  try { buf = await getBuffer(rec); } catch (e) { console.warn('audio fail', rec.title, e); return; }
+  try { buf = await getBuffer(rec); } catch (e) { return false; }
+  if (!state.started || c !== state.ctx) return false;
   const src = c.createBufferSource(); src.buffer = buf;
   src.loop = buf.duration > 8 && rec.role !== 'voice';   // announcements & voices never loop
   src.playbackRate.value = Math.pow(2, state.pitch / 12);
   const g = c.createGain(); g.gain.value = 0;
   const dSend = c.createGain(), rSend = c.createGain();
-  src.connect(g); g.connect(fieldBus); g.connect(dSend); g.connect(rSend);
+  const spatial = c.createGain();
+  const panner = c.createStereoPanner ? c.createStereoPanner() : null;
+  src.connect(g); g.connect(spatial);
+  const positioned = panner || spatial;
+  if (panner) spatial.connect(panner);
+  positioned.connect(fieldBus); positioned.connect(dSend); positioned.connect(rSend);
   dSend.connect(delaySend); rSend.connect(reverbSend);
   g.gain.linearRampToValueAtTime(gainForLufs(rec.lufs) * level, c.currentTime + fadeIn);
   updateSendMix(dSend, rSend, rec.role);
   src.start(0, Math.random() * Math.max(0, buf.duration - 20));
   const old = state.slots[slotName];
   if (old) stopLayer(old, 8);
-  const layer = { src, g, dSend, rSend, rec };
+  const layer = { src, g, spatial, panner, dSend, rSend, rec };
+  updatePosition(layer);
   state.slots[slotName] = layer;
   state.nowPlaying.set(slotName, rec);
   state.onNowPlaying();
-  // nothing sounds forever: voices bow out after one pass, others after 50-90s
-  const life = rec.role === 'voice' ? Math.min(buf.duration + fadeIn, 70) : rnd(50, 90);
-  setTimeout(() => {
+  // Audio-clock lifetimes freeze with pause; short voices clean up on their natural end.
+  layer.endsAt = c.currentTime + (rec.role === 'voice' ? Math.min(buf.duration + fadeIn, 70) : rnd(50, 90));
+  src.onended = () => {
+    src.disconnect(); g.disconnect(); spatial.disconnect(); panner?.disconnect(); dSend.disconnect(); rSend.disconnect();
     if (state.slots[slotName] === layer) {
-      stopLayer(layer, 6);
-      delete state.slots[slotName];
-      state.nowPlaying.delete(slotName);
-      state.onNowPlaying();
+      delete state.slots[slotName]; state.nowPlaying.delete(slotName); state.onNowPlaying();
     }
-  }, life * 1000);
+  };
+  announce('');
+  return true;
 }
+function updatePosition(layer) {
+  const distance = kmDist(state.listener, layer.rec), c = state.ctx;
+  // Separate spatial gain from the envelope so movement cannot cancel crossfades.
+  layer.spatial.gain.setTargetAtTime(.3 + .7 * Math.exp(-distance / (state.roomFilter ? .6 : 2.5)), c.currentTime, .5);
+  if (layer.panner) {
+    const spread = state.roomFilter ? .008 : .035;
+    layer.panner.pan.setTargetAtTime(Math.max(-.85, Math.min(.85, (layer.rec.lng - state.listener.lng) / spread)), c.currentTime, .5);
+  }
+}
+function updatePositions() { for (const layer of Object.values(state.slots)) updatePosition(layer); }
 function stopLayer(layer, fade = 8) {
   const c = state.ctx;
   try {
@@ -233,31 +303,42 @@ function updateSendMix(dSend, rSend, role) {
 }
 
 /* ---------- found percussion: two voices, swung ---------- */
+let percGainA = 1, percGainB = 1;
 let percBufA = null, percBufB = null, percOffA = [], percOffB = [];
 function stableOffsets(buf, n) {
   // fixed hit-points per buffer: the SAME transients return every bar — that
   // repetition is what makes found sound read as groove instead of collage
   const out = [];
-  for (let i = 0; i < n; i++) out.push(rnd(0, Math.max(0.1, buf.duration - 0.4)));
+  for (let i = 0; i < n; i++) out.push(rnd(0, Math.max(0, buf.duration - 0.4)));
   return out;
 }
 async function loadPerc() {
-  const cand = state.recs.filter(r => r.role === 'rhythm' && r.onset > 2.5);
-  const pool = cand.length >= 2 ? cand : state.recs.filter(r => r.role === 'rhythm');
+  if (percussionLoad) return percussionLoad;
+  percussionLoad = loadPercBuffers();
+  try { await percussionLoad; } finally { percussionLoad = null; }
+}
+async function loadPercBuffers() {
+  const cand = state.recs.filter(r => r.role === 'rhythm' && r.onset > 2.5 && r.lufs > -55);
+  const pool = cand.length >= 2 ? cand : state.recs.filter(r => r.role === 'rhythm' && r.lufs > -55);
   if (!pool.length) return;
   const a = choice(pool), b = choice(pool.filter(r => r.id !== a.id)) || a;
-  percBufA = await getBuffer(a).catch(() => null);
-  percBufB = await getBuffer(b).catch(() => null);
-  if (percBufA) percOffA = stableOffsets(percBufA, 4);
-  if (percBufB) percOffB = stableOffsets(percBufB, 3);
+  // Publish buffers and their offsets together: a slow load must not pair a new
+  // short recording with the previous recording's out-of-range hit positions.
+  const [bufferA, bufferB] = await Promise.all([getBuffer(a).catch(() => null), getBuffer(b).catch(() => null)]);
+  percBufA = bufferA; percBufB = bufferB;
+  percOffA = bufferA ? stableOffsets(bufferA, 4) : [];
+  percOffB = bufferB ? stableOffsets(bufferB, 3) : [];
+  percGainA = gainForLufs(a.lufs, -28); percGainB = gainForLufs(b.lufs, -28);
 }
 function grain(buf, t, vel, rate, offset, dur) {
+  vel *= buf === percBufA ? percGainA : percGainB;
   const c = state.ctx, src = c.createBufferSource();
   src.buffer = buf; src.playbackRate.value = rate;
   const g = c.createGain();
   g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(vel, t + 0.004);
   g.gain.exponentialRampToValueAtTime(0.001, t + dur);
   src.connect(g); g.connect(percBus); g.connect(delaySend);
+  src.onended = () => { src.disconnect(); g.disconnect(); };
   src.start(t, offset, dur + 0.05);
 }
 function schedulePercStep(t, step) {
@@ -317,7 +398,7 @@ function subNote(t, midi, dur, vel0) {
   o.type = 'sine'; o.frequency.value = midiHz(midi);
   g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(vel * 0.5, t + 0.02);
   g.gain.setTargetAtTime(0, t + dur, 0.08);
-  o.connect(g); g.connect(synthBus); o.start(t); o.stop(t + dur + 0.6);
+  o.connect(g); g.connect(synthBus); o.onended = () => { o.disconnect(); g.disconnect(); }; o.start(t); o.stop(t + dur + 0.6);
 }
 function synthWaveType() {
   return state.synthWave < 0.33 ? 'triangle' : state.synthWave < 0.66 ? 'sawtooth' : 'square';
@@ -331,17 +412,18 @@ function chordNote(t, midi, dur, vel) {
   g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(vel, t + attack);
   g.gain.setTargetAtTime(0, t + attack + hold, relTau);
   const cents = state.synthDetune * 25;
+  let voices = 2;
   for (const det of [-cents, cents]) {
     const o = c.createOscillator();
     o.type = synthWaveType(); o.frequency.value = midiHz(midi); o.detune.value = det;
-    o.connect(f); o.start(t); o.stop(t + attack + hold + relTau * 5);
+    o.connect(f); o.onended = () => { o.disconnect(); if (--voices === 0) { f.disconnect(); g.disconnect(); } }; o.start(t); o.stop(t + attack + hold + relTau * 5);
   }
   f.connect(g); g.connect(synthBus); g.connect(delaySend); g.connect(reverbSend);
 }
 let previewAt = 0;
 function previewStab() {
   // instant audition when a synth knob moves
-  if (!state.started || !state.synthOn) return;
+  if (!state.started || state.ctx.state !== 'running' || !state.synthOn) return;
   const now = state.ctx.currentTime;
   if (now - previewAt < 0.25) return;
   previewAt = now;
@@ -364,7 +446,7 @@ function pickDestination() {
   };
 }
 function journeyTick() {
-  if (!state.started) return;
+  if (!state.started || !state.touring || state.ctx.state !== 'running') return;
   if (Date.now() - state.lastTouch < 30000) { journey = null; return; }  // hands on = you drive
   if (!journey) pickDestination();
   const p = Math.min(1, (Date.now() - journey.t0) / journey.dur);
@@ -373,6 +455,7 @@ function journeyTick() {
     lat: journey.from.lat + (journey.to.lat - journey.from.lat) * e,
     lng: journey.from.lng + (journey.to.lng - journey.from.lng) * e,
   };
+  updatePositions();
   window.dispatchEvent(new Event('room-drift'));
   if (p >= 1) journey = null;                                            // arrive, then wander on
 }
@@ -381,6 +464,14 @@ function journeyTick() {
 let nextStepTime = 0, stepCount = 0;
 function tick() {
   const c = state.ctx;
+  if (!state.started || c.state !== 'running') return;
+  for (const [slot, layer] of Object.entries(state.slots)) {
+    if (c.currentTime >= layer.endsAt) {
+      stopLayer(layer, 6); delete state.slots[slot]; state.nowPlaying.delete(slot); state.onNowPlaying();
+    }
+  }
+  // A throttled background tab must not replay a backlog of missed beats.
+  if (nextStepTime < c.currentTime - .2) nextStepTime = c.currentTime + .02;
   while (nextStepTime < c.currentTime + 0.15) {
     schedulePercStep(nextStepTime, stepCount);
     scheduleSynthStep(nextStepTime, stepCount);
@@ -388,59 +479,117 @@ function tick() {
   }
 }
 async function rotate(force) {
+  if (!state.started || state.ctx.state !== 'running') return;
+  if (rotation) return rotation;
+  rotation = rotateLayers(force);
+  try { await rotation; } finally { rotation = null; }
+}
+async function rotateLayers(force) {
   const active = new Set(Object.values(state.slots).filter(Boolean).map(l => l.rec.id));
   const plan = [
-    ['bedA', ['bed'], 1.0], ['bedB', ['bed', 'texture'], 0.8],
+    ['bedA', ['bed', 'tonal'], 1.0], ['bedB', ['bed', 'texture'], 0.8],
     ['texA', ['texture'], 0.85], ['texB', ['texture', 'rhythm'], 0.7],
     ['voice', ['voice'], 0.8],
   ];
   const empty = plan.filter(([s]) => !state.slots[s]);
   const target = empty.length ? empty : (force ? [choice(plan)] : []);
   for (const [slot, roles, level] of target.slice(0, empty.length ? 2 : 1)) {
-    const rec = pickRec(roles, active);
-    if (rec) { await startLayer(slot, rec, { level, fadeIn: empty.length ? 4 : 8 }); active.add(rec.id); }
+    if (state.ctx.state !== 'running') break;
+    const rec = pickRec(roles, active) || (active.size === 0 ? pickRec(['bed', 'texture', 'rhythm', 'voice', 'tonal'], active) : null);
+    if (rec && await startLayer(slot, rec, { level, fadeIn: empty.length ? 4 : 8 })) active.add(rec.id);
   }
 }
 
 /* ---------- public API ---------- */
 window.Room = {
-  state, grooveAmt, section: () => section(curHour()),
+  state, defaults: DEFAULTS, grooveAmt, curHour, section: () => section(curHour()),
   async start() {
-    if (state.started) return;
-    state.ctx = new (window.AudioContext || window.webkitAudioContext)();
-    buildGraph();
-    await loadCorpus();
-    state.started = true;
-    nextStepTime = state.ctx.currentTime + 0.2;
-    setInterval(tick, 60);
-    await rotate(true);
-    loadPerc();
-    setInterval(() => rotate(false), 9000);
-    setInterval(() => rotate(true), 35000);
-    setInterval(loadCorpus, 5 * 60 * 1000);          // the archive keeps growing under the piece
-    setInterval(journeyTick, 2000);      // the room rides through the city on its own
-    this.applyControls();
+    if (state.started) return this.resume();
+    if (startPromise) return startPromise;
+    startPromise = (async () => {
+      try {
+        state.ctx = new (window.AudioContext || window.webkitAudioContext)();
+        // Resume inside the user's click, before any network work.
+        await state.ctx.resume();
+        buildGraph();
+        announce('Opening the archive…');
+        await loadCorpus();
+        state.started = true; state.paused = false;
+        this.applyControls();
+        nextStepTime = state.ctx.currentTime + .2;
+        state.ctx.onstatechange = () => {
+          state.paused = state.ctx.state !== 'running';
+          if (state.paused) journey = null;
+          window.dispatchEvent(new Event('room-status'));
+        };
+        timers.push(setInterval(tick, 60));
+        announce('Loading the first recordings…');
+        await rotate(true);
+        if (!state.nowPlaying.size) announce('No audio loaded yet. Choose New sounds to retry.');
+        void loadPerc();
+        timers.push(setInterval(() => { void rotate(false); this.applyControls(); }, 9000));
+        timers.push(setInterval(() => { void rotate(true); }, 35000));
+        timers.push(setInterval(() => {
+          loadCorpus().catch(() => announce('Archive refresh unavailable. Your current room is still playing.'));
+        }, 5 * 60 * 1000));
+        timers.push(setInterval(journeyTick, 100));
+      } catch (error) {
+        timers.splice(0).forEach(clearInterval);
+        state.started = false;
+        if (state.ctx && state.ctx.state !== 'closed') await state.ctx.close();
+        announce(error.message || 'Could not open the room. Please try again.');
+        throw error;
+      }
+    })();
+    try { await startPromise; } finally { startPromise = null; }
   },
+  async pause() {
+    if (!state.started) return;
+    await state.ctx.suspend(); state.paused = true; journey = null;
+    window.dispatchEvent(new Event('room-status'));
+  },
+  async resume() {
+    if (!state.started) return;
+    await state.ctx.resume(); state.paused = false; journey = null;
+    window.dispatchEvent(new Event('room-status'));
+  },
+  setVolume(value) {
+    state.volume = Math.max(0, Math.min(1, Number(value) || 0));
+    this.applyControls(); window.dispatchEvent(new Event('room-status'));
+  },
+  toggleMute() { state.muted = !state.muted; this.applyControls(); window.dispatchEvent(new Event('room-status')); },
+  setTour(on) { state.touring = !!on; state.lastTouch = 0; journey = null; window.dispatchEvent(new Event('room-status')); },
+  reset() { Object.assign(state, DEFAULTS); state.hour = null; this.applyControls(); window.dispatchEvent(new Event('room-status')); },
   applyControls() {
     if (!state.started) return;
+    output.gain.setTargetAtTime(state.muted ? 0 : state.volume, state.ctx.currentTime, .025);
     lowpass.frequency.setTargetAtTime(800 * Math.pow(22.5, state.bright), state.ctx.currentTime, 0.3);
     lowpass.Q.setTargetAtTime(0.3 + state.reso * 9, state.ctx.currentTime, 0.3);
     const synthG = state.synthOn ? (0.06 + state.synthLevel * 0.65) * (0.55 + state.dream * 0.7) : 0;
     synthBus.gain.setTargetAtTime(synthG, state.ctx.currentTime, 0.4);
     delaySend.gain.setTargetAtTime(0.05 + state.echo * 0.55, state.ctx.currentTime, 0.3);
-    delayFb.gain.value = Math.min(0.85, 0.25 + state.echo * 0.5 + state.dream * 0.1);
+    delayFb.gain.setTargetAtTime(Math.min(0.85, 0.25 + state.echo * 0.5 + state.dream * 0.1), state.ctx.currentTime, .3);
     reverbSend.gain.setTargetAtTime(0.05 + state.space * 0.65, state.ctx.currentTime, 0.3);
     const rate = Math.pow(2, state.pitch / 12);
     for (const l of Object.values(state.slots)) if (l) { try { l.src.playbackRate.setTargetAtTime(rate, state.ctx.currentTime, 0.5); } catch (e) {} }
     for (const l of Object.values(state.slots)) if (l) updateSendMix(l.dSend, l.rSend, l.rec.role);
     percBus.gain.setTargetAtTime(0.25 + grooveAmt() * 0.75, state.ctx.currentTime, 0.3);
   },
-  moveListener(lat, lng) { state.listener = { lat, lng }; state.lastTouch = Date.now(); rotate(true); },
-  setHour(h) { state.hour = h; state.lastTouch = Date.now(); this.applyControls(); rotate(true); },
-  setLive() { state.hour = null; state.lastTouch = Date.now(); this.applyControls(); },
+  moveListener(lat, lng) {
+    const bounds = state.roomFilter?.bounds || HCMC;
+    state.listener = { lat: Math.max(bounds.latMin, Math.min(bounds.latMax, lat)), lng: Math.max(bounds.lngMin, Math.min(bounds.lngMax, lng)) };
+    state.lastTouch = Date.now(); journey = null; updatePositions();
+    window.dispatchEvent(new Event('room-status'));
+  },
+  refresh() { return rotate(true); },
+  setHour(h) { state.hour = ((Number(h) || 0) % 24 + 24) % 24; this.applyControls(); rotate(true); },
+  setLive() { state.hour = null; this.applyControls(); },
   set(key, v) {
-    state[key] = v; state.lastTouch = Date.now(); this.applyControls();
+    if (!Object.prototype.hasOwnProperty.call(DEFAULTS, key)) return;
+    state[key] = v; this.applyControls();
     if (key.startsWith('synth') && key !== 'synthOn') previewStab();
   },
-  reroll() { state.lastTouch = Date.now(); rotate(true); loadPerc(); },
+  async reroll() { announce('Finding new sounds…'); await Promise.all([rotate(true), loadPerc()]); if (state.nowPlaying.size) announce(''); },
 };
+
+window.addEventListener('pagehide', () => { if (state.started) void Room.pause(); });

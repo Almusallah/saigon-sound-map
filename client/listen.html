@@ -6,108 +6,110 @@
 <title>Phòng nghe — Saigon_Miền Tây Sound Map</title>
 <meta property="og:title" content="Phòng nghe · The Listening Room">
 <meta property="og:description" content="An evolving composition made from the sounds of the city — live from the Saigon_Miền Tây Sound Map. Play it.">
+<meta name="theme-color" content="#0c100e">
+<meta name="description" content="Enter Phòng nghe: an evolving composition of field recordings from Saigon and the Mekong Delta. Listen, explore, or shape the sound.">
 <style>
-  :root { --lime: #B8FF00; --bg: #0a0a0a; --paper: #F5F0E8; --water: #6B9DAE;
-          --capA: #C9302C; --capB: #E17314; --capC: #E8B547; --capD: #F5F0E8; }
-  * { box-sizing: border-box; margin: 0; -webkit-tap-highlight-color: transparent; }
-  body { background: var(--bg); color: var(--paper); font: 15px/1.5 Inter, system-ui, sans-serif;
-         min-height: 100dvh; display: flex; flex-direction: column; align-items: center; padding: 20px 14px 48px; }
-  h1 { font-size: clamp(17px, 4.5vw, 21px); letter-spacing: .02em; color: var(--lime); font-weight: 600; margin-bottom: 2px; text-align: center; }
-  .sub { opacity: .55; font-size: 13px; margin-bottom: 8px; text-align: center; }
-  .intro { max-width: 520px; text-align: center; font-size: 13px; opacity: .7; margin-bottom: 10px; }
-  #start { background: var(--lime); color: #000; border: 0; font: 600 17px Inter, sans-serif;
-           padding: 14px 42px; border-radius: 999px; cursor: pointer; margin: 20px 0; }
-  #start:disabled { opacity: .6; }
-  .room { display: none; width: 100%; max-width: 760px; }
-  .room.on { display: block; }
-  #map { width: 100%; height: clamp(210px, 38vw, 300px); background: #0d0d0d; border: 1px solid #222;
-         border-radius: 12px; cursor: crosshair; touch-action: none; display: block; }
-  .maplabel { font-size: 11px; opacity: .5; margin: 4px 2px 14px; }
-
-  /* ---- Roland-inspired knob panel ---- */
-  .panel { background: linear-gradient(180deg, #161616, #101010); border: 1px solid #262626;
-           border-radius: 14px; padding: 16px 12px 10px; margin-top: 4px; }
-  .panel .stripe { height: 4px; border-radius: 2px; margin: -16px -12px 14px;
-                   background: linear-gradient(90deg, var(--capA) 0 20%, var(--capB) 20% 40%, var(--capC) 40% 60%, var(--capD) 60% 80%, var(--lime) 80% 100%); opacity: .8; }
-  .knobs { display: flex; flex-wrap: wrap; justify-content: center; gap: 14px 10px; }
-  .kn { width: 76px; display: flex; flex-direction: column; align-items: center; user-select: none; touch-action: none; }
-  .kn .dial { width: 58px; height: 58px; border-radius: 50%; position: relative; cursor: ns-resize;
-              background: radial-gradient(circle at 35% 30%, #2e2e2e, #151515 70%);
-              border: 2px solid #333; box-shadow: 0 3px 8px #000a, inset 0 1px 0 #ffffff14; }
-  .kn .dial::after { content: ""; position: absolute; inset: 17px; border-radius: 50%; background: var(--cap, #444);
-                     box-shadow: inset 0 -2px 4px #0007, 0 1px 2px #0009; }
-  .kn .ptr { position: absolute; left: 50%; top: 50%; width: 2.5px; height: 26px; margin-left: -1.25px;
-             transform-origin: 50% 0%; background: transparent; z-index: 2; }
-  .kn .ptr::before { content: ""; position: absolute; top: 17px; left: 0; width: 2.5px; height: 10px;
-                     background: var(--paper); border-radius: 2px; box-shadow: 0 0 4px #000; }
-  .kn label { font-size: 10px; letter-spacing: .12em; text-transform: uppercase; opacity: .75; margin-top: 6px; }
-  .kn .val { font-size: 10px; color: var(--lime); opacity: .9; min-height: 14px; }
-  .fader { margin: 14px 2px 4px; }
-  .fader label { display: flex; justify-content: space-between; font-size: 11px; letter-spacing: .1em;
-                 text-transform: uppercase; opacity: .75; margin-bottom: 4px; }
-  .fader label b { color: var(--lime); }
-  .fader .row { display: flex; gap: 10px; align-items: center; }
-  input[type=range] { width: 100%; accent-color: var(--lime); min-height: 28px; }
-  .pill { background: #1a1a1a; border: 1px solid #333; color: var(--paper); border-radius: 999px;
-          padding: 6px 14px; font-size: 12px; cursor: pointer; }
-  .pill.on { background: var(--lime); color: #000; border-color: var(--lime); }
-  #phase { font-size: 12px; opacity: .6; }
-  .below { display: flex; gap: 10px; align-items: center; margin-top: 12px; flex-wrap: wrap; }
-  #now { margin-top: 20px; border-top: 1px solid #222; padding-top: 12px; }
-  #now h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .1em; opacity: .5; margin-bottom: 8px; }
-  #nowlist div { font-size: 13px; padding: 2px 0; opacity: .85; }
-  #nowlist .cat { color: var(--lime); opacity: .8; font-size: 11px; margin-left: 6px; }
-  .credit { margin-top: 24px; font-size: 11px; opacity: .45; line-height: 1.7; }
-  .credit a { color: var(--lime); text-decoration: none; }
-  @media (max-width: 480px) { .kn { width: 68px; } .kn .dial { width: 52px; height: 52px; } .kn .dial::after { inset: 15px; } }
+:root { color-scheme: dark; --lime:#c2f66c; --bg:#0c100e; --paper:#f0f1e9; --muted:#a4aea6; --line:#2d3730; --water:#6b9dae; --capA:#d67a67; --capB:#d2a264; --capC:#dac886; --capD:#d9e2d8; }
+* { box-sizing:border-box; } body { margin:0; padding-bottom:105px; background:var(--bg); color:var(--paper); font:15px/1.6 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
+button,input,select { font:inherit; } button,a,input,summary,[role=slider],canvas { -webkit-tap-highlight-color:transparent; }
+button,a,summary { touch-action:manipulation; } button { cursor:pointer; } button:disabled { cursor:wait; opacity:.55; }
+button:focus-visible,a:focus-visible,input:focus-visible,summary:focus-visible,[tabindex]:focus-visible { outline:3px solid var(--lime); outline-offset:5px; }
+a { color:inherit; text-underline-offset:4px; } .skip { position:absolute; left:20px; top:-80px; padding:10px; z-index:20; background:var(--lime); color:var(--bg); } .skip:focus { top:10px; }
+.shell { width:min(1120px,calc(100% - 64px)); margin:auto; }
+.topbar { display:flex; align-items:center; justify-content:space-between; gap:24px; padding:22px 0; border-bottom:1px solid var(--line); font-size:12px; }
+.wordmark { font-weight:650; letter-spacing:.06em; text-decoration:none; } .back { color:var(--muted); }
+header { padding:36px 0 28px; display:flex; justify-content:space-between; align-items:end; gap:32px; }
+.eyebrow { color:var(--lime); font-size:11px; text-transform:uppercase; letter-spacing:.16em; font-weight:650; margin:0 0 10px; }
+h1 { font-size:clamp(34px,5vw,52px); font-weight:500; line-height:1.08; letter-spacing:-.045em; margin:0; }
+h1 span { display:block; font-size:17px; color:var(--muted); letter-spacing:0; line-height:1.5; margin-top:8px; }
+.intro { max-width:530px; color:var(--muted); margin:14px 0 0; font-size:14px; } .citytime { flex-shrink:0; text-align:right; padding-bottom:3px; } .citytime time { display:block; font-variant-numeric:tabular-nums; font-size:30px; letter-spacing:-.03em; } .citytime small { font-size:11px; color:var(--muted); }
+.roomnav { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:18px; }
+.roomnav a { font-size:12px; text-decoration:none; color:var(--muted); border:1px solid var(--line); border-radius:24px; padding:9px 17px; }
+.roomnav a[aria-current=page] { color:var(--paper); background:#263126; border-color:#4c6145; }
+.entry { display:flex; justify-content:space-between; align-items:center; gap:24px; padding:22px 24px; border:1px solid #49603b; background:#192216; border-radius:16px; margin-bottom:18px; }
+.entry strong { display:block; font-size:16px; font-weight:500; } .entry p { margin:3px 0 0; color:#b4c3a8; font-size:12px; }
+.primary { background:var(--lime); color:#17200f; border:0; border-radius:24px; padding:12px 24px; font-weight:650; white-space:nowrap; min-height:46px; }
+#notice { color:#e7c68f; font-size:13px; margin:8px 0; } #notice:empty { display:none; }
+.room { display:block; } .stage { display:grid; grid-template-columns:minmax(0,1fr) 290px; border:1px solid var(--line); border-radius:18px; overflow:hidden; background:#111813; }
+.maparea { padding:22px 22px 16px; min-width:0; } .sectionhead { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:14px; } .sectionhead h2 { font-size:12px; text-transform:uppercase; letter-spacing:.1em; font-weight:600; margin:0; }
+.badge { color:var(--muted); border:1px solid var(--line); padding:3px 9px; border-radius:16px; font-size:10px; letter-spacing:.02em; white-space:nowrap; }
+#map { display:block; width:100%; height:320px; border-radius:10px; background:#0e1511; cursor:crosshair; touch-action:none; }
+.maplabel { margin:12px 0 0; font-size:12px; color:var(--muted); max-width:540px; } .maptools { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-top:14px; } #journeyStatus { color:var(--muted); font-size:11px; }
+.pill { border:1px solid #3c4a3e; color:var(--paper); background:#1b261e; border-radius:24px; padding:9px 16px; min-height:42px; font-size:12px; white-space:nowrap; }
+.pill:hover:not(:disabled) { border-color:#839777; background:#263728; } .pill.on,.pill[aria-pressed=true] { color:var(--lime); border-color:#647d4d; background:#273720; }
+#now { padding:22px 20px; border-left:1px solid var(--line); background:#151e17; }
+#now h2 { margin:0; font-size:12px; text-transform:uppercase; letter-spacing:.1em; font-weight:600; } #nowlist { list-style:none; padding:0; margin:16px 0 0; }
+#nowlist li { padding:13px 0; border-top:1px solid var(--line); } #nowlist a,#nowlist .record-title { display:block; font-size:14px; line-height:1.4; text-decoration:none; overflow-wrap:anywhere; } #nowlist a:hover { color:var(--lime); text-decoration:underline; }
+#nowlist .cat { display:block; color:var(--muted); font-size:11px; margin-top:6px; } .empty { color:var(--muted); font-size:13px; line-height:1.7; } .source-note { color:var(--muted); font-size:11px; margin:18px 0 0; }
+.transport { position:fixed; bottom:14px; left:50%; transform:translateX(-50%); width:min(1120px,calc(100% - 64px)); z-index:5; display:flex; align-items:center; flex-wrap:wrap; gap:14px; background:#1d291ff5; border:1px solid #485941; border-radius:16px; padding:14px 18px; box-shadow:0 12px 35px #0005; margin:0; }
+#playback { min-width:97px; } .playstate { flex:1; min-width:115px; } #playStatus { display:block; font-size:13px; font-weight:550; } #phase { display:block; color:var(--muted); font-size:11px; } .volume { display:flex; align-items:center; gap:9px; } .volume label { font-size:12px; color:var(--muted); } #volume { width:95px; } #volumeValue { width:33px; font-size:11px; color:var(--muted); font-variant-numeric:tabular-nums; }
+input[type=range] { accent-color:var(--lime); height:32px; min-width:0; cursor:pointer; } .transport .pill { background:transparent; }
+.panel { border:1px solid var(--line); border-radius:16px; background:#121a15; overflow:hidden; margin:24px 0; }
+.panel summary { display:flex; justify-content:space-between; align-items:center; padding:20px 24px; cursor:pointer; gap:20px; list-style:none; } summary::-webkit-details-marker { display:none; } .panel summary strong { font-size:16px; font-weight:500; display:block; } .panel summary small { color:var(--muted); display:block; font-size:12px; margin-top:2px; } .panel summary::after { content:'Open'; color:var(--lime); font-size:12px; } .panel[open] summary::after { content:'Close'; } .panel[open] summary { border-bottom:1px solid var(--line); }
+.panelbody { padding:24px; } .presets { display:flex; align-items:center; flex-wrap:wrap; gap:8px; margin-bottom:24px; } .presets span { font-size:12px; color:var(--muted); margin-right:8px; } #reset { margin-left:auto; }
+.knobs { display:grid; grid-template-columns:repeat(9,minmax(0,1fr)); gap:18px 8px; }
+.kn { display:flex; align-items:center; flex-direction:column; text-align:center; min-width:0; } .kn .dial { width:58px; height:58px; border-radius:50%; position:relative; cursor:ns-resize; touch-action:none; user-select:none; background:radial-gradient(circle at 35% 30%,#354239,#172019 75%); border:2px solid #50604f; box-shadow:0 3px 8px #0004,inset 0 1px 0 #ffffff14; }
+.kn .dial::after { content:''; position:absolute; inset:18px; border-radius:50%; background:var(--cap); } .kn .ptr { position:absolute; left:50%; top:50%; width:2px; height:26px; margin-left:-1px; transform-origin:50% 0%; z-index:2; } .kn .ptr::before { content:''; position:absolute; top:17px; left:0; width:2px; height:9px; background:var(--paper); border-radius:2px; }
+.kn label { color:#d2dacf; font-size:12px; margin-top:10px; } .kn .val { color:var(--lime); font-size:11px; min-height:18px; font-variant-numeric:tabular-nums; } .kn .hint { color:var(--muted); font-size:10px; line-height:1.4; max-width:100px; margin-top:5px; }
+.fader { margin-top:26px; padding-top:22px; border-top:1px solid var(--line); } .fader>label { display:flex; justify-content:space-between; align-items:center; font-size:12px; margin-bottom:8px; } .fader b { color:var(--lime); font-weight:500; } .row { display:flex; align-items:center; gap:16px; } #synthKnobs { grid-template-columns:repeat(5,minmax(0,1fr)); flex:1; max-width:650px; } #hour { flex:1; width:100%; } .time-labels { display:flex; justify-content:space-between; color:var(--muted); font-size:10px; margin-right:124px; } .tip { color:var(--muted); font-size:11px; margin:12px 0 0; }
+.credit { border-top:1px solid var(--line); padding:24px 0 36px; display:flex; justify-content:space-between; gap:30px; color:var(--muted); font-size:12px; } .credit p { margin:0; max-width:560px; } .credit a { color:var(--lime); }
+.listening header { padding:22px 0; align-items:center; } .listening header .eyebrow,.listening .intro { display:none; } .listening h1 { font-size:36px; } .listening h1 span:last-child { font-size:14px; margin-top:4px; }
+@media(min-width:1450px) { #map { height:380px; } }
+@media(max-width:900px) { .stage { grid-template-columns:minmax(0,1fr) 235px; } .knobs { grid-template-columns:repeat(5,minmax(0,1fr)); row-gap:24px; } .transport { gap:10px; } .volume label { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); } }
+@media(max-width:650px) { body { padding-bottom:145px; } .listening header { padding:20px 0; } .listening h1 { font-size:28px; } .listening #map { height:230px; } .transport { width:calc(100% - 32px); } .shell { width:calc(100% - 32px); } .topbar { padding:16px 0; font-size:10px; gap:12px; } header { padding:26px 0 22px; gap:12px; align-items:start; } .citytime { padding-top:4px; } .citytime time { font-size:21px; } .citytime small { font-size:9px; } header .intro { font-size:13px; } .entry { align-items:stretch; flex-direction:column; padding:18px; gap:14px; } .entry .primary { width:100%; } .stage { display:block; } .maparea { padding:18px 16px; } #map { height:260px; } #now { padding:18px 16px; border-left:0; border-top:1px solid var(--line); } #nowlist { display:grid; grid-template-columns:1fr 1fr; gap:0 18px; } #nowlist .empty { grid-column:1/-1; } #nowlist li { padding:10px 0; } .transport { bottom:max(8px,env(safe-area-inset-bottom)); gap:8px; padding:12px; margin-bottom:18px; } .playstate { min-width:110px; } #playback { min-width:88px; padding:10px 16px; } .volume { flex:1; } #volume { flex:1; width:70px; } .transport #reroll { order:5; } .transport .volume { order:4; } .panel summary { padding:18px; } .panelbody { padding:18px 12px; } .knobs { grid-template-columns:repeat(3,minmax(0,1fr)); gap:22px 10px; } .kn .dial { width:60px; height:60px; } #synthKnobs { grid-template-columns:repeat(3,minmax(0,1fr)); width:100%; } .synthrow { align-items:start; flex-direction:column; } .presets { gap:6px; } .presets span { width:100%; } .presets .pill { padding:8px 12px; } #reset { margin-left:0; } .credit { display:block; font-size:11px; } .credit p+p { margin-top:12px; } }
+@media(prefers-reduced-motion:reduce) { *,*::before,*::after { scroll-behavior:auto !important; transition:none !important; } }
 </style>
 </head>
 <body>
-  <h1>Phòng nghe · The Listening Room</h1>
-  <div class="sub">Saigon_Miền Tây Sound Map</div>
-  <div class="intro">An endless composition made from the archive's field recordings. It follows the real time of the city — documentary by day, a quiet rolling groove after dark — and it grows every time someone records. You can listen, or you can play it.</div>
-  <button id="start">Enter the room</button>
-
-  <div class="room" id="room">
-    <canvas id="map"></canvas>
-    <div class="maplabel">The circle is you, riding slowly through the city — sounds rise as places pass. Drag it to take the wheel; let go and the ride resumes.</div>
-
-    <div class="panel">
-      <div class="stripe"></div>
-      <div class="knobs" id="knobs"></div>
-      <div class="fader" style="margin-top:16px">
-        <label><span>Synth</span><b id="synthState">off</b></label>
-        <div class="row">
-          <button class="pill" id="synthBtn">synth on/off</button>
-          <div class="knobs" id="synthKnobs" style="flex:1; justify-content:flex-start"></div>
-        </div>
-      </div>
-      <div class="fader">
-        <label><span>Time of the city</span><b id="hourLabel">live</b></label>
-        <div class="row">
-          <input type="range" id="hour" min="0" max="24" step="0.25" value="12" style="flex:1">
-          <button class="pill on" id="liveBtn">live Saigon</button>
-        </div>
-      </div>
-      <div class="below">
-        <button class="pill" id="reroll">↻ new sounds</button>
-        <span id="phase"></span>
-      </div>
+<a class="skip" href="#room">Skip to the listening room</a>
+<div class="shell">
+  <nav class="topbar" aria-label="Sound Map"><a class="wordmark" href="/">SAIGON_MIỀN TÂY SOUND MAP</a><a class="back" href="/">Back to the map</a></nav>
+  <header>
+    <div><p class="eyebrow">An open-ended composition</p><h1><span lang="vi" style="font:inherit;color:inherit;margin:0">Phòng nghe</span><span>The Listening Room</span></h1>
+    <p class="intro">Follow the city through its field recordings. Drift between places, stay with a sound, or make the room your own.</p></div>
+    <div class="citytime"><p class="eyebrow">Saigon time</p><time id="cityClock">—</time><small>UTC +07:00</small></div>
+  </header>
+  <nav class="roomnav" aria-label="Choose a listening room"><a id="cityRoom" href="/listen">Whole city</a><a id="thanhDaRoom" href="/listen?walk=thanh-da">Thanh Đa</a></nav>
+  <div class="entry" id="entry"><div><strong>Take a moment. Let the city come to you.</strong><p>Sound starts when you enter. Headphones bring out the sense of place.</p></div><button class="primary" id="start">Start listening</button></div>
+  <p id="notice" role="status" aria-live="polite"></p>
+  <main class="room" id="room" tabindex="-1">
+    <div class="stage">
+      <section class="maparea" aria-label="Spatial listening field">
+        <div class="sectionhead"><h2 id="roomTitle">Across Sài Gòn</h2><span class="badge" id="corpusCount">Field recordings</span></div>
+        <canvas id="map" tabindex="0" role="group" aria-label="Spatial listener. Use arrow keys to move through the city." aria-describedby="mapHelp">Use the arrow keys to move the listener through the spatial field.</canvas>
+        <p class="maplabel" id="mapHelp">The ring is you. Drag or use arrow keys to move; nearby recordings come forward. The journey resumes after 30 seconds.</p>
+        <div class="maptools"><span id="journeyStatus">A slow journey through the archive</span><button class="pill" id="tour" aria-pressed="true">Auto journey on</button></div>
+      </section>
+      <aside id="now" aria-label="Current recordings"><div class="sectionhead"><h2>Sounding now</h2><span class="badge" id="activeCount">0 layers</span></div><ul id="nowlist"><li class="empty">Your first sounds will appear here when you enter the room.</li></ul><p class="source-note">Original field recordings, arranged live. Sound controls can transform what you hear.</p></aside>
     </div>
-
-    <div id="now"><h2>Sounding now</h2><div id="nowlist"></div></div>
-    <div class="credit">
-      A community archive curated by Officine Gặp — recordings by the people of the city.<br>
-      Add your own sound to the piece on <a href="/">the map</a>.
+    <div class="transport" role="region" aria-label="Playback controls">
+      <button class="primary" id="playback" title="Play or pause (Space)" disabled>Pause</button>
+      <div class="playstate"><span id="playStatus">Ready when you are</span><span id="phase">Following the time of the city</span></div>
+      <button class="pill" id="mute" aria-pressed="false">Mute</button>
+      <div class="volume"><label for="volume">Volume</label><input type="range" id="volume" min="0" max="100" step="1" value="70"><output id="volumeValue" for="volume">70%</output></div>
+      <button class="pill" id="reroll" disabled>New sounds</button>
     </div>
-  </div>
+    <details class="panel" id="instrument">
+      <summary><span><strong>Shape the sound</strong><small>Mix, texture, rhythm and a little synthesis. Explore at your own pace.</small></span></summary>
+      <div class="panelbody">
+        <div class="presets" aria-label="Sound presets"><span>Start somewhere</span><button class="pill" data-preset="close" aria-pressed="false">Close listening</button><button class="pill" data-preset="drift" aria-pressed="true">Slow drift</button><button class="pill" data-preset="night" aria-pressed="false">After dark</button><button class="pill" id="reset">Reset sound</button></div>
+        <div class="knobs" id="knobs"></div>
+        <p class="tip">Drag a dial up or down, or focus it and use the arrow keys. Home / End set its limits. Double-click to reset one dial.</p>
+        <div class="fader"><label><span>Optional synthesizer</span><b id="synthState">off</b></label><div class="row synthrow"><button class="pill" id="synthBtn" aria-pressed="false">Enable synth</button><div class="knobs" id="synthKnobs"></div></div><p class="tip">Adds generated tones beneath the recordings. Turn it on to audition these controls.</p></div>
+        <div class="fader"><label for="hour"><span>Time of the composition</span><b id="hourLabel">Live</b></label><div class="row"><input type="range" id="hour" aria-label="Time of the composition" min="0" max="23.75" step="0.25" value="12"><button class="pill on" id="liveBtn" aria-pressed="true">Follow live</button></div><div class="time-labels"><span>00:00</span><span>06:00</span><span>12:00</span><span>18:00</span><span>24:00</span></div><p class="tip">A quieter documentary mix by day; more rhythm after dark. Moving this slider changes the composition, not the recording date.</p></div>
+      </div>
+    </details>
+  </main>
+  <footer class="credit"><p>A community archive curated by <strong>Officine Gặp</strong>.<br>Recordings by the people of the city. Every contribution adds another perspective.</p><p><a href="/">Explore the map or contribute a sound</a></p></footer>
+</div>
 
-<script src="listen-engine.js?v=8"></script>
+<script src="listen-engine.js?v=9"></script>
 <script>
 'use strict';
 const $ = id => document.getElementById(id);
 let HB = { latMin: 10.62, latMax: 10.98, lngMin: 106.52, lngMax: 106.98 };
 let pts = [];
+let rerollBusy = false;
 
 /* ---- Sông Sài Gòn, drawn from memory of its bends (artsy, not cartographic) ---- */
 const RIVER = [[10.98,106.665],[10.94,106.685],[10.905,106.715],[10.88,106.735],[10.872,106.72],[10.862,106.705],
@@ -122,24 +124,87 @@ const CANALS = [
   [[10.752,106.645],[10.74,106.625],[10.728,106.605],[10.715,106.59]],                                    // Kênh Đôi, heading for Miền Tây
 ];
 
+const clockFormat = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Ho_Chi_Minh', hour: '2-digit', minute: '2-digit', hour12: false });
+const formatHour = h => `${String(Math.floor(h) % 24).padStart(2,'0')}:${String(Math.round(h % 1 * 60)).padStart(2,'0')}`;
+const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+if (reducedMotion.matches) Room.state.touring = false;
 $('start').onclick = async () => {
-  $('start').disabled = true; $('start').textContent = 'opening…';
-  try { await Room.start(); } catch (e) { $('start').textContent = 'could not open — retry'; $('start').disabled = false; return; }
-  $('start').style.display = 'none';
-  $('room').classList.add('on');
-  if (Room.state.roomFilter) {
-    HB = Room.state.roomFilter.bounds;
-    document.querySelector('.sub').textContent =
-      'Saigon_Miền Tây Sound Map — ' + Room.state.roomFilter.label + ' · ' + Room.state.roomFilter.count + ' sounds';
+  $('start').disabled = true; $('start').textContent = 'Opening the room…';
+  try {
+    await Room.start();
+    document.body.classList.add('listening');
+    $('entry').hidden = true; $('entry').style.display = 'none';
+    syncCorpus(); renderNow(); syncTransport();
+    $('playback').focus();
+  } catch (error) {
+    $('start').textContent = 'Try again'; $('start').disabled = false;
+    $('notice').textContent = error.message || 'Could not open the room. Please try again.';
   }
-  pts = Room.state.recs.filter(r => r.lat >= HB.latMin && r.lat <= HB.latMax && r.lng >= HB.lngMin && r.lng <= HB.lngMax);
-  sizeMap(); drawMap(); renderNow(); phase();
-  setInterval(phase, 10000);
 };
-
-function phase() {
-  $('phase').textContent = Room.section() + ' · groove ' + Math.round(Room.grooveAmt() * 100) + '%';
+function syncCorpus() {
+  HB = Room.state.roomFilter?.bounds || { latMin: 10.62, latMax: 10.98, lngMin: 106.52, lngMax: 106.98 };
+  $('roomTitle').textContent = Room.state.roomFilter?.label || 'Across Sài Gòn';
+  pts = Room.state.recs.filter(r => r.lat >= HB.latMin && r.lat <= HB.latMax && r.lng >= HB.lngMin && r.lng <= HB.lngMax);
+  $('corpusCount').textContent = `${pts.length} sounds in view`;
+  sizeMap(); drawMap();
 }
+function phase() {
+  $('cityClock').textContent = clockFormat.format(new Date());
+  $('cityClock').dateTime = new Date().toISOString();
+  $('phase').textContent = `${Room.section()} · ${Math.round(Room.grooveAmt() * 100)}% groove`;
+  const live = Room.state.hour === null, hour = Room.curHour();
+  $('hourLabel').textContent = `${live ? 'Live · ' : 'Manual · '}${formatHour(hour)}`;
+  if (live) $('hour').value = String(Math.min(23.75, Math.floor(hour * 4) / 4));
+  $('hour').setAttribute('aria-valuetext', `${formatHour(hour)}, ${live ? 'live Saigon time' : 'manual composition time'}`);
+  $('liveBtn').classList.toggle('on', live); $('liveBtn').setAttribute('aria-pressed', String(live));
+  KNOBS.forEach(k => k._draw?.());
+  const manual = Date.now() - Room.state.lastTouch < 30000;
+  $('journeyStatus').textContent = !Room.state.started ? 'A slow journey through the archive' : Room.state.paused ? 'Journey paused with playback' : !Room.state.touring ? 'Staying here · move to explore' : manual ? 'Your position · journey resumes in 30s' : 'Drifting between places';
+}
+function syncTransport() {
+  const st = Room.state;
+  $('notice').textContent = st.message;
+  $('playback').disabled = !st.started;
+  $('playback').textContent = st.paused ? 'Resume' : 'Pause';
+  if ('mediaSession' in navigator) navigator.mediaSession.playbackState = !st.started ? 'none' : st.paused ? 'paused' : 'playing';
+  $('playStatus').textContent = !st.started ? 'Ready when you are' : st.paused ? 'Paused' : st.muted || st.volume === 0 ? 'Sound muted' : st.nowPlaying.size ? 'Listening to the city' : 'Waiting for recordings';
+  $('reroll').disabled = !st.started || st.paused || rerollBusy;
+  $('mute').textContent = st.muted ? 'Unmute' : 'Mute'; $('mute').setAttribute('aria-pressed', String(st.muted));
+  $('volumeValue').textContent = `${Math.round(st.volume*100)}%`;
+  $('volume').setAttribute('aria-valuetext', `${Math.round(st.volume*100)} percent${st.muted ? ', muted' : ''}`);
+  $('tour').textContent = st.touring ? 'Auto journey on' : 'Auto journey off'; $('tour').setAttribute('aria-pressed', String(st.touring));
+  phase();
+}
+window.addEventListener('room-status', syncTransport);
+window.addEventListener('room-corpus', syncCorpus);
+$('playback').onclick = async () => {
+  $('playback').disabled = true;
+  try { await (Room.state.paused ? Room.resume() : Room.pause()); }
+  catch { Room.state.message = 'Playback was interrupted. Please try Resume again.'; }
+  finally { syncTransport(); }
+};
+$('volume').oninput = e => Room.setVolume(Number(e.target.value)/100);
+$('mute').onclick = () => Room.toggleMute();
+$('tour').onclick = () => Room.setTour(!Room.state.touring);
+reducedMotion.addEventListener('change', e => { if (e.matches) Room.setTour(false); });
+if ('mediaSession' in navigator) {
+  if ('MediaMetadata' in window) navigator.mediaSession.metadata = new MediaMetadata({ title:'Phòng nghe · The Listening Room', artist:'Saigon_Miền Tây Sound Map', album:'Field recordings · Officine Gặp' });
+  for (const action of ['play','pause']) {
+    try { navigator.mediaSession.setActionHandler(action, () => {
+      (action === 'play' ? Room.resume() : Room.pause()).catch(() => { Room.state.message = 'Tap Resume to continue listening.'; syncTransport(); });
+    }); } catch { /* Not every browser exposes every media action. */ }
+  }
+}
+document.addEventListener('keydown', e => {
+  if (e.code !== 'Space' || !Room.state.started || e.repeat || e.altKey || e.ctrlKey || e.metaKey || e.target.isContentEditable || e.target.closest('button,input,a,summary,[role="slider"]')) return;
+  e.preventDefault(); $('playback').click();
+});
+const roomPath = location.port === '8342' ? 'listen.html' : '/listen';
+if (location.port === '8342') document.querySelectorAll('a[href="/"]').forEach(a => a.href = 'https://saigon-soundscape.onrender.com/');
+$('cityRoom').href = roomPath; $('thanhDaRoom').href = roomPath + '?walk=thanh-da';
+const query = new URLSearchParams(location.search);
+if (query.get('walk') === 'thanh-da') $('thanhDaRoom').setAttribute('aria-current','page');
+else if (![...query.keys()].some(k => ['near','walk','date','cat','hours'].includes(k))) $('cityRoom').setAttribute('aria-current','page');
 
 /* ---------- map ---------- */
 function sizeMap() {
@@ -161,17 +226,17 @@ function drawPath(g, path, w, color, glow) {
 function drawMap() {
   const c = $('map'), g = c.getContext('2d');
   g.clearRect(0, 0, c.width, c.height);
-  const s = c.width / 760;
+  const s = Math.min(2, window.devicePixelRatio || 1); // keep markers and labels readable at every width
   // the river and its canals — enough of a signature that it reads as Saigon
   drawPath(g, RIVER, 4 * s, 'rgba(107,157,174,0.55)', 'rgba(107,157,174,0.5)');
   for (const k of CANALS) drawPath(g, k, 1.6 * s, 'rgba(107,157,174,0.35)', 'rgba(107,157,174,0.3)');
   const cityScale = (HB.latMax - HB.latMin) > 0.15;
-  g.font = `${11 * s}px Inter, sans-serif`; g.fillStyle = 'rgba(245,240,232,0.30)';
+  g.font = `${11 * s}px Inter, sans-serif`; g.fillStyle = 'rgba(240,241,233,0.65)';
   if (cityScale) {
     g.fillText('Thanh Đa', ...offset(xy({ lat: 10.845, lng: 106.735 }), 8 * s, -8 * s));
     g.fillText('Thủ Thiêm', ...offset(xy({ lat: 10.772, lng: 106.742 }), 10 * s, 4 * s));
   }
-  g.fillStyle = 'rgba(184,255,0,0.30)'; g.font = `600 ${13 * s}px Inter, sans-serif`;
+  g.fillStyle = 'rgba(194,246,108,0.6)'; g.font = `600 ${13 * s}px Inter, sans-serif`;
   g.fillText(Room.state.roomFilter ? Room.state.roomFilter.label.toUpperCase() : 'SÀI GÒN', 18 * s, c.height - 16 * s);
   const activeIds = new Set([...Room.state.nowPlaying.values()].map(r => r.id));
   for (const r of pts) {
@@ -187,6 +252,7 @@ function drawMap() {
 }
 const offset = ([x, y], dx, dy) => [x + dx, y + dy];
 function mapEvent(e) {
+  if (!Room.state.started) return;
   const c = $('map'), b = c.getBoundingClientRect();
   const px = (e.touches ? e.touches[0].clientX : e.clientX) - b.left;
   const py = (e.touches ? e.touches[0].clientY : e.clientY) - b.top;
@@ -195,9 +261,21 @@ function mapEvent(e) {
   drawMap();
 }
 let dragging = false;
-$('map').addEventListener('pointerdown', e => { dragging = true; mapEvent(e); });
+$('map').addEventListener('pointerdown', e => { if (!Room.state.started) return; dragging = true; $('map').setPointerCapture(e.pointerId); mapEvent(e); });
 window.addEventListener('pointermove', e => dragging && mapEvent(e));
-window.addEventListener('pointerup', () => dragging = false);
+function finishMove() { if (dragging) { dragging = false; void Room.refresh(); } }
+$('map').addEventListener('pointerup', finishMove);
+$('map').addEventListener('pointercancel', finishMove);
+$('map').addEventListener('lostpointercapture', finishMove);
+let moveTimer;
+$('map').addEventListener('keydown', e => {
+  if (!Room.state.started || !['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.key)) return;
+  e.preventDefault();
+  const step = e.shiftKey ? .05 : .015, l = Room.state.listener;
+  Room.moveListener(l.lat + (e.key === 'ArrowUp' ? step : e.key === 'ArrowDown' ? -step : 0) * (HB.latMax-HB.latMin),
+    l.lng + (e.key === 'ArrowRight' ? step : e.key === 'ArrowLeft' ? -step : 0) * (HB.lngMax-HB.lngMin));
+  drawMap(); clearTimeout(moveTimer); moveTimer = setTimeout(() => Room.refresh(), 250);
+});
 window.addEventListener('room-drift', drawMap);
 
 /* ---------- knobs (Roland spirit: rows of colored caps, drag up/down) ---------- */
@@ -205,20 +283,22 @@ const KNOBS = [
   { key: 'dream', label: 'Dream', cap: 'var(--capA)', min: 0, max: 1, get: () => Room.state.dream, fmt: v => Math.round(v * 100) + '%' },
   { key: 'percDensity', label: 'Groove', cap: 'var(--capA)', min: 0, max: 1,
     get: () => Room.state.percDensity === null ? Room.grooveAmt() : Room.state.percDensity,
-    fmt: v => Room.state.percDensity === null ? 'day' : Math.round(v * 100) + '%' },
+    fmt: v => (Room.state.percDensity === null ? 'Auto · ' : '') + Math.round(v * 100) + '%' },
   { key: 'sub', label: 'Sub', cap: 'var(--capA)', min: 0, max: 1, get: () => Room.state.sub, fmt: v => Math.round(v * 100) + '%' },
   { key: 'bright', label: 'Cutoff', cap: 'var(--capB)', min: 0, max: 1, get: () => Room.state.bright, fmt: v => v > .66 ? 'bright' : v > .33 ? 'warm' : 'dark' },
-  { key: 'reso', label: 'Reso', cap: 'var(--capB)', min: 0, max: 1, get: () => Room.state.reso, fmt: v => Math.round(v * 100) + '%' },
+  { key: 'reso', label: 'Resonance', cap: 'var(--capB)', min: 0, max: 1, get: () => Room.state.reso, fmt: v => Math.round(v * 100) + '%' },
   { key: 'echo', label: 'Echo', cap: 'var(--capC)', min: 0, max: 1, get: () => Room.state.echo, fmt: v => Math.round(v * 100) + '%' },
   { key: 'space', label: 'Space', cap: 'var(--capC)', min: 0, max: 1, get: () => Room.state.space, fmt: v => Math.round(v * 100) + '%' },
   { key: 'swing', label: 'Swing', cap: 'var(--capD)', min: 0, max: 1, get: () => Room.state.swing, fmt: v => Math.round(v * 100) + '%' },
   { key: 'pitch', label: 'Pitch', cap: 'var(--capD)', min: -3, max: 3, get: () => Room.state.pitch, fmt: v => (v > 0 ? '+' : '') + v.toFixed(1) + ' st' },
 ];
+const hints = { dream:'Blur into ambience', percDensity:'Found-sound rhythm', sub:'Synth bass weight', bright:'Dark to bright', reso:'Filter emphasis', echo:'Repeating reflections', space:'Reverb depth', swing:'Rhythmic looseness', pitch:'Recording pitch', synthLevel:'Tone volume', synthWave:'Oscillator character', synthTone:'Tone brightness', synthShape:'Attack and release', synthDetune:'Chorus width' };
+function markCustom() { document.querySelectorAll('[data-preset]').forEach(b => b.setAttribute('aria-pressed','false')); }
 function buildKnobs() { buildKnobSet(KNOBS, $('knobs')); }
 function buildKnobSet(list, host) {
   for (const k of list) {
     const el = document.createElement('div'); el.className = 'kn';
-    el.innerHTML = `<div class="dial" style="--cap:${k.cap}"><div class="ptr"></div></div><label>${k.label}</label><div class="val"></div>`;
+    el.innerHTML = `<div class="dial" tabindex="0" role="slider" aria-orientation="vertical" aria-label="${k.label}" aria-describedby="hint-${k.key}" aria-valuemin="${k.min}" aria-valuemax="${k.max}" style="--cap:${k.cap}"><div class="ptr" aria-hidden="true"></div></div><label>${k.label}</label><div class="val"></div><span class="hint" id="hint-${k.key}">${hints[k.key]}</span>`;
     host.appendChild(el);
     const dial = el.querySelector('.dial'), ptr = el.querySelector('.ptr'), val = el.querySelector('.val');
     const draw = () => {
@@ -226,11 +306,12 @@ function buildKnobSet(list, host) {
       const t = (v - k.min) / (k.max - k.min);
       ptr.style.transform = `rotate(${-135 + t * 270}deg)`;
       val.textContent = k.fmt(v);
+      dial.setAttribute('aria-valuenow', String(Number(v.toFixed(2)))); dial.setAttribute('aria-valuetext', k.fmt(v));
     };
     draw();
     let startY = null, startV = null;
     dial.addEventListener('pointerdown', e => {
-      dial.setPointerCapture(e.pointerId);
+      dial.focus({preventScroll:true}); dial.setPointerCapture(e.pointerId);
       startY = e.clientY; startV = k.get();
       e.preventDefault();
     });
@@ -239,22 +320,26 @@ function buildKnobSet(list, host) {
       const range = k.max - k.min;
       let v = startV + (startY - e.clientY) / 150 * range;
       v = Math.max(k.min, Math.min(k.max, v));
-      Room.set(k.key, v); draw(); if (k.key === 'percDensity') phase();
+      Room.set(k.key, v); markCustom(); draw(); phase();
     });
     const end = () => { startY = null; };
     dial.addEventListener('pointerup', end); dial.addEventListener('pointercancel', end);
     dial.addEventListener('wheel', e => {
+      if (document.activeElement !== dial) return;
       e.preventDefault();
       const range = k.max - k.min;
       let v = k.get() + (e.deltaY < 0 ? 1 : -1) * range * 0.04;
       v = Math.max(k.min, Math.min(k.max, v));
-      Room.set(k.key, v); draw(); if (k.key === 'percDensity') phase();
+      Room.set(k.key, v); markCustom(); draw(); phase();
     }, { passive: false });
-    dial.addEventListener('dblclick', () => {
-      if (k.key === 'percDensity') { Room.state.percDensity = null; Room.applyControls(); }
-      else Room.set(k.key, k.key === 'pitch' ? 0 : (k.key === 'bright' ? 0.8 : 0.35));
-      draw(); phase();
+    dial.addEventListener('keydown', e => {
+      if (!['ArrowUp','ArrowRight','ArrowDown','ArrowLeft','Home','End','PageUp','PageDown'].includes(e.key)) return;
+      e.preventDefault();
+      const step = (k.max-k.min) * (e.key.startsWith('Page') ? .1 : .01);
+      const v = e.key === 'Home' ? k.min : e.key === 'End' ? k.max : k.get() + (['ArrowUp','ArrowRight','PageUp'].includes(e.key) ? step : -step);
+      Room.set(k.key, Math.max(k.min,Math.min(k.max,v))); markCustom(); draw(); phase();
     });
+    dial.addEventListener('dblclick', () => { Room.set(k.key,Room.defaults[k.key]); markCustom(); draw(); phase(); });
     k._draw = draw;
   }
 }
@@ -263,40 +348,58 @@ buildKnobs();
 /* ---------- synth section ---------- */
 const SYNTH_KNOBS = [
   { key: 'synthLevel', label: 'Level', cap: 'var(--lime)', min: 0, max: 1, get: () => Room.state.synthLevel, fmt: v => Math.round(v * 100) + '%' },
-  { key: 'synthWave', label: 'Wave', cap: 'var(--lime)', min: 0, max: 1, get: () => Room.state.synthWave, fmt: v => v < .33 ? 'tri' : v < .66 ? 'saw' : 'sqr' },
+  { key: 'synthWave', label: 'Wave', cap: 'var(--lime)', min: 0, max: 1, get: () => Room.state.synthWave, fmt: v => v < .33 ? 'triangle' : v < .66 ? 'sawtooth' : 'square' },
   { key: 'synthTone', label: 'Tone', cap: 'var(--lime)', min: 0, max: 1, get: () => Room.state.synthTone, fmt: v => Math.round(400 * Math.pow(2, v * 3.9)) + ' Hz' },
   { key: 'synthShape', label: 'Shape', cap: 'var(--lime)', min: 0, max: 1, get: () => Room.state.synthShape, fmt: v => v < .33 ? 'stab' : v < .7 ? 'pluck' : 'pad' },
   { key: 'synthDetune', label: 'Detune', cap: 'var(--lime)', min: 0, max: 1, get: () => Room.state.synthDetune, fmt: v => Math.round(v * 25) + ' ct' },
 ];
 buildKnobSet(SYNTH_KNOBS, document.getElementById('synthKnobs'));
-document.getElementById('synthBtn').onclick = () => {
-  const on = !Room.state.synthOn;
-  Room.set('synthOn', on);
-  document.getElementById('synthBtn').classList.toggle('on', on);
-  document.getElementById('synthState').textContent = on ? 'on' : 'off';
+function syncSound() {
+  const on = Room.state.synthOn;
+  $('synthBtn').classList.toggle('on', on); $('synthBtn').setAttribute('aria-pressed',String(on));
+  $('synthBtn').textContent = on ? 'Disable synth' : 'Enable synth'; $('synthState').textContent = on ? 'on' : 'off';
+  [...KNOBS,...SYNTH_KNOBS].forEach(k => k._draw()); phase();
+}
+$('synthBtn').onclick = () => { Room.set('synthOn',!Room.state.synthOn); markCustom(); syncSound(); };
+$('hour').oninput = e => { Room.setHour(Number(e.target.value)); phase(); };
+$('liveBtn').onclick = () => { Room.setLive(); phase(); };
+$('reroll').onclick = async () => {
+  rerollBusy = true; $('reroll').disabled = true; $('reroll').textContent = 'Finding…';
+  try { await Room.reroll(); } finally { rerollBusy = false; $('reroll').textContent = 'New sounds'; syncTransport(); }
 };
-
-/* ---------- time fader ---------- */
-$('hour').oninput = e => {
-  Room.setHour(+e.target.value);
-  $('liveBtn').classList.remove('on');
-  $('hourLabel').textContent = String(Math.floor(+e.target.value)).padStart(2, '0') + ':' + String(Math.round((+e.target.value % 1) * 60)).padStart(2, '0');
-  phase();
+const presets = {
+  close: { dream:.08, percDensity:0, echo:0, space:.08, synthOn:false, bright:1 },
+  drift: {},
+  night: { dream:.5, percDensity:.7, echo:.48, space:.45, synthOn:true, synthLevel:.3, bright:.65 },
 };
-$('liveBtn').onclick = () => { Room.setLive(); $('liveBtn').classList.add('on'); $('hourLabel').textContent = 'live'; phase(); };
-$('reroll').onclick = () => Room.reroll();
+document.querySelectorAll('[data-preset]').forEach(button => {
+  button.onclick = () => {
+    const hour = Room.state.hour; Room.reset(); if (hour !== null) Room.setHour(hour); Object.entries(presets[button.dataset.preset]).forEach(([key,value]) => Room.set(key,value));
+    markCustom(); button.setAttribute('aria-pressed','true'); syncSound();
+  };
+});
+$('reset').onclick = () => { Room.reset(); markCustom(); document.querySelector('[data-preset="drift"]').setAttribute('aria-pressed','true'); syncSound(); };
 
 function renderNow() {
-  const el = $('nowlist'); el.innerHTML = '';
-  for (const [slot, r] of Room.state.nowPlaying) {
-    const d = document.createElement('div');
-    d.textContent = r.title || '';
-    const s = document.createElement('span'); s.className = 'cat'; s.textContent = r.category;
-    d.appendChild(s); el.appendChild(d);
+  const el = $('nowlist'); el.replaceChildren();
+  for (const r of Room.state.nowPlaying.values()) {
+    const li = document.createElement('li');
+    const title = document.createElement(r.id.length > 8 ? 'a' : 'span');
+    title.className = 'record-title'; title.textContent = r.title;
+    if (title.tagName === 'A') {
+      title.href = '/?rec=' + encodeURIComponent(r.id); title.target = '_blank'; title.rel = 'noopener';
+      title.setAttribute('aria-label',`${r.title} — view recording on the map (opens a new tab)`);
+    }
+    const meta = document.createElement('span'); meta.className = 'cat';
+    const duration = Math.round(r.duration); meta.textContent = `${r.category} · ${Math.floor(duration/60)}:${String(duration%60).padStart(2,'0')}`;
+    li.append(title,meta); el.append(li);
   }
-  drawMap();
+  if (!el.childElementCount) { const li = document.createElement('li'); li.className = 'empty'; li.textContent = 'Listening for the next recordings. New sounds lets you try another selection.'; el.append(li); }
+  $('activeCount').textContent = `${Room.state.nowPlaying.size} ${Room.state.nowPlaying.size === 1 ? 'layer' : 'layers'}`;
+  drawMap(); syncTransport();
 }
 Room.state.onNowPlaying = renderNow;
+sizeMap(); drawMap(); syncTransport(); setInterval(phase, 1000);
 </script>
 </body>
 </html>
