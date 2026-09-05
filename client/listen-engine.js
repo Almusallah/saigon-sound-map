@@ -18,7 +18,7 @@ const state = {
   hour: null,                 // null = live Saigon time
   dream: 0.35, percDensity: null, bright: 0.8,   // percDensity null = follow the day
   echo: 0.35, space: 0.4, reso: 0.12, sub: 0.5, swing: 0.5, pitch: 0,
-  synthOn: true, synthLevel: 0.5, synthWave: 0.35, synthTone: 0.45, synthShape: 0.3, synthDetune: 0.25,
+  synthOn: false, synthLevel: 0.5, synthWave: 0.35, synthTone: 0.45, synthShape: 0.3, synthDetune: 0.25,
   lastTouch: 0,
   slots: {}, nowPlaying: new Map(), onNowPlaying: () => {},
 };
@@ -256,7 +256,8 @@ function schedulePercStep(t, step) {
   // voice A: rolling body — solid repeating downbeat, ghosted 16ths between
   if (percBufA && percOffA.length) {
     if (isDown) {
-      grain(percBufA, ts, 0.45 + g * 0.4, 1, percOffA[0], 0.12);           // the anchor hit
+      if (g > 0.45) grain(percBufA, ts, 0.45 + g * 0.4, 1, percOffA[0], 0.12);   // anchor only after dark
+      else if (Math.random() < g * 0.3) grain(percBufA, ts, rnd(0.08, 0.18), 0.75, percOffA[0], 0.1);
     } else {
       const p = (inBar % 2 === 0 ? 0.55 : 0.32) * g;
       if (Math.random() < p)
@@ -282,11 +283,15 @@ function scheduleSynthStep(t, step) {
   const g = grooveAmt(), sec = section(curHour());
   const bar = Math.floor(step / 16), inBar = step % 16;
   const ts = t + (inBar % 2 === 1 ? swingT() : 0);
-  // sub: silent by day, sparse deep syncopation as the groove emerges
+  // sub: silent by day; when the groove emerges it breathes — rests whole
+  // bars, skips hits, varies weight — never a metronome
   if (g > 0.35) {
-    if (inBar === 2) subNote(ts, 28, 0.35, 0.4 + g * 0.25);
-    else if (inBar === 11 && bar % 2 === 0) subNote(ts, 28, 0.25, 0.3 + g * 0.2);
-    else if (inBar === 13 && bar % 4 === 3) subNote(ts, 31, 0.3, 0.28);
+    if (inBar === 0) state._subRest = Math.random() < 0.3;   // ~1 bar in 3 is silent
+    if (!state._subRest) {
+      if (inBar === 2 && Math.random() < 0.75) subNote(ts, 28, rnd(0.25, 0.45), (0.35 + g * 0.25) * rnd(0.75, 1.1));
+      else if (inBar === 11 && bar % 2 === 0 && Math.random() < 0.55) subNote(ts, 28, rnd(0.2, 0.3), (0.28 + g * 0.18) * rnd(0.7, 1));
+      else if (inBar === 13 && bar % 4 === 3 && Math.random() < 0.5) subNote(ts, choice([31, 26]), 0.3, 0.25 * rnd(0.7, 1));
+    }
   }
   // chords: soft dub stabs; the Level knob also makes them come more often
   const every = Math.max(2, Math.round((g > 0.5 ? 12 : 6) * (1.2 - state.synthLevel * 0.9)));
@@ -332,6 +337,34 @@ function previewStab() {
   for (const m of CHORD_SETS[sec].slice(0, 3)) chordNote(now + 0.01, m, 0.3, 0.14);
 }
 
+/* ---------- the journey: a slow continuous ride between the city's places ---------- */
+let journey = null;
+function pickDestination() {
+  const b = state.roomFilter ? state.roomFilter.bounds : HCMC;
+  const pool = state.recs.filter(r =>
+    r.lat >= b.latMin && r.lat <= b.latMax && r.lng >= b.lngMin && r.lng <= b.lngMax &&
+    kmDist(r, state.listener) > (state.roomFilter ? 0.25 : 1.2));
+  const dest = pool.length ? choice(pool) : { lat: (b.latMin + b.latMax) / 2, lng: (b.lngMin + b.lngMax) / 2 };
+  const km = kmDist(dest, state.listener);
+  journey = {
+    from: { ...state.listener }, to: { lat: dest.lat, lng: dest.lng },
+    t0: Date.now(), dur: Math.max(45, Math.min(150, km * 35)) * 1000,   // slow ride, ~2 km/min
+  };
+}
+function journeyTick() {
+  if (!state.started) return;
+  if (Date.now() - state.lastTouch < 30000) { journey = null; return; }  // hands on = you drive
+  if (!journey) pickDestination();
+  const p = Math.min(1, (Date.now() - journey.t0) / journey.dur);
+  const e = p < 0.5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2;       // ease in-out
+  state.listener = {
+    lat: journey.from.lat + (journey.to.lat - journey.from.lat) * e,
+    lng: journey.from.lng + (journey.to.lng - journey.from.lng) * e,
+  };
+  window.dispatchEvent(new Event('room-drift'));
+  if (p >= 1) journey = null;                                            // arrive, then wander on
+}
+
 /* ---------- scheduler & rotation ---------- */
 let nextStepTime = 0, stepCount = 0;
 function tick() {
@@ -371,17 +404,9 @@ window.Room = {
     await rotate(true);
     loadPerc();
     setInterval(() => rotate(false), 9000);
-    setInterval(() => rotate(true), 50000);
+    setInterval(() => rotate(true), 35000);
     setInterval(loadCorpus, 5 * 60 * 1000);          // the archive keeps growing under the piece
-    setInterval(() => {
-      if (Date.now() - state.lastTouch > 90000) {
-        const b = state.roomFilter ? state.roomFilter.bounds : HCMC;
-        const step = state.roomFilter ? 0.0015 : 0.004;
-        state.listener.lat = Math.min(b.latMax, Math.max(b.latMin, state.listener.lat + rnd(-step, step)));
-        state.listener.lng = Math.min(b.lngMax, Math.max(b.lngMin, state.listener.lng + rnd(-step, step)));
-        window.dispatchEvent(new Event('room-drift'));
-      }
-    }, 15000);
+    setInterval(journeyTick, 2000);      // the room rides through the city on its own
     this.applyControls();
   },
   applyControls() {

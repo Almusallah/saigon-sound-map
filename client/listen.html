@@ -70,15 +70,15 @@
 
   <div class="room" id="room">
     <canvas id="map"></canvas>
-    <div class="maplabel">You are the circle — drag yourself through the city; nearby recordings rise to meet you.</div>
+    <div class="maplabel">The circle is you, riding slowly through the city — sounds rise as places pass. Drag it to take the wheel; let go and the ride resumes.</div>
 
     <div class="panel">
       <div class="stripe"></div>
       <div class="knobs" id="knobs"></div>
       <div class="fader" style="margin-top:16px">
-        <label><span>Synth</span><b id="synthState">on</b></label>
+        <label><span>Synth</span><b id="synthState">off</b></label>
         <div class="row">
-          <button class="pill on" id="synthBtn">synth on/off</button>
+          <button class="pill" id="synthBtn">synth on/off</button>
           <div class="knobs" id="synthKnobs" style="flex:1; justify-content:flex-start"></div>
         </div>
       </div>
@@ -102,7 +102,7 @@
     </div>
   </div>
 
-<script src="listen-engine.js?v=6"></script>
+<script src="listen-engine.js?v=7"></script>
 <script>
 'use strict';
 const $ = id => document.getElementById(id);
