@@ -809,7 +809,9 @@
       .heritage-title { font-size: 18px; }
       .heritage-branch { padding: 10px 12px; }
     }
-  </style>
+
+#draft-status{font:13px/1.5 Inter,system-ui,sans-serif;color:#b8dd94;background:#192419;border:1px solid #3c5134;padding:10px 13px;border-radius:8px;margin:12px 0}#draft-status:empty{display:none}.draft-help{font-size:12px;line-height:1.6;color:#abb4a5}.form-actions{flex-wrap:wrap;gap:10px}#form-submit{flex:1 1 100%;min-height:48px}#draft-discard{color:#e3aaa0;background:transparent}#form-cancel{flex:1}.fg input,.fg select,.fg textarea{font-size:16px}.fg label{font-size:13px}.rec-controls .rec-btn{min-height:44px}.form-card{border:1px solid #445038;box-shadow:0 24px 80px #0009}button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:3px solid #b8ff00;outline-offset:3px}
+</style>
 </head>
 <body>
 
@@ -865,9 +867,10 @@
       <div class="rec-status"><span class="rec-dot" id="rec-dot"></span><span id="rec-status">Tap Record to start</span></div>
     </div>
 
+    <p id="draft-status" role="status" aria-live="polite"></p>
     <form id="upload-form">
       <div class="fg">
-        <label>Or upload a file</label>
+        <label for="audio-file">Or choose an audio file</label>
         <input type="file" id="audio-file" accept="audio/*,.webm,.mp3,.m4a,.mp4,.ogg,.wav">
       </div>
       <div class="fg">
@@ -884,15 +887,15 @@
         <img class="photo-preview" id="photo-preview" alt="Photo preview">
       </div>
       <div class="fg">
-        <label>Title *</label>
+        <label for="f-title">Title *</label>
         <input type="text" id="f-title" required placeholder="e.g. Morning market sounds">
       </div>
       <div class="fg">
-        <label>Description</label>
+        <label for="f-desc">Description</label>
         <textarea id="f-desc" placeholder="What can be heard in this recording?"></textarea>
       </div>
       <div class="fg">
-        <label>Category *</label>
+        <label for="f-category">Category *</label>
         <!-- options populated from CATS at runtime via buildCategoryDropdowns() -->
         <select id="f-category" required>
           <option value="">Select a category...</option>
@@ -908,8 +911,10 @@
       </div>
       <input type="hidden" id="f-lat">
       <input type="hidden" id="f-lng">
+      <p class="draft-help">Your unfinished contribution stays on this device. Upload when you are ready.</p>
       <div class="form-actions">
-        <button type="button" class="btn btn-cancel" id="form-cancel">Cancel</button>
+        <button type="button" class="btn btn-cancel" id="form-cancel">Keep for later</button>
+        <button type="button" class="btn btn-cancel" id="draft-discard">Discard draft</button>
         <button type="submit" class="btn btn-primary" id="form-submit">Upload Recording</button>
       </div>
     </form>
@@ -983,6 +988,7 @@
 
 <!-- Scripts -->
 <script src="https://api.mapbox.com/mapbox-gl-js/v3.7.0/mapbox-gl.js"></script>
+<script src="/draft-store.js"></script>
 <script>
 (function () {
   'use strict';
@@ -1989,12 +1995,55 @@
   $('heritage-overlay').onclick = e => { if (e.target === $('heritage-overlay')) $('heritage-overlay').classList.remove('open'); };
 
   // ── Upload form ─────────────────────────────────────────────────
-  function openForm()  { updateLocStatus(); $('form-overlay').classList.add('open'); }
-  function closeForm() { $('form-overlay').classList.remove('open'); resetRecorder(); }
+  let draftFile = null, draftPhoto = null, draftKey = crypto.randomUUID(), draftReady = false;
+  const draftFields = ['f-title','f-desc','f-category','f-lat','f-lng'];
+  function draftSnapshot() {
+    return { values: Object.fromEntries(draftFields.map(id => [id, $(id).value])),
+      audio: recordedBlob, file: $('audio-file').files[0] || draftFile,
+      photo: pickedPhoto(), key: draftKey };
+  }
+  function saveDraft() {
+    if (!draftReady) return Promise.resolve();
+    $('draft-status').textContent = 'Saving draft…';
+    return DraftStore.save(draftSnapshot()).then(() => {
+      $('draft-status').textContent = 'Draft saved on this device';
+    }, () => { $('draft-status').textContent = 'Draft could not be saved. Keep this page open and upload or try again.'; });
+  }
+  const draftLoaded = DraftStore.read().then(d => {
+    if (!d) return;
+    draftFields.forEach(id => { $(id).value = d.values?.[id] || ''; });
+    recordedBlob = d.audio || null; draftFile = d.file || null; draftPhoto = d.photo || null;
+    draftKey = d.key || draftKey;
+    if (recordedBlob) { $('rec-play').disabled = false; $('rec-status').textContent = 'Recovered recording'; }
+    if (draftFile) $('draft-status').textContent = 'Recovered file: ' + draftFile.name;
+    else $('draft-status').textContent = 'Recovered your unfinished recording';
+    refreshPhotoPreview(); updateLocStatus();
+  }).catch(() => { $('draft-status').textContent = 'Draft storage unavailable. Keep this page open until you upload.'; })
+    .finally(() => { draftReady = true; });
+  async function openForm() { await draftLoaded; updateLocStatus(); $('form-overlay').classList.add('open'); }
+  function closeForm() {
+    if (mediaRecorder?.state === 'recording') $('rec-stop').click();
+    void saveDraft(); $('form-overlay').classList.remove('open');
+  }
+  $('upload-form').addEventListener('input', () => { void saveDraft(); });
+  $('upload-form').addEventListener('change', () => { void saveDraft(); });
+  $('draft-discard').onclick = async () => {
+    if (!confirm('Discard this recording and its details?')) return;
+    if (mediaRecorder?.state === 'recording') {
+      await new Promise(resolve => { mediaRecorder.addEventListener('stop', resolve, { once: true }); $('rec-stop').click(); });
+    }
+    resetRecorder(); draftFile = draftPhoto = null; draftKey = crypto.randomUUID();
+    $('upload-form').reset(); clearPhotoPreview(); updateLocStatus();
+    await DraftStore.clear().then(() => { $('draft-status').textContent = 'Draft discarded'; },
+      () => { $('draft-status').textContent = 'Could not remove the saved draft. Try Discard again.'; });
+  };
+  window.addEventListener('beforeunload', e => {
+    if (mediaRecorder?.state === 'recording') { e.preventDefault(); e.returnValue = ''; }
+  });
 
   // Optional photo: camera or gallery, whichever was used last wins.
   function pickedPhoto() {
-    return $('image-camera').files[0] || $('image-gallery').files[0];
+    return $('image-camera').files[0] || $('image-gallery').files[0] || draftPhoto;
   }
   function refreshPhotoPreview() {
     const f = pickedPhoto();
@@ -2006,9 +2055,9 @@
   }
   $('photo-camera-btn').onclick  = () => $('image-camera').click();
   $('photo-gallery-btn').onclick = () => $('image-gallery').click();
-  $('image-camera').onchange  = () => { if ($('image-camera').files.length)  $('image-gallery').value = ''; refreshPhotoPreview(); };
+  $('image-camera').onchange  = () => { if ($('image-camera').files.length)  $('image-gallery').value = ''; refreshPhotoPreview(); void saveDraft(); };
   $('image-gallery').onchange = () => { if ($('image-gallery').files.length) $('image-camera').value  = ''; refreshPhotoPreview(); };
-  $('photo-remove-btn').onclick = () => { $('image-camera').value = ''; $('image-gallery').value = ''; refreshPhotoPreview(); };
+  $('photo-remove-btn').onclick = () => { draftPhoto = null; $('image-camera').value = ''; $('image-gallery').value = ''; refreshPhotoPreview(); void saveDraft(); };
   function clearPhotoPreview() {
     $('image-camera').value = ''; $('image-gallery').value = '';
     refreshPhotoPreview();
@@ -2113,7 +2162,7 @@
     }
 
     let blob;
-    const fileInput = $('audio-file').files[0];
+    const fileInput = $('audio-file').files[0] || draftFile;
     if (recordedBlob && fileInput) {
       blob = confirm('Use your recording instead of the uploaded file?') ? recordedBlob : fileInput;
     } else blob = recordedBlob || fileInput;
@@ -2123,6 +2172,8 @@
 
     const fd = new FormData();
     fd.append('audioFile', blob, filename);
+    fd.append('uploadKey', draftKey);
+    await saveDraft();
     // Title used to carry a "[Category] " prefix for pre-category-field
     // clients; category is its own field now, so store the clean title.
     fd.append('title', title);
@@ -2162,7 +2213,10 @@
     $('form-submit').disabled = true;
 
     // XHR upload with progress, cancel, and retry-on-network-failure
+    let cancelled = false;
+    $('upload-cancel').onclick = () => { cancelled = true; window._currentXhr?.abort(); };
     const uploadOnce = () => new Promise((resolve, reject) => {
+      if (cancelled) return reject(new Error('aborted'));
       const xhr = new XMLHttpRequest();
       window._currentXhr = xhr;
       xhr.open('POST', `${API}/upload`);
@@ -2176,7 +2230,7 @@
       };
       xhr.onload = () => {
         if (xhr.status >= 200 && xhr.status < 300) resolve(xhr.responseText);
-        else reject(new Error(xhr.responseText || `HTTP ${xhr.status}`));
+        else reject(Object.assign(new Error(xhr.responseText || `HTTP ${xhr.status}`), { status: xhr.status }));
       };
       xhr.onerror = () => reject(new Error('network'));
       xhr.ontimeout = () => reject(new Error('timeout'));
@@ -2203,7 +2257,7 @@
           lastErr = e;
           if (e.message === 'aborted') break; // don't retry user-cancelled
           // don't retry client errors (4xx) — only network, timeout, or 5xx
-          if (/^HTTP 4\d\d/.test(e.message)) break;
+          if (e.status >= 400 && e.status < 500) break;
         }
       }
       if (lastErr) throw lastErr;
@@ -2213,7 +2267,10 @@
         try { photoSaved = !!JSON.parse(lastResponse)?.recording?.imageUrl; } catch {}
       }
       toast(photoSaved ? '✓ Upload successful!' : '✓ Sound saved — the photo could not be processed');
-      closeForm();
+      $('form-overlay').classList.remove('open');
+      resetRecorder(); draftFile = draftPhoto = null; draftKey = crypto.randomUUID();
+      await DraftStore.clear().catch(() => { toast('Sound uploaded; saved draft could not be cleared'); });
+      $('draft-status').textContent = '';
       $('upload-form').reset();
       clearPhotoPreview();
       if (tempMarker) { tempMarker.remove(); tempMarker = null; }
@@ -2229,6 +2286,7 @@
 
   // ── Recorder ────────────────────────────────────────────────────
   $('rec-start').onclick = async () => {
+    if (recordedBlob && !confirm('Replace your saved recording with a new one?')) return;
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
@@ -2255,6 +2313,8 @@
         $('rec-status').textContent = `Recorded (${(recordedBlob.size / 1024).toFixed(0)} KB)`;
         $('rec-dot').classList.remove('active');
         $('rec-play').disabled = false;
+        clearTimeout(window._recWarnT); clearTimeout(window._recCapT);
+        void saveDraft();
       };
       // 1s timeslices: emit chunks incrementally so memory stays low on long recordings
       mediaRecorder.start(1000);

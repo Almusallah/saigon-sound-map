@@ -9,6 +9,8 @@ const mongoose  = require('mongoose');
 const rateLimit = require('express-rate-limit');
 
 const Recording = require('./models/Recording');
+const { uploadId } = require('./utils/upload-id');
+const pendingUploads = new Map();
 const { syncB2ToMongo, uploadRecording, cleanupOrphans, deleteB2Object, streamB2ObjectAsMp3, transcodeLegacyToMp3, backfillDurations } = require('./utils/b2');
 
 // ── App setup ────────────────────────────────────────────────────────────
@@ -224,7 +226,11 @@ app.post('/api/upload', uploadLimiter, upload.fields([
     const lng = parseFloat(req.body.longitude);
     if (isNaN(lat) || isNaN(lng)) return res.status(400).json({ success: false, message: 'Invalid coordinates' });
 
-    const recording = await uploadRecording(audio.buffer, audio.mimetype, {
+    const key = req.body.uploadKey;
+    if (key && (typeof key !== 'string' || !/^[a-zA-Z0-9-]{16,80}$/.test(key))) {
+      return res.status(400).json({ message: 'Invalid upload key' });
+    }
+    const metadata = {
       title:            req.body.title,
       description:      req.body.description,
       category:         req.body.category,
@@ -232,9 +238,18 @@ app.post('/api/upload', uploadLimiter, upload.fields([
       longitude:        lng,
       originalFilename: audio.originalname,
       imageBuffer:      image ? image.buffer : null,
-    });
+    };
+    const id = uploadId(key, audio.buffer, [metadata.title, metadata.description, metadata.category, lat, lng], metadata.imageBuffer);
+    let job = id && pendingUploads.get(id);
+    if (!job) {
+      job = uploadRecording(audio.buffer, audio.mimetype, { ...metadata, id });
+      if (id) pendingUploads.set(id, job);
+    }
+    let recording;
+    try { recording = await job; }
+    finally { if (id && pendingUploads.get(id) === job) pendingUploads.delete(id); }
 
-    cache = [recording.toObject(), ...cache];
+    cache = [recording.toObject(), ...cache.filter(r => r.id !== recording.id)];
     cacheTime = Date.now();
     res.json({ success: true, recording });
   } catch (err) {
@@ -351,17 +366,19 @@ app.post('/api/admin/bulk-update', requireAdmin, async (req, res) => {
       if (matches.length > 1) { result.ambiguous.push({ idPrefix: u.idPrefix, count: matches.length }); continue; }
       const existing = matches[0];
       const before = { title: existing.title, category: existing.category, description: existing.description };
+      const after = { title: u.title, category: u.category,
+        description: Object.prototype.hasOwnProperty.call(u, 'description') ? u.description : existing.description };
       if (dryRun) {
-        result.updated.push({ idPrefix: u.idPrefix, fullId: existing.id, before, after: { title: u.title, category: u.category, description: '' } });
+        result.updated.push({ idPrefix: u.idPrefix, fullId: existing.id, before, after });
       } else {
         try {
           // Use updateOne so the validate hook re-runs and we don't have to re-set location
           await Recording.updateOne(
             { id: existing.id },
-            { $set: { title: u.title, category: u.category, description: '' } },
+            { $set: after },
             { runValidators: true }
           );
-          result.updated.push({ idPrefix: u.idPrefix, fullId: existing.id, before, after: { title: u.title, category: u.category, description: '' } });
+          result.updated.push({ idPrefix: u.idPrefix, fullId: existing.id, before, after });
         } catch (e) {
           result.errors.push({ idPrefix: u.idPrefix, error: e.message });
         }

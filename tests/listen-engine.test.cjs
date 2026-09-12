@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 const vm = require('node:vm');
 const fs = require('node:fs');
 const path = require('node:path');
+const voiceLoop = require('../client/voice-loop');
 const source = fs.readFileSync(process.env.ENGINE_PATH || path.join(__dirname, '../client/listen-engine.js'), 'utf8');
 const features = [
   { id:'bed00001', role:'bed', category:'Nature', lat:10.837, lng:106.727, hour:12, lufs:-28 },
@@ -23,11 +24,11 @@ function harness({search='', failAPI=false, failAudio=false, records=features, h
   class Context {
     constructor(){this.currentTime=0;this.state='suspended';this.sampleRate=10;this.destination={};}
     async resume(){this.state='running';this.onstatechange?.();} async suspend(){this.state='suspended';this.onstatechange?.();} async close(){this.state='closed';this.onstatechange?.();}
-    make(){const n=new Node();n.ctx=this;return n;} createGain(){return this.make();} createStereoPanner(){return this.make();} createBiquadFilter(){return this.make();} createDynamicsCompressor(){return this.make();} createDelay(){return this.make();} createConvolver(){return this.make();} createBufferSource(){return this.make();} createOscillator(){return this.make();}
-    createBuffer(ch,len,rate){return {length:len,numberOfChannels:ch,duration:len/rate,getChannelData:()=>new Float32Array(len)};}
-    async decodeAudioData(){return {length:48000*60,numberOfChannels:2,duration:60};}
+    make(){const n=new Node();n.ctx=this;return n;} createGain(){return this.make();} createAnalyser(){return this.make();} createStereoPanner(){return this.make();} createBiquadFilter(){return this.make();} createDynamicsCompressor(){return this.make();} createDelay(){return this.make();} createConvolver(){return this.make();} createBufferSource(){return this.make();} createOscillator(){return this.make();}
+    createBuffer(ch,len,rate){const channels=Array.from({length:ch},()=>new Float32Array(len));return {length:len,numberOfChannels:ch,sampleRate:rate,duration:len/rate,getChannelData:i=>channels[i]};}
+    async decodeAudioData(){return this.createBuffer(2,600,10);}
   }
-  const sandbox={ console,URLSearchParams,AbortController,Event,location:{hostname:'localhost',port:'8343',search},
+  const sandbox={ VoiceLoop:voiceLoop, console,URLSearchParams,AbortController,Event,location:{hostname:'localhost',port:'8343',search},
     setInterval:(fn)=>{const id=++timerId;intervals.set(id,fn);return id;},clearInterval:id=>intervals.delete(id),setTimeout:()=>++timerId,clearTimeout:()=>{},
     fetch:async url=>{
       calls.push(url);
@@ -66,8 +67,8 @@ test('pointer movement does not start downloads; overlapping refreshes are seria
  const h=harness();await h.Room.start();const before=h.calls.length;for(let i=0;i<200;i++)h.Room.moveListener(10.8+i/10000,106.7);assert.equal(h.calls.length,before);
  await Promise.all(Array.from({length:20},()=>h.Room.refresh()));assert.ok(h.Room.state.nowPlaying.size<=4);assert.equal(new Set([...h.Room.state.nowPlaying.values()].map(r=>r.id)).size,h.Room.state.nowPlaying.size);
 });
-test('pause freezes lifetime processing and resume does not create another scheduler',async()=>{
- const h=harness();await h.Room.start();const layer=h.Room.state.slots.bedA;await h.Room.pause();h.Room.state.ctx.currentTime=layer.endsAt+1;h.run('tick()');assert.equal(h.Room.state.slots.bedA,layer);await h.Room.resume();h.run('tick()');assert.equal(h.Room.state.slots.bedA,undefined);assert.ok(layer.src.stopTime>0);assert.equal(h.intervals.size,5);
+test('expired surroundings stay audible until a replacement is ready; resume keeps one scheduler',async()=>{
+ const h=harness();await h.Room.start();const layer=h.Room.state.slots.bedA;await h.Room.pause();h.Room.state.ctx.currentTime=layer.endsAt+1;h.run('tick()');assert.equal(h.Room.state.slots.bedA,layer);await h.Room.resume();h.run('tick()');assert.equal(h.Room.state.slots.bedA,layer);assert.equal(layer.src.stopTime,undefined);assert.equal(h.intervals.size,5);
 });
 test('natural source completion removes only its own layer and disconnects all layer nodes',async()=>{
  const h=harness();await h.Room.start();const layer=h.Room.state.slots.bedA;layer.src.onended();assert.equal(h.Room.state.slots.bedA,undefined);assert.equal(h.Room.state.nowPlaying.has('bedA'),false);for(const n of [layer.src,layer.g,layer.spatial,layer.panner,layer.dSend,layer.rSend])assert.equal(n.disconnected,true);
@@ -79,7 +80,7 @@ test('master mute and volume affect the post-compressor output, including effect
  const h=harness();await h.Room.start();h.Room.setVolume(.42);assert.equal(h.run('output.gain.value'),.42);h.Room.toggleMute();assert.equal(h.run('output.gain.value'),0);h.Room.setVolume(.3);assert.equal(h.run('output.gain.value'),0);h.Room.toggleMute();assert.equal(h.run('output.gain.value'),.3);assert.equal(h.run('comp.connections[0] === output && output.connections[0] === state.ctx.destination'),true);
 });
 test('reset restores real defaults and the live clock; manual time wraps at midnight',async()=>{
- const h=harness();await h.Room.start();h.Room.set('sub',1);h.Room.set('reso',1);h.Room.setHour(24);assert.equal(h.Room.state.hour,0);h.Room.reset();assert.equal(h.Room.state.sub,.5);assert.equal(h.Room.state.reso,.12);assert.equal(h.Room.state.hour,null);assert.equal(h.Room.state.percDensity,null);
+ const h=harness();await h.Room.start();h.Room.set('sub',1);h.Room.set('reso',1);h.Room.setHour(24);assert.equal(h.Room.state.hour,0);h.Room.reset();assert.equal(h.Room.state.sub,.5);assert.equal(h.Room.state.reso,.08);assert.equal(h.Room.state.hour,null);assert.equal(h.Room.state.percDensity,.28);
 });
 test('failed recordings are temporarily excluded and do not crash the room',async()=>{
  const h=harness({failAudio:true});await h.Room.start();assert.equal(h.Room.state.nowPlaying.size,0);assert.match(h.Room.state.message,/No audio loaded/);await h.Room.refresh();const audioCalls=h.calls.filter(x=>x.startsWith('/audio'));assert.equal(new Set(audioCalls).size,audioCalls.length);
@@ -102,4 +103,60 @@ test('percussion replacement publishes buffers and hit offsets atomically',async
  const load=h.run('loadPerc()');await new Promise(setImmediate);assert.equal(h.pending.length,2);
  h.pending.shift()();await new Promise(setImmediate);assert.equal(h.run('percBufA'),previous);assert.equal(h.run('percOffA[0]'),100);
  h.pending.shift()();await load;assert.equal(h.run('percBufA.duration'),60);assert.ok(h.run('percOffA.every(offset=>offset<percBufA.duration)'));
+});
+
+
+test('foundation repeats a real voice and survives many foreground changes',async()=>{
+ const h=harness();await h.Room.start();const anchor=h.Room.state.slots.anchor;
+ assert.equal(anchor.rec.category,'Conversations');assert.equal(anchor.src.loop,true);
+ assert.ok(anchor.loopSeconds>10 && anchor.loopSeconds<15);
+ for(let i=0;i<8;i++)await h.Room.refresh();assert.equal(h.Room.state.slots.anchor,anchor);
+ assert.ok(h.Room.state.nowPlaying.size<=3);
+});
+test('holding the voice prevents timed replacement',async()=>{
+ const h=harness();await h.Room.start();const anchor=h.Room.state.slots.anchor;
+ h.Room.holdAnchor(true);h.Room.state.ctx.currentTime=1000;await h.run('renewAnchor()');
+ assert.equal(h.Room.state.slots.anchor,anchor);assert.equal(anchor.src.stopTime,undefined);
+});
+test('voice replacement loads before starting a 24-second crossfade',async()=>{
+ const records=[...features,{id:'voice002',category:'Conversations',role:'voice',duration:60,lat:10.839,lng:106.727}];
+ const h=harness({records});await h.Room.start();const old=h.Room.state.slots.anchor;
+ await h.Room.nextAnchor();assert.notEqual(h.Room.state.slots.anchor,old);
+ assert.equal(old.src.stopTime,h.Room.state.ctx.currentTime+24.1);
+ assert.notEqual(old.rec.id,h.Room.state.slots.anchor.rec.id);
+});
+test('a room without speech uses a labelled texture without leaving the filter',async()=>{
+ const h=harness({search:'?cat=Nature'});await h.Room.start();
+ assert.equal(h.Room.state.slots.anchor.rec.category,'Nature');assert.equal(h.Room.state.recs.length,1);
+});
+test('constant PCM remains constant across the loop seam',()=>{
+ const pcm=new Float32Array(2000).fill(.2), loop=voiceLoop.prepare(pcm,100,14,1.8,3);
+ assert.equal(loop.length,1220);assert.ok(loop.every(v=>Math.abs(v-.2)<1e-6));
+});
+
+test('effects start dry and zero means zero wet signal, including feedback',async()=>{
+ const h=harness();await h.Room.start();assert.equal(h.run('reverbSend.gain.value'),0);assert.equal(h.run('delaySend.gain.value'),0);
+ h.Room.toggleEffects();assert.ok(h.run('reverbSend.gain.value')>0);
+ h.Room.set('space',0);h.Room.set('echo',0);assert.equal(h.run('reverbSend.gain.value'),0);assert.equal(h.run('delaySend.gain.value'),0);assert.equal(h.run('delayFb.gain.value'),0);
+ h.Room.set('synthOn',true);h.Room.set('synthOn',false);assert.equal(h.run('synthWet.gain.value'),0);
+});
+
+test('bass and percussion controls reach true silence independently of the voice',async()=>{
+ const h=harness();await h.Room.start();const voice=h.Room.state.slots.anchor;
+ assert.equal(h.run('bassLoop.src.loop'),true);assert.ok(h.run('bassBus.gain.value')>0);
+ h.Room.set('bassLevel',0);h.Room.set('percDensity',0);
+ assert.equal(h.run('bassBus.gain.value'),0);assert.equal(h.run('percBus.gain.value'),0);
+ assert.equal(h.Room.state.slots.anchor,voice);
+});
+test('ambience defaults to silence on both dry and effect paths; solo restores the chosen mix',async()=>{
+ const h=harness();await h.Room.start();
+ for(const bus of ['fieldBus','cityDelayGate','cityReverbGate'])assert.equal(h.run(bus+'.gain.value'),0);
+ h.Room.set('ambienceLevel',.2);h.Room.set('effectsOn',true);h.Room.set('synthOn',true);
+ const voice=h.Room.state.slots.anchor;
+ h.Room.set('voiceSolo',true);
+ for(const bus of ['fieldBus','cityDelayGate','cityReverbGate','bassBus','percBus','synthBus','synthWet','delaySend','delayFb','reverbSend'])assert.equal(h.run(bus+'.gain.value'),0,bus);
+ assert.equal(h.Room.state.slots.anchor,voice);
+ h.Room.set('voiceSolo',false);
+ assert.equal(h.run('fieldBus.gain.value'),.2);assert.ok(h.run('bassBus.gain.value')>0);assert.ok(h.run('percBus.gain.value')>0);
+ assert.equal(h.Room.state.slots.anchor,voice);
 });

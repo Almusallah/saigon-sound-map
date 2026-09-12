@@ -134,8 +134,9 @@ function buildImageKey(id, lat, lng, ext) {
   return `images/${id}_${lat}_${lng}.${ext}`;
 }
 
-async function uploadRecording(fileBuffer, mimeType, { title, description, category, latitude, longitude, originalFilename, imageBuffer }) {
-  const id = uuidv4();
+async function uploadRecording(fileBuffer, mimeType, { title, description, category, latitude, longitude, originalFilename, imageBuffer, id = uuidv4() }) {
+  const existing = await Recording.findOne({ id });
+  if (existing) return existing;
 
   // Normalise everything to MP3 before it reaches B2 — WebM/Opus uploads
   // (Chrome/Android recordings) are silent for every Safari listener.
@@ -194,6 +195,11 @@ async function uploadRecording(fileBuffer, mimeType, { title, description, categ
   try {
     await doc.save();
   } catch (err) {
+    // Another worker may have completed the same deterministic upload.
+    if (err.code === 11000) {
+      const completed = await Recording.findOne({ id });
+      if (completed) return completed;
+    }
     // An unsaved recording must leave nothing behind in B2: a leftover
     // audio object gets re-imported by the next sync as an anonymous
     // "Auto-discovered recording" (junk — exactly what the failed "Casa"
