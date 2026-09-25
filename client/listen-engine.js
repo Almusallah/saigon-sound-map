@@ -164,7 +164,8 @@ const gainForLufs = (lufs, t = -28) => Math.min(3.2, Math.max(0.05, Math.pow(10,
 let output, master, lowpass, comp, delaySend, delayNode, delayFb, delayFilter, reverbSend, reverbTone, convolver, synthBus, synthWet, percBus, bassBus, fieldBus, voiceBus, cityDelayGate, cityReverbGate;
 function buildGraph() {
   const c = state.ctx;
-  master = c.createGain(); master.gain.value = 0.9;
+  // +6 dB before compression lifts the quiet mix while keeping peak control downstream.
+  master = c.createGain(); master.gain.value = 1.8;
   lowpass = c.createBiquadFilter(); lowpass.type = 'lowpass'; lowpass.frequency.value = 16000; lowpass.Q.value = 0.4;
   comp = c.createDynamicsCompressor();
   comp.threshold.value = -18; comp.ratio.value = 3; comp.attack.value = 0.02; comp.release.value = 0.3;
