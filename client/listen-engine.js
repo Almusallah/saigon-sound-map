@@ -1,9 +1,8 @@
-/* Saigon_Miền Tây Sound Map — Phòng nghe / listening room engine (v10)
+/* Saigon_Miền Tây Sound Map — Phòng nghe / listening room engine (v11)
    A generative Web Audio conductor over the live archive.
    - corpus = /api/recordings (live, grows with every upload) + listen-features.json (offline analysis)
-   - aesthetic tuned in the studio 2026-08-25: field recordings foreground ("the city speaks"),
-     dub delay + long reverb dream layer, and a day-evolution: ambient documentary by day,
-     rolling swung ro-minimal groove after dark. Synths stay minimal.                      */
+   - Six audio-clock movements shape places, voices, pulse, space and returning memories.
+   - Effects and synth remain optional; the score never overrides visitor volume or mute. */
 'use strict';
 
 const BPM = 72, BEAT = 60 / BPM;
@@ -11,7 +10,7 @@ const swingT = () => state.swing * 0.12 * BEAT;
 const HCMC = { latMin: 10.62, latMax: 10.98, lngMin: 106.52, lngMax: 106.98 };
 const IS_DEV = ['localhost', '127.0.0.1', '[::1]'].includes(location.hostname) && location.port === '8342';
 const DEFAULTS = Object.freeze({
-  dream: .28, percDensity: .28, bright: .8, echo: .12, space: .18, reso: .08, effectsOn: false, bassLevel: .18, ambienceLevel: 0, voiceSolo: false,
+  dream: .28, percDensity: .28, bright: .8, echo: .12, space: .18, reso: .08, effectsOn: false, bassLevel: .18, ambienceLevel: .55, voiceSolo: false,
   sub: .5, swing: .5, pitch: 0, synthOn: false, synthLevel: .5,
   synthWave: .35, synthTone: .45, synthShape: .3, synthDetune: .25,
 });
@@ -39,7 +38,7 @@ const state = {
   listener: { lat: 10.79, lng: 106.70 },
   hour: null,                 // null = live Saigon time
   dream: .28, percDensity: .28, bright: .8,   // percDensity null = follow the day
-  echo: .12, space: .18, reso: .08, effectsOn: false, bassLevel: .18, ambienceLevel: 0, voiceSolo: false, sub: 0.5, swing: 0.5, pitch: 0,
+  echo: .12, space: .18, reso: .08, effectsOn: false, bassLevel: .18, ambienceLevel: .55, voiceSolo: false, sub: 0.5, swing: 0.5, pitch: 0,
   synthOn: false, synthLevel: 0.5, synthWave: 0.35, synthTone: 0.45, synthShape: 0.3, synthDetune: 0.25,
   lastTouch: 0,
   anchorHeld: false, anchorChangedAt: 0, anchorPeriod: 260,
@@ -161,6 +160,7 @@ const kmDist = (a, b) => Math.hypot((a.lng - b.lng) * 102, (a.lat - b.lat) * 111
 const gainForLufs = (lufs, t = -28) => Math.min(3.2, Math.max(0.05, Math.pow(10, (t - lufs) / 20)));
 
 /* ---------- graph ---------- */
+let sceneGates = {};
 let output, master, lowpass, comp, delaySend, delayNode, delayFb, delayFilter, reverbSend, reverbTone, convolver, synthBus, synthWet, percBus, bassBus, fieldBus, voiceBus, cityDelayGate, cityReverbGate;
 function buildGraph() {
   const c = state.ctx;
@@ -170,12 +170,15 @@ function buildGraph() {
   comp = c.createDynamicsCompressor();
   comp.threshold.value = -18; comp.ratio.value = 3; comp.attack.value = 0.02; comp.release.value = 0.3;
   master.connect(lowpass); lowpass.connect(comp); output = c.createGain(); output.gain.value = 0; comp.connect(output); output.connect(c.destination);
-  fieldBus = c.createGain(); fieldBus.gain.value = 0; fieldBus.connect(master);
-  voiceBus = c.createGain(); voiceBus.connect(master);
+  for (const name of ['voice','city','percussion','bass']) {
+    sceneGates[name]=c.createGain(); sceneGates[name].gain.value=1; sceneGates[name].connect(master);
+  }
+  fieldBus = c.createGain(); fieldBus.gain.value = 0; fieldBus.connect(sceneGates.city);
+  voiceBus = c.createGain(); voiceBus.connect(sceneGates.voice);
   synthBus = c.createGain(); synthBus.gain.value = 0; synthBus.connect(master);
   synthWet = c.createGain(); synthWet.gain.value = 0;
-  percBus = c.createGain(); percBus.gain.value = 0; percBus.connect(master);
-  bassBus = c.createGain(); bassBus.gain.value = 0; bassBus.connect(master);
+  percBus = c.createGain(); percBus.gain.value = 0; percBus.connect(sceneGates.percussion);
+  bassBus = c.createGain(); bassBus.gain.value = 0; bassBus.connect(sceneGates.bass);
   delaySend = c.createGain(); delaySend.gain.value = 0.25;
   delayNode = c.createDelay(2); delayNode.delayTime.value = BEAT * 0.75;
   delayFb = c.createGain(); delayFb.gain.value = 0.45;
@@ -187,10 +190,14 @@ function buildGraph() {
   reverbTone=c.createBiquadFilter(); reverbTone.type='lowpass'; reverbTone.frequency.value=2100; reverbTone.Q.value=.4;
   reverbSend.connect(convolver); convolver.connect(reverbTone); reverbTone.connect(master);
   synthWet.connect(delaySend); synthWet.connect(reverbSend);
-  cityDelayGate=c.createGain(); cityDelayGate.gain.value=0; cityDelayGate.connect(delaySend);
-  cityReverbGate=c.createGain(); cityReverbGate.gain.value=0; cityReverbGate.connect(reverbSend);
+  cityDelayGate=c.createGain(); cityDelayGate.gain.value=0; sceneGates.city.connect(cityDelayGate); cityDelayGate.connect(delaySend);
+  cityReverbGate=c.createGain(); cityReverbGate.gain.value=0; sceneGates.city.connect(cityReverbGate); cityReverbGate.connect(reverbSend);
+  const voiceEcho=c.createGain(),voiceSpace=c.createGain();
+  voiceEcho.gain.value=.10;voiceSpace.gain.value=.45;
+  sceneGates.voice.connect(voiceEcho);voiceEcho.connect(delaySend);
+  sceneGates.voice.connect(voiceSpace);voiceSpace.connect(reverbSend);
   state.meters = {};
-  for (const [name,bus] of Object.entries({voice:voiceBus,city:fieldBus,percussion:percBus,bass:bassBus})) {
+  for (const [name,bus] of Object.entries(sceneGates)) {
     const analyser=c.createAnalyser();analyser.fftSize=1024;analyser.smoothingTimeConstant=.8;
     bus.connect(analyser);state.meters[name]=analyser;
   }
@@ -221,11 +228,25 @@ function measuredGain(buffer, target = .045) {
   }
   return Math.min(3.2, target/Math.max(.001,Math.sqrt(sum/Math.max(1,count))), .38/Math.max(.001,peak));
 }
+// Smooth equal-power handovers retain energy at the midpoint and ease both endpoints.
+function fadeVoice(param, level, start, duration, incoming) {
+  param.cancelScheduledValues(start);
+  param.setValueAtTime(incoming ? 0 : level, start);
+  for (let step=1; step<=64; step++) {
+    const t=step/64, eased=t*t*(3-2*t), angle=eased*Math.PI/2;
+    const gain=incoming ? Math.sin(angle) : Math.cos(angle);
+    param.linearRampToValueAtTime(step===64 ? (incoming ? level : 0) : level*gain, start+t*duration);
+  }
+}
 let anchorLoad = null;
 async function renewAnchor(force = false) {
   if (anchorLoad) return anchorLoad;
   const old=state.slots.anchor;
-  if (!force && old && (state.anchorHeld || state.ctx.currentTime < old.endsAt)) return;
+  if (old && state.ctx.currentTime < old.transitionEnd) {
+    if (force) announce('Let this voice settle before inviting the next one.');
+    return;
+  }
+  if (!force && old && (state.anchorHeld || state.ctx.currentTime < old.endsAt || currentMovement().voice < .3)) return;
   anchorLoad = (async () => {
     const active = new Set(Object.values(state.slots).map(l=>l.rec.id));
     // Stay inside the selected room. A room without a voice gets an explicitly labelled texture.
@@ -244,7 +265,7 @@ async function renewAnchor(force = false) {
     const panner=c.createStereoPanner ? c.createStereoPanner() : c.createGain();
     const dSend=c.createGain(), rSend=c.createGain(); dSend.gain.value=.10; rSend.gain.value=.45;
     src.connect(warmth); warmth.connect(breath); breath.connect(g); g.connect(panner);
-    panner.connect(voiceBus); panner.connect(dSend); panner.connect(rSend); dSend.connect(delaySend); rSend.connect(reverbSend);
+    panner.connect(voiceBus);
     const modulators=[];
     function sway(param, period, amount) {
       if (!param) return;
@@ -252,10 +273,13 @@ async function renewAnchor(force = false) {
       osc.connect(depth); depth.connect(param); osc.start(); modulators.push([osc,depth]);
     }
     sway(breath.gain,43,.04); sway(warmth.frequency,67,220); sway(panner.pan,79,.12);
-    const fade=old ? 24 : 8;
-    g.gain.linearRampToValueAtTime(measuredGain(src.buffer),c.currentTime+fade); src.start();
-    if(old) stopLayer(old,fade);
-    const layer={src,g,rec,anchor:true,endsAt:c.currentTime+state.anchorPeriod,loopSeconds:src.buffer.duration};
+    const fade=old ? 32 : 8, start=c.currentTime, level=measuredGain(src.buffer);
+    fadeVoice(g.gain,level,start,fade,true); src.start(start);
+    if(old) {
+      fadeVoice(old.g.gain,old.level,start,fade,false);
+      old.src.stop(start+fade+.1);
+    }
+    const layer={src,g,rec,anchor:true,level,transitionEnd:start+fade,endsAt:start+state.anchorPeriod,loopSeconds:src.buffer.duration};
     state.slots.anchor=layer; state.anchorChangedAt=c.currentTime;
     state.nowPlaying.set('anchor',rec); state.onNowPlaying();
     src.onended=()=>{
@@ -315,13 +339,16 @@ function weight(rec) {
 function pickRec(roles, excludeIds) {
   const pool = state.recs.filter(r => roles.includes(r.role) && !excludeIds.has(r.id) && r.lufs > -55 && (failedBuffers.get(r.id) || 0) <= Date.now());
   if (!pool.length) return null;
-  return pool.map(r => [weight(r), r]).sort((a, b) => b[0] - a[0])[0][1];
+  const movement=currentMovement();
+  const remembered=movement.name==='Return' && state.recs.find(r=>r.id===scoreMemory && pool.includes(r));
+  if (remembered) return remembered;
+  return pool.map(r => [weight(r)*(movement.categories.includes(r.category)?4:1)*(recentPlaces.includes(r.id)?.15:1), r]).sort((a, b) => b[0] - a[0])[0][1];
 }
 async function startLayer(slotName, rec, { fadeIn = 22, level = 1 } = {}) {
   const c = state.ctx;
   let buf;
   try { buf = await getBuffer(rec); } catch (e) { return false; }
-  if (!state.started || c !== state.ctx) return false;
+  if (!state.started || c !== state.ctx || (slotName==='texA' && currentMovement().name==='Afterimage')) return false;
   const src = c.createBufferSource();
   // Long ambience also needs a soft seam; only the dedicated foundation repeats speech.
   const looping = buf.duration > 8 && rec.role !== 'voice';
@@ -335,8 +362,7 @@ async function startLayer(slotName, rec, { fadeIn = 22, level = 1 } = {}) {
   src.connect(g); g.connect(spatial);
   const positioned = panner || spatial;
   if (panner) spatial.connect(panner);
-  positioned.connect(fieldBus); positioned.connect(dSend); positioned.connect(rSend);
-  dSend.connect(cityDelayGate); rSend.connect(cityReverbGate);
+  positioned.connect(fieldBus);
   g.gain.linearRampToValueAtTime(measuredGain(src.buffer, .055) * level, c.currentTime + fadeIn);
   updateSendMix(dSend, rSend, rec.role);
   src.start(0, 0);
@@ -345,6 +371,8 @@ async function startLayer(slotName, rec, { fadeIn = 22, level = 1 } = {}) {
   const layer = { src, g, spatial, panner, dSend, rSend, rec };
   updatePosition(layer);
   state.slots[slotName] = layer;
+  if (!scoreMemory) scoreMemory=rec.id;
+  recentPlaces.push(rec.id);if(recentPlaces.length>8)recentPlaces.shift();
   state.nowPlaying.set(slotName, rec);
   state.onNowPlaying();
   // Audio-clock lifetimes freeze with pause; short voices clean up on their natural end.
@@ -549,6 +577,51 @@ function previewStab() {
   for (const m of CHORD_SETS[sec].slice(0, 3)) chordNote(now + 0.01, m, 0.3, 0.14);
 }
 
+/* ---------- a score in six movements; time belongs to the audio clock ---------- */
+const MOVEMENTS = [
+  {name:'Arrival',seconds:75,voice:.12,city:1,percussion:0,bass:.12,categories:['Home','Waterways','Nature'],detail:'Settle into a place. Listen beneath the surface.'},
+  {name:'Encounter',seconds:105,voice:1,city:.55,percussion:.25,bass:.35,categories:['Conversations','Markets','Sidewalks'],detail:'A human presence comes close, then leaves room around it.'},
+  {name:'Pulse',seconds:90,voice:.3,city:.75,percussion:1,bass:1,categories:['Work','Repairing','Music'],detail:'Repeated gestures gather into a rhythm.'},
+  {name:'Open space',seconds:120,voice:0,city:1,percussion:.12,bass:.15,categories:['Waterways','Nature','Sidewalks'],detail:'The voice leaves. Distance and texture open the scene.'},
+  {name:'Afterimage',seconds:60,voice:0,city:.18,percussion:0,bass:0,categories:['Nature','Home'],detail:'Almost empty. Stay with the traces of what you heard.'},
+  {name:'Return',seconds:90,voice:.55,city:.7,percussion:.35,bass:.4,categories:[],detail:'An earlier place returns in a different light.'},
+];
+let scoreElapsed=0,scoreLast=null,scoreIndex=-1,scoreMemory=null,recentPlaces=[];
+function currentMovement(){ return MOVEMENTS[Math.max(0,scoreIndex)]; }
+function scoreAt(seconds){
+  const total=MOVEMENTS.reduce((sum,m)=>sum+m.seconds,0);
+  let offset=((seconds%total)+total)%total;
+  for(let i=0;i<MOVEMENTS.length;i++){if(offset<MOVEMENTS[i].seconds)return {index:i,offset};offset-=MOVEMENTS[i].seconds;}
+}
+function scoreTick(){
+  if(!state.started || state.ctx.state!=='running')return;
+  const now=state.ctx.currentTime;
+  if(scoreLast!==null && state.touring)scoreElapsed+=now-scoreLast;
+  scoreLast=now;
+  const at=scoreAt(scoreElapsed),changed=scoreIndex!==at.index;
+  scoreIndex=at.index;const movement=currentMovement();
+  state.movement={...movement,index:scoreIndex,elapsed:at.offset};
+  if(changed){
+    if(movement.name==='Afterimage' && state.slots.texA){stopLayer(state.slots.texA,24);delete state.slots.texA;state.nowPlaying.delete('texA');state.onNowPlaying();}
+    applyScore();journey=null;
+    if(scoreIndex!==0)void rotate(true);
+    window.dispatchEvent(new Event('room-status'));
+  }
+}
+function applyScore(){
+  if(!state.started)return;
+  const m=currentMovement(),now=state.ctx.currentTime;
+  for(const [name,node] of Object.entries(sceneGates)){
+    let target=m[name];
+    if(state.voiceSolo)target=name==='voice'?1:0;
+    // A voice-only room still has something to hear in the spatial movements.
+    else if(name==='voice' && !Object.values(state.slots).some(l=>!l.anchor))target=Math.max(target,.25);
+    if(node.gain.cancelAndHoldAtTime)node.gain.cancelAndHoldAtTime(now);
+    else {const value=node.gain.value;node.gain.cancelScheduledValues(now);node.gain.setValueAtTime(value,now);}
+    node.gain.linearRampToValueAtTime(target,now+(state.voiceSolo?1:24));
+  }
+}
+
 /* ---------- the journey: a slow continuous ride between the city's places ---------- */
 let journey = null;
 function pickDestination() {
@@ -556,18 +629,22 @@ function pickDestination() {
   const pool = state.recs.filter(r =>
     r.lat >= b.latMin && r.lat <= b.latMax && r.lng >= b.lngMin && r.lng <= b.lngMax &&
     kmDist(r, state.listener) > (state.roomFilter ? 0.25 : 1.2));
-  const dest = pool.length ? choice(pool) : { lat: (b.latMin + b.latMax) / 2, lng: (b.lngMin + b.lngMax) / 2 };
+  const related=pool.filter(r=>currentMovement().categories.includes(r.category));
+  const memory=currentMovement().name==='Return' && state.recs.find(r=>r.id===scoreMemory);
+  const dest = memory || (related.length?choice(related):pool.length ? choice(pool) : { lat: (b.latMin + b.latMax) / 2, lng: (b.lngMin + b.lngMax) / 2 });
   const km = kmDist(dest, state.listener);
   journey = {
     from: { ...state.listener }, to: { lat: dest.lat, lng: dest.lng },
-    t0: Date.now(), dur: Math.max(45, Math.min(150, km * 35)) * 1000,   // slow ride, ~2 km/min
+    t0: state.ctx.currentTime, dur: currentMovement().seconds,   // slow ride, ~2 km/min
   };
 }
 function journeyTick() {
-  if (!state.started || !state.touring || state.ctx.state !== 'running') return;
+  if (!state.started || state.ctx.state !== 'running') return;
+  scoreTick();
+  if(!state.touring)return;
   if (Date.now() - state.lastTouch < 30000) { journey = null; return; }  // hands on = you drive
   if (!journey) pickDestination();
-  const p = Math.min(1, (Date.now() - journey.t0) / journey.dur);
+  const p = Math.min(1, (state.ctx.currentTime - journey.t0) / journey.dur);
   const e = p < 0.5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2;       // ease in-out
   state.listener = {
     lat: journey.from.lat + (journey.to.lat - journey.from.lat) * e,
@@ -575,7 +652,7 @@ function journeyTick() {
   };
   updatePositions();
   window.dispatchEvent(new Event('room-drift'));
-  if (p >= 1) journey = null;                                            // arrive, then wander on
+  // Stay at the destination until the next movement.                                            // arrive, then wander on
 }
 
 /* ---------- scheduler & rotation ---------- */
@@ -599,7 +676,9 @@ async function rotate(force) {
 }
 async function rotateLayers(force) {
   const active = new Set(Object.values(state.slots).filter(Boolean).map(l => l.rec.id));
-  const plan = [['bedA', ['bed','texture'], .7], ['texA', ['texture','tonal','rhythm'], .45]];
+  const sparse=currentMovement().name==='Afterimage';
+  if(sparse && state.slots.texA){stopLayer(state.slots.texA,24);delete state.slots.texA;state.nowPlaying.delete('texA');state.onNowPlaying();}
+  const plan = sparse ? [['bedA',['bed','texture'],.7]] : [['bedA', ['bed','texture'], .7], ['texA', ['texture','tonal','rhythm'], .45]];
   const empty=plan.filter(([slot])=>!state.slots[slot]);
   const expired=plan.filter(([slot])=>state.slots[slot] && state.ctx.currentTime>=state.slots[slot].endsAt);
   const target=empty.length ? empty.slice(0,1) : expired.length ? expired.slice(0,1) : force ? [choice(plan)] : [];
@@ -629,17 +708,18 @@ window.Room = {
         nextStepTime = state.ctx.currentTime + .2;
         state.ctx.onstatechange = () => {
           state.paused = state.ctx.state !== 'running';
-          if (state.paused) journey = null;
+          // Audio-clock score and geographic passage freeze together while paused.
           window.dispatchEvent(new Event('room-status'));
         };
         timers.push(setInterval(tick, 60));
         announce('Loading the first recordings…');
+        scoreLast=state.ctx.currentTime;scoreIndex=-1;scoreTick();
         await renewAnchor();
         startBassLoop();
-        await rotate(true);
+        await rotate(true);applyScore();
         if (!state.nowPlaying.size) announce('No audio loaded yet. Choose New sounds to retry.');
         void loadPerc();
-        timers.push(setInterval(() => { void renewAnchor(); void rotate(false); this.applyControls(); }, 9000));
+        timers.push(setInterval(() => { scoreTick();void renewAnchor(); void rotate(false); this.applyControls(); }, 9000));
         timers.push(setInterval(() => { void rotate(true); }, 140000));
         timers.push(setInterval(() => {
           loadCorpus().catch(() => announce('Archive refresh unavailable. Your current room is still playing.'));
@@ -657,12 +737,12 @@ window.Room = {
   },
   async pause() {
     if (!state.started) return;
-    await state.ctx.suspend(); state.paused = true; journey = null;
+    await state.ctx.suspend(); state.paused = true;
     window.dispatchEvent(new Event('room-status'));
   },
   async resume() {
     if (!state.started) return;
-    await state.ctx.resume(); state.paused = false; journey = null;
+    await state.ctx.resume(); state.paused = false;
     window.dispatchEvent(new Event('room-status'));
   },
   setVolume(value) {
@@ -670,8 +750,9 @@ window.Room = {
     this.applyControls(); window.dispatchEvent(new Event('room-status'));
   },
   toggleMute() { state.muted = !state.muted; this.applyControls(); window.dispatchEvent(new Event('room-status')); },
-  setTour(on) { state.touring = !!on; state.lastTouch = 0; journey = null; window.dispatchEvent(new Event('room-status')); },
-  reset() { Object.assign(state, DEFAULTS); state.hour = null; this.applyControls(); window.dispatchEvent(new Event('room-status')); },
+  nextMovement() { if(!state.started || state.paused)return;scoreElapsed+=currentMovement().seconds-scoreAt(scoreElapsed).offset;scoreLast=state.ctx.currentTime;scoreTick(); },
+  setTour(on) { scoreLast=state.ctx?.currentTime ?? null;state.touring = !!on; state.lastTouch = 0; journey = null; window.dispatchEvent(new Event('room-status')); },
+  reset() { Object.assign(state, DEFAULTS); state.hour = null; this.applyControls();applyScore(); window.dispatchEvent(new Event('room-status')); },
   applyControls() {
     if (!state.started) return;
     output.gain.setTargetAtTime(state.muted ? 0 : state.volume, state.ctx.currentTime, .025);
@@ -679,7 +760,8 @@ window.Room = {
     lowpass.Q.setTargetAtTime(0.3 + state.reso * 9, state.ctx.currentTime, 0.3);
     const accompaniment = state.voiceSolo ? 0 : 1;
     const ambience = accompaniment * state.ambienceLevel;
-    for (const bus of [fieldBus, cityDelayGate, cityReverbGate]) bus.gain.setTargetAtTime(ambience,state.ctx.currentTime,.08);
+    fieldBus.gain.setTargetAtTime(ambience,state.ctx.currentTime,.08);
+    cityDelayGate.gain.value=.12;cityReverbGate.gain.value=.25;
     const synthG = state.synthOn && !state.voiceSolo ? (0.06 + state.synthLevel * 0.65) * (0.55 + state.dream * 0.7) : 0;
     synthBus.gain.setTargetAtTime(synthG, state.ctx.currentTime, 0.4);
     synthWet.gain.setTargetAtTime(synthG * .35, state.ctx.currentTime, .4);
@@ -689,8 +771,9 @@ window.Room = {
     const rate = Math.pow(2, state.pitch / 12);
     for (const l of Object.values(state.slots)) if (l) { try { l.src.playbackRate.setTargetAtTime(rate, state.ctx.currentTime, 0.5); } catch (e) {} }
     for (const l of Object.values(state.slots)) if (l && !l.anchor) updateSendMix(l.dSend, l.rSend, l.rec.role);
-    percBus.gain.setTargetAtTime(accompaniment * grooveAmt() * .55, state.ctx.currentTime, .8);
-    bassBus.gain.setTargetAtTime(accompaniment * state.bassLevel * .65, state.ctx.currentTime, .8);
+    // Lift the sparse accompaniment relative to the voice: percussion +6 dB, bass +9.5 dB.
+    percBus.gain.setTargetAtTime(accompaniment * grooveAmt() * 1.1, state.ctx.currentTime, .8);
+    bassBus.gain.setTargetAtTime(accompaniment * state.bassLevel * 1.95, state.ctx.currentTime, .8);
   },
   moveListener(lat, lng) {
     const bounds = state.roomFilter?.bounds || HCMC;
@@ -706,7 +789,7 @@ window.Room = {
   setLive() { state.hour = null; this.applyControls(); },
   set(key, v) {
     if (!Object.prototype.hasOwnProperty.call(DEFAULTS, key)) return;
-    state[key] = v; this.applyControls();
+    state[key] = v; this.applyControls();if(key==='voiceSolo')applyScore();
     if (key.startsWith('synth') && key !== 'synthOn') previewStab();
   },
   async reroll() { announce('Finding new sounds…'); await Promise.all([rotate(true), loadPerc()]); if (state.nowPlaying.size) announce(''); },

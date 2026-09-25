@@ -118,11 +118,11 @@ test('holding the voice prevents timed replacement',async()=>{
  h.Room.holdAnchor(true);h.Room.state.ctx.currentTime=1000;await h.run('renewAnchor()');
  assert.equal(h.Room.state.slots.anchor,anchor);assert.equal(anchor.src.stopTime,undefined);
 });
-test('voice replacement loads before starting a 24-second crossfade',async()=>{
+test('voice replacement loads before starting a smooth 32-second crossfade',async()=>{
  const records=[...features,{id:'voice002',category:'Conversations',role:'voice',duration:60,lat:10.839,lng:106.727}];
  const h=harness({records});await h.Room.start();const old=h.Room.state.slots.anchor;
- await h.Room.nextAnchor();assert.notEqual(h.Room.state.slots.anchor,old);
- assert.equal(old.src.stopTime,h.Room.state.ctx.currentTime+24.1);
+ h.Room.state.ctx.currentTime=10;await h.Room.nextAnchor();assert.notEqual(h.Room.state.slots.anchor,old);
+ assert.equal(old.src.stopTime,h.Room.state.ctx.currentTime+32.1);
  assert.notEqual(old.rec.id,h.Room.state.slots.anchor.rec.id);
 });
 test('a room without speech uses a labelled texture without leaving the filter',async()=>{
@@ -148,15 +148,56 @@ test('bass and percussion controls reach true silence independently of the voice
  assert.equal(h.run('bassBus.gain.value'),0);assert.equal(h.run('percBus.gain.value'),0);
  assert.equal(h.Room.state.slots.anchor,voice);
 });
-test('ambience defaults to silence on both dry and effect paths; solo restores the chosen mix',async()=>{
+test('places can be silenced before dry and effect paths; solo restores the chosen mix',async()=>{
  const h=harness();await h.Room.start();
- for(const bus of ['fieldBus','cityDelayGate','cityReverbGate'])assert.equal(h.run(bus+'.gain.value'),0);
+ h.Room.set('ambienceLevel',0);assert.equal(h.run('fieldBus.gain.value'),0);
+ assert.equal(h.run('sceneGates.city.connections.includes(cityDelayGate) && sceneGates.city.connections.includes(cityReverbGate)'),true);
  h.Room.set('ambienceLevel',.2);h.Room.set('effectsOn',true);h.Room.set('synthOn',true);
  const voice=h.Room.state.slots.anchor;
  h.Room.set('voiceSolo',true);
- for(const bus of ['fieldBus','cityDelayGate','cityReverbGate','bassBus','percBus','synthBus','synthWet','delaySend','delayFb','reverbSend'])assert.equal(h.run(bus+'.gain.value'),0,bus);
+ for(const bus of ['fieldBus','bassBus','percBus','synthBus','synthWet','delaySend','delayFb','reverbSend'])assert.equal(h.run(bus+'.gain.value'),0,bus);
  assert.equal(h.Room.state.slots.anchor,voice);
  h.Room.set('voiceSolo',false);
  assert.equal(h.run('fieldBus.gain.value'),.2);assert.ok(h.run('bassBus.gain.value')>0);assert.ok(h.run('percBus.gain.value')>0);
  assert.equal(h.Room.state.slots.anchor,voice);
+});
+
+test('voice handover maintains midpoint energy and does not stack rapid replacements',async()=>{
+ const h=harness({records:[...features,{id:'voice002',category:'Conversations',role:'voice',duration:60,lat:10.839,lng:106.727}]});
+ const incoming=[],outgoing=[];
+ h.run('globalThis.fadeCapture = []');
+ h.run('fadeVoice({cancelScheduledValues(){},setValueAtTime(v,t){fadeCapture.push([v,t])},linearRampToValueAtTime(v,t){fadeCapture.push([v,t])}},1,100,32,true)');
+ incoming.push(...h.run('fadeCapture'));
+ h.run('fadeCapture=[];fadeVoice({cancelScheduledValues(){},setValueAtTime(v,t){fadeCapture.push([v,t])},linearRampToValueAtTime(v,t){fadeCapture.push([v,t])}},1,100,32,false)');
+ outgoing.push(...h.run('fadeCapture'));
+ assert.equal(incoming[0][0],0);assert.equal(outgoing[0][0],1);
+ assert.equal(incoming[64][0],1);assert.equal(outgoing[64][0],0);
+ for(let i=0;i<=64;i++)assert.ok(Math.abs(incoming[i][0]**2+outgoing[i][0]**2-1)<1e-12);
+ assert.equal(incoming[32][1],116);assert.ok(incoming[1][0]<.002);
+ await h.Room.start();h.Room.state.ctx.currentTime=10;await h.Room.nextAnchor();
+ const anchor=h.Room.state.slots.anchor;await h.Room.nextAnchor();assert.equal(h.Room.state.slots.anchor,anchor);
+});
+
+test('journey gives the voice space to leave, thins the texture, and returns after a full cycle',async()=>{
+ const h=harness();await h.Room.start();const start=h.Room.state.ctx.currentTime;
+ assert.equal(h.Room.state.movement.name,'Arrival');
+ h.Room.state.ctx.currentTime=start+80;h.run('scoreTick()');assert.equal(h.Room.state.movement.name,'Encounter');
+ h.Room.state.ctx.currentTime=start+280;h.run('scoreTick()');assert.equal(h.Room.state.movement.name,'Open space');assert.equal(h.run('sceneGates.voice.gain.value'),0);
+ h.Room.state.ctx.currentTime=start+400;h.run('scoreTick()');assert.equal(h.Room.state.movement.name,'Afterimage');assert.equal(h.run('sceneGates.bass.gain.value'),0);assert.equal(h.run('sceneGates.percussion.gain.value'),0);
+ await h.Room.refresh();assert.equal(h.Room.state.slots.texA,undefined);
+ h.Room.state.ctx.currentTime=start+460;h.run('scoreTick()');assert.equal(h.Room.state.movement.name,'Return');
+ h.Room.state.ctx.currentTime=start+550;h.run('scoreTick()');assert.equal(h.Room.state.movement.name,'Arrival');
+});
+test('holding the journey freezes the score, audio pause does not advance it, and manual movement works',async()=>{
+ const h=harness();await h.Room.start();h.Room.state.ctx.currentTime=40;h.run('scoreTick()');h.Room.setTour(false);
+ h.Room.state.ctx.currentTime=180;h.run('scoreTick()');assert.equal(h.Room.state.movement.name,'Arrival');
+ h.Room.nextMovement();assert.equal(h.Room.state.movement.name,'Encounter');
+ await h.Room.pause();const elapsed=h.run('scoreElapsed');h.run('scoreTick()');assert.equal(h.run('scoreElapsed'),elapsed);
+ await h.Room.resume();h.Room.setTour(true);h.Room.state.ctx.currentTime+=110;h.run('scoreTick()');assert.equal(h.Room.state.movement.name,'Pulse');
+});
+test('return recalls an actual earlier place and solo bypasses a voiceless movement',async()=>{
+ const h=harness();await h.Room.start();const memory=h.run('scoreMemory');
+ h.Room.state.ctx.currentTime=460;h.run('scoreTick()');assert.equal(h.run("pickRec(['bed','texture'],new Set()).id"),memory);
+ h.Room.state.ctx.currentTime=820;h.run('scoreTick()');h.Room.set('voiceSolo',true);assert.equal(h.run('sceneGates.voice.gain.value'),1);assert.equal(h.run('sceneGates.city.gain.value'),0);
+ h.Room.set('voiceSolo',false);assert.equal(h.run('sceneGates.voice.gain.value'),0);
 });
