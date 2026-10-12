@@ -6,94 +6,39 @@
 <title>Phòng nghe — Saigon_Miền Tây Sound Map</title>
 <meta property="og:title" content="Phòng nghe · The Listening Room">
 <meta property="og:description" content="An evolving composition made from the sounds of the city — live from the Saigon_Miền Tây Sound Map. Play it.">
-<meta name="theme-color" content="#0c100e">
+<meta name="theme-color" content="#d8d9d3">
 <meta name="description" content="Enter Phòng nghe: an evolving composition of field recordings from Saigon and the Mekong Delta. Listen, explore, or shape the sound.">
-<style>
-:root { color-scheme: dark; --lime:#c2f66c; --bg:#0c100e; --paper:#f0f1e9; --muted:#a4aea6; --line:#2d3730; --water:#6b9dae; --capA:#d67a67; --capB:#d2a264; --capC:#dac886; --capD:#d9e2d8; }
-* { box-sizing:border-box; } body { margin:0; padding-bottom:105px; background:var(--bg); color:var(--paper); font:15px/1.6 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
-button,input,select { font:inherit; } button,a,input,summary,[role=slider],canvas { -webkit-tap-highlight-color:transparent; }
-button,a,summary { touch-action:manipulation; } button { cursor:pointer; } button:disabled { cursor:wait; opacity:.55; }
-button:focus-visible,a:focus-visible,input:focus-visible,summary:focus-visible,[tabindex]:focus-visible { outline:3px solid var(--lime); outline-offset:5px; }
-a { color:inherit; text-underline-offset:4px; } .skip { position:absolute; left:20px; top:-80px; padding:10px; z-index:20; background:var(--lime); color:var(--bg); } .skip:focus { top:10px; }
-.shell { width:min(1120px,calc(100% - 64px)); margin:auto; }
-.topbar { display:flex; align-items:center; justify-content:space-between; gap:24px; padding:22px 0; border-bottom:1px solid var(--line); font-size:12px; }
-.wordmark { font-weight:650; letter-spacing:.06em; text-decoration:none; } .back { color:var(--muted); }
-header { padding:36px 0 28px; display:flex; justify-content:space-between; align-items:end; gap:32px; }
-.eyebrow { color:var(--lime); font-size:11px; text-transform:uppercase; letter-spacing:.16em; font-weight:650; margin:0 0 10px; }
-h1 { font-size:clamp(34px,5vw,52px); font-weight:500; line-height:1.08; letter-spacing:-.045em; margin:0; }
-h1 span { display:block; font-size:17px; color:var(--muted); letter-spacing:0; line-height:1.5; margin-top:8px; }
-.intro { max-width:530px; color:var(--muted); margin:14px 0 0; font-size:14px; } .citytime { flex-shrink:0; text-align:right; padding-bottom:3px; } .citytime time { display:block; font-variant-numeric:tabular-nums; font-size:30px; letter-spacing:-.03em; } .citytime small { font-size:11px; color:var(--muted); }
-.roomnav { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:18px; }
-.roomnav a { font-size:12px; text-decoration:none; color:var(--muted); border:1px solid var(--line); border-radius:24px; padding:9px 17px; }
-.roomnav a[aria-current=page] { color:var(--paper); background:#263126; border-color:#4c6145; }
-.entry { display:flex; justify-content:space-between; align-items:center; gap:24px; padding:22px 24px; border:1px solid #49603b; background:#192216; border-radius:16px; margin-bottom:18px; }
-.entry strong { display:block; font-size:16px; font-weight:500; } .entry p { margin:3px 0 0; color:#b4c3a8; font-size:12px; }
-.primary { background:var(--lime); color:#17200f; border:0; border-radius:24px; padding:12px 24px; font-weight:650; white-space:nowrap; min-height:46px; }
-#notice { color:#e7c68f; font-size:13px; margin:8px 0; } #notice:empty { display:none; }
-.room { display:block; } .stage { display:grid; grid-template-columns:minmax(0,1fr) 290px; border:1px solid var(--line); border-radius:18px; overflow:hidden; background:#111813; }
-.maparea { padding:22px 22px 16px; min-width:0; } .sectionhead { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:14px; } .sectionhead h2 { font-size:12px; text-transform:uppercase; letter-spacing:.1em; font-weight:600; margin:0; }
-.badge { color:var(--muted); border:1px solid var(--line); padding:3px 9px; border-radius:16px; font-size:10px; letter-spacing:.02em; white-space:nowrap; }
-#map { display:block; width:100%; height:320px; border-radius:10px; background:#0e1511; cursor:crosshair; touch-action:none; }
-.maplabel { margin:12px 0 0; font-size:12px; color:var(--muted); max-width:540px; } .maptools { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-top:14px; } #journeyStatus { color:var(--muted); font-size:11px; }
-.pill { border:1px solid #3c4a3e; color:var(--paper); background:#1b261e; border-radius:24px; padding:9px 16px; min-height:42px; font-size:12px; white-space:nowrap; }
-.pill:hover:not(:disabled) { border-color:#839777; background:#263728; } .pill.on,.pill[aria-pressed=true] { color:var(--lime); border-color:#647d4d; background:#273720; }
-#now { padding:22px 20px; border-left:1px solid var(--line); background:#151e17; }
-#now h2 { margin:0; font-size:12px; text-transform:uppercase; letter-spacing:.1em; font-weight:600; } #nowlist { list-style:none; padding:0; margin:16px 0 0; }
-#nowlist li { padding:13px 0; border-top:1px solid var(--line); } #nowlist a,#nowlist .record-title { display:block; font-size:14px; line-height:1.4; text-decoration:none; overflow-wrap:anywhere; } #nowlist a:hover { color:var(--lime); text-decoration:underline; }
-#nowlist .cat { display:block; color:var(--muted); font-size:11px; margin-top:6px; } .empty { color:var(--muted); font-size:13px; line-height:1.7; } .source-note { color:var(--muted); font-size:11px; margin:18px 0 0; }
-.transport { position:fixed; bottom:14px; left:50%; transform:translateX(-50%); width:min(1120px,calc(100% - 64px)); z-index:5; display:flex; align-items:center; flex-wrap:wrap; gap:14px; background:#1d291ff5; border:1px solid #485941; border-radius:16px; padding:14px 18px; box-shadow:0 12px 35px #0005; margin:0; }
-#playback { min-width:97px; } .playstate { flex:1; min-width:115px; } #playStatus { display:block; font-size:13px; font-weight:550; } #phase { display:block; color:var(--muted); font-size:11px; } .volume { display:flex; align-items:center; gap:9px; } .volume label { font-size:12px; color:var(--muted); } #volume { width:95px; } #volumeValue { width:33px; font-size:11px; color:var(--muted); font-variant-numeric:tabular-nums; }
-input[type=range] { accent-color:var(--lime); height:32px; min-width:0; cursor:pointer; } .transport .pill { background:transparent; }
-.panel { border:1px solid var(--line); border-radius:16px; background:#121a15; overflow:hidden; margin:24px 0; }
-.panel summary { display:flex; justify-content:space-between; align-items:center; padding:20px 24px; cursor:pointer; gap:20px; list-style:none; } summary::-webkit-details-marker { display:none; } .panel summary strong { font-size:16px; font-weight:500; display:block; } .panel summary small { color:var(--muted); display:block; font-size:12px; margin-top:2px; } .panel summary::after { content:'Open'; color:var(--lime); font-size:12px; } .panel[open] summary::after { content:'Close'; } .panel[open] summary { border-bottom:1px solid var(--line); }
-.panelbody { padding:24px; } .presets { display:flex; align-items:center; flex-wrap:wrap; gap:8px; margin-bottom:24px; } .presets span { font-size:12px; color:var(--muted); margin-right:8px; } #reset { margin-left:auto; }
-.knobs { display:grid; grid-template-columns:repeat(9,minmax(0,1fr)); gap:18px 8px; }
-.kn { display:flex; align-items:center; flex-direction:column; text-align:center; min-width:0; } .kn .dial { width:58px; height:58px; border-radius:50%; position:relative; cursor:ns-resize; touch-action:none; user-select:none; background:radial-gradient(circle at 35% 30%,#354239,#172019 75%); border:2px solid #50604f; box-shadow:0 3px 8px #0004,inset 0 1px 0 #ffffff14; }
-.kn .dial::after { content:''; position:absolute; inset:18px; border-radius:50%; background:var(--cap); } .kn .ptr { position:absolute; left:50%; top:50%; width:2px; height:26px; margin-left:-1px; transform-origin:50% 0%; z-index:2; } .kn .ptr::before { content:''; position:absolute; top:17px; left:0; width:2px; height:9px; background:var(--paper); border-radius:2px; }
-.kn label { color:#d2dacf; font-size:12px; margin-top:10px; } .kn .val { color:var(--lime); font-size:11px; min-height:18px; font-variant-numeric:tabular-nums; } .kn .hint { color:var(--muted); font-size:10px; line-height:1.4; max-width:100px; margin-top:5px; }
-.fader { margin-top:26px; padding-top:22px; border-top:1px solid var(--line); } .fader>label { display:flex; justify-content:space-between; align-items:center; font-size:12px; margin-bottom:8px; } .fader b { color:var(--lime); font-weight:500; } .row { display:flex; align-items:center; gap:16px; } #synthKnobs { grid-template-columns:repeat(5,minmax(0,1fr)); flex:1; max-width:650px; } #hour { flex:1; width:100%; } .time-labels { display:flex; justify-content:space-between; color:var(--muted); font-size:10px; margin-right:124px; } .tip { color:var(--muted); font-size:11px; margin:12px 0 0; }
-.credit { border-top:1px solid var(--line); padding:24px 0 36px; display:flex; justify-content:space-between; gap:30px; color:var(--muted); font-size:12px; } .credit p { margin:0; max-width:560px; } .credit a { color:var(--lime); }
-.listening header { padding:22px 0; align-items:center; } .listening header .eyebrow,.listening .intro { display:none; } .listening h1 { font-size:36px; } .listening h1 span:last-child { font-size:14px; margin-top:4px; }
-@media(min-width:1450px) { #map { height:380px; } }
-@media(max-width:900px) { .stage { grid-template-columns:minmax(0,1fr) 235px; } .knobs { grid-template-columns:repeat(5,minmax(0,1fr)); row-gap:24px; } .transport { gap:10px; } .volume label { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); } }
-@media(max-width:650px) { body { padding-bottom:145px; } .listening header { padding:20px 0; } .listening h1 { font-size:28px; } .listening #map { height:230px; } .transport { width:calc(100% - 32px); } .shell { width:calc(100% - 32px); } .topbar { padding:16px 0; font-size:10px; gap:12px; } header { padding:26px 0 22px; gap:12px; align-items:start; } .citytime { padding-top:4px; } .citytime time { font-size:21px; } .citytime small { font-size:9px; } header .intro { font-size:13px; } .entry { align-items:stretch; flex-direction:column; padding:18px; gap:14px; } .entry .primary { width:100%; } .stage { display:block; } .maparea { padding:18px 16px; } #map { height:260px; } #now { padding:18px 16px; border-left:0; border-top:1px solid var(--line); } #nowlist { display:grid; grid-template-columns:1fr 1fr; gap:0 18px; } #nowlist .empty { grid-column:1/-1; } #nowlist li { padding:10px 0; } .transport { bottom:max(8px,env(safe-area-inset-bottom)); gap:8px; padding:12px; margin-bottom:18px; } .playstate { min-width:110px; } #playback { min-width:88px; padding:10px 16px; } .volume { flex:1; } #volume { flex:1; width:70px; } .transport #reroll { order:5; } .transport .volume { order:4; } .panel summary { padding:18px; } .panelbody { padding:18px 12px; } .knobs { grid-template-columns:repeat(3,minmax(0,1fr)); gap:22px 10px; } .kn .dial { width:60px; height:60px; } #synthKnobs { grid-template-columns:repeat(3,minmax(0,1fr)); width:100%; } .synthrow { align-items:start; flex-direction:column; } .presets { gap:6px; } .presets span { width:100%; } .presets .pill { padding:8px 12px; } #reset { margin-left:0; } .credit { display:block; font-size:11px; } .credit p+p { margin-top:12px; } }
-@media(prefers-reduced-motion:reduce) { *,*::before,*::after { scroll-behavior:auto !important; transition:none !important; } }
-
-
-/* Modern, all-caps score: acid lime, cyan and coral against charcoal. */
-:root{--lime:#dbff00;--bg:#08090c;--paper:#f6f6fa;--muted:#a6adbf;--line:#303440;--water:#63e8ef;--capA:#ff7964;--capB:#dbff00;--capC:#63e8ef;--capD:#b39aff}
-body{font-family:Inter,'Helvetica Neue',Arial,system-ui,sans-serif}.shell{width:min(1180px,calc(100% - 48px))}h1,.listening h1{font:850 clamp(40px,6vw,78px)/.94 Inter,'Helvetica Neue',Arial,sans-serif;letter-spacing:-.065em;text-transform:uppercase}h1 span:last-child{font:700 12px/1.4 Inter,Arial,sans-serif;letter-spacing:.18em;margin-top:13px}header,.listening header{padding:34px 0 26px}.intro,.listening .intro{display:block;font-size:12px;line-height:1.8;letter-spacing:.045em;text-transform:uppercase;max-width:620px;color:#a6adbf}.topbar,.eyebrow,.roomnav,.entry,.pill,.primary,.transport,.sectionhead,#now,.panel,.accompaniment,.foundation h2,.foundation p,.maplabel,.maptools,.credit{text-transform:uppercase}.eyebrow{font-size:10px;letter-spacing:.18em}.wordmark{font-size:10px;letter-spacing:.09em}.entry{background:#151820;border:1px solid #414754;border-radius:4px}.entry strong{font-weight:750}.primary{border-radius:3px;background:#dbff00;color:#08090c;font-size:12px;letter-spacing:.06em}.pill{border-radius:3px;background:#151820;border-color:#414754;font-size:10px;font-weight:650;letter-spacing:.035em}.pill.on,.pill[aria-pressed=true]{color:#dbff00;background:#20250f;border-color:#748519}.pill:hover:not(:disabled){background:#242938;border-color:#788498}.roomnav a{border-radius:3px;font-size:10px;letter-spacing:.06em}.roomnav a[aria-current=page]{background:#dbff00;color:#08090c;border-color:#dbff00}.foundation{display:grid;grid-template-columns:1fr auto;gap:20px;align-items:center;padding:26px;background:#101219;border:1px solid #3b404d;border-top:3px solid #dbff00;border-radius:4px;margin:16px 0 24px}.foundation h3{font:700 16px/1.3 Inter,Arial,sans-serif;text-transform:uppercase;margin:8px 0}.foundation #foundationHeading{margin-top:22px}.foundation h2{font:800 clamp(23px,3vw,36px)/1.08 Inter,Arial,sans-serif;letter-spacing:-.04em;margin:0}.foundation h2 a{text-decoration:none}.foundation h2 a:hover{color:var(--lime)}.foundation p:not(.eyebrow){color:var(--muted);font-size:10px;letter-spacing:.055em;line-height:1.7;margin:10px 0 0}.foundation-actions{display:flex;gap:8px;flex-direction:column}.wavefield{grid-column:1/-1;min-width:0;background:#0c0d11;border:1px solid #2a2e3a}.wavehead{display:flex;gap:12px;align-items:center;padding:12px 14px;border-bottom:1px solid #272a33;font-size:9px;font-weight:700;letter-spacing:.12em}.wavehead #waveState{margin-left:auto;color:var(--muted)}.wavehead .pill{min-height:30px;padding:6px 8px;font-size:9px}#waves{width:100%;height:270px;display:block}.wavecaption{display:flex;justify-content:space-between;border-top:1px solid #272a33;padding:10px 14px;margin:0!important;font-size:9px!important;letter-spacing:.06em}.wavecaption span{color:#737b90}.accompaniment{grid-column:1/-1;display:grid;grid-template-columns:1fr 1fr;gap:8px 30px}.accompaniment label{display:flex;justify-content:space-between;flex-wrap:wrap;font-size:10px;font-weight:700;letter-spacing:.08em}.accompaniment input{width:100%;height:26px}.accompaniment output{color:var(--muted)}.accompaniment span{grid-column:1/-1;color:#8f97a9;font-size:9px;letter-spacing:.04em}.accompaniment label:first-child input{accent-color:#ff7964}.accompaniment label:nth-child(2) input{accent-color:#b39aff}.atlas{border:1px solid #303440;border-radius:4px;margin-bottom:22px}.atlas>summary{display:flex;justify-content:space-between;align-items:center;gap:20px;padding:17px 20px;font-size:11px;letter-spacing:.1em;font-weight:750;cursor:pointer}.atlas>summary span+span{color:var(--muted);font-size:9px}.stage{border-radius:0;border:0;border-top:1px solid #303440;background:#101219;grid-template-columns:minmax(0,1fr) 310px}#map{background:#0c0d11;border-radius:0;height:310px}#now{background:#101219;border-color:#303440}#nowlist a{font-size:13px;font-weight:650;letter-spacing:.025em}#nowlist .cat,.source-note,.maplabel{font-size:10px;line-height:1.8}.badge{border-radius:2px;font-size:9px}.transport{width:min(1180px,calc(100% - 48px));background:#151820f5;border:1px solid #49515e;border-radius:4px;padding:12px 16px;gap:12px}.transport .playstate{min-width:135px}.transport #playStatus{font-size:11px;letter-spacing:.035em}#phase{font-size:9px}.panel{border-radius:4px;background:#101219}.panel summary strong{font-size:13px;font-weight:750;letter-spacing:.05em}.panel summary small{font-size:10px}.kn .dial{background:#202431;border-color:#42495b;box-shadow:none}.kn label{font-size:10px}.kn .hint{font-size:9px}.listening .entry{display:none}.credit{font-size:10px;letter-spacing:.025em}.citytime time{font-size:26px;font-weight:750}.topbar{padding:18px 0}
-@media(max-width:700px){.shell{width:calc(100% - 24px)}header,.listening header{padding:24px 0 20px}.citytime{display:none}.foundation{grid-template-columns:1fr;padding:16px;gap:16px}.foundation-actions{flex-direction:row}.foundation-actions .pill{flex:1;white-space:normal;min-height:42px}.foundation h2{font-size:27px}#waves{height:230px}.wavehead{padding:9px;gap:7px;font-size:8px;letter-spacing:.04em}.wavehead .pill{font-size:8px}.wavecaption{font-size:8px!important;padding:8px}.wavecaption span{display:none}.accompaniment{gap:6px 20px}.stage{display:block}.atlas>summary{padding:14px;font-size:10px}.atlas>summary span+span{font-size:8px;max-width:145px;text-align:right}#map,.listening #map{height:260px}.transport{width:calc(100% - 16px);gap:7px;padding:10px}.transport .playstate{min-width:120px}.transport #effects,.transport #reroll{order:5;flex:1}.transport .pill{min-height:36px}.transport .primary{min-height:40px;padding:10px 16px}.topbar{font-size:9px;gap:10px}.wordmark{font-size:9px;max-width:220px}body{padding-bottom:180px}.intro,.listening .intro{font-size:10px}.credit{font-size:9px}}
-
-/* A listening space, with the tools tucked away. */
-:root{--bg:#17131e;--paper:#fff5df;--muted:#bbb0c9;--lime:#e4fa71;--line:#44364e;--water:#74e1ce}
-body{background:var(--bg);color:var(--paper);padding-bottom:115px}.shell{width:min(1040px,calc(100% - 48px))}.topbar{border-bottom:0;opacity:.8}header,.listening header{padding:18px 0 12px}h1,.listening h1{font-size:clamp(30px,4vw,46px);letter-spacing:-.055em}h1 span:last-child{font-size:9px;letter-spacing:.16em}.intro,.listening .intro{font-size:11px;max-width:610px;color:var(--muted);line-height:1.8}.citytime time{font-size:21px}.roomnav{margin-bottom:14px}.roomnav a,.pill,.primary{border-radius:999px}.roomnav a{padding:9px 16px;border:0;background:#2a2033}.roomnav a[aria-current=page]{background:var(--lime)}.pill{background:#33263e;border:1px solid #665373;color:var(--paper);padding:11px 18px;font-size:10px;min-height:42px}.pill:hover:not(:disabled){background:#4a3156;border-color:#dd97d3}.pill.on,.pill[aria-pressed=true]{background:#e4fa71;color:#211627;border-color:#e4fa71}.primary{background:var(--lime);color:#211627;padding:15px 25px;font-size:12px}.entry{border:0;background:#302039;border-radius:26px;padding:20px 24px}.entry strong{font-size:18px;letter-spacing:-.02em}.entry p{max-width:520px}.foundation{display:flex;flex-direction:column;align-items:stretch;background:transparent;border:0;padding:28px 0 0;gap:0;margin:0 0 22px}.journey-heading{position:relative;padding-right:175px}.foundation .eyebrow{color:#e4fa71;letter-spacing:.16em}.foundation h2{font-size:clamp(46px,8vw,88px);font-style:italic;font-weight:850;line-height:1.03;letter-spacing:-.06em;text-transform:uppercase;overflow-wrap:anywhere}.foundation #movementDetail{font-size:12px;max-width:560px;color:#ded0e4;letter-spacing:.025em}.journey-heading #nextMovement{position:absolute;right:0;bottom:4px;background:#f3a1ce;color:#28152d;border:0;transform:rotate(-4deg);font-weight:800;box-shadow:4px 5px 0 #503154}.journey-heading #nextMovement:hover{transform:rotate(0deg) translateY(-2px)}.wavefield{background:transparent;border:0;margin:24px -14px 0}.wavehead{border:0;padding:0 14px;font-size:8px;letter-spacing:.12em;color:#c4b0d2}.wavehead .pill{border:0;background:transparent;color:#c4b0d2;padding:8px}.wavehead #waveState{color:#c4b0d2}#waves{height:280px}.wavecaption{border:0;padding:0 14px;font-size:8px!important}.wavecaption span{color:#b6a6c3}.movement-trail{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;padding:24px 0 28px}.movement-trail span{font-size:9px;text-transform:uppercase;letter-spacing:.045em;padding:8px 12px;border-radius:50%;color:#b8a3c5}.movement-trail span[aria-current=step]{background:#e4fa71;color:#24172d;transform:rotate(-7deg);font-weight:800;border-radius:48% 52% 45% 55%}.mix-tools{border-top:1px solid #46364e;border-bottom:1px solid #46364e;padding:0}.mix-tools summary{padding:20px 0;cursor:pointer;font-size:13px;font-weight:750;text-transform:uppercase;letter-spacing:.04em}.mix-tools summary span{float:right;font-size:10px;color:var(--muted);font-weight:400;letter-spacing:0}.mix-body{display:grid;grid-template-columns:1fr auto;gap:20px;padding:0 0 24px}.foundation .motif-info #foundationHeading{margin-top:0}.foundation h3{font-size:19px}.foundation h3 a{color:#f3a1ce}.accompaniment{gap:20px;grid-template-columns:repeat(3,1fr)}.accompaniment button{justify-self:start}.accompaniment span{line-height:1.7}.mix-extras{grid-column:1/-1;display:flex;gap:10px}.atlas,.panel{background:transparent;border:0;border-bottom:1px solid #46364e;border-radius:0;margin-bottom:8px}.atlas>summary,.panel summary{padding:20px 0}.stage,#now{background:#211829;border:0;border-radius:22px}.maparea{padding:20px}#map{background:#211829;border-radius:18px}.atlas>summary span+span{color:var(--muted)}.transport{width:max-content;max-width:calc(100% - 24px);border:1px solid #685474;border-radius:999px;background:#2b2032f5;box-shadow:0 8px 30px #0005;padding:9px 12px;gap:14px;bottom:14px}.transport .primary{padding:14px 25px;min-width:110px}.transport .playstate{min-width:140px}.transport .volume{flex:0 1 auto}.transport .volume input{width:85px}.transport .volume label{display:none}.transport #mute{background:transparent;border:0;min-height:42px}.transport #volumeValue{min-width:32px}.credit{color:#a99bb6;font-size:9px}.panelbody{background:#241a2d;border-radius:22px}.kn .dial{border-radius:50%;background:#3a2946;border-color:#795f87}.kn .hint{color:#c7b4d4}.pill:focus-visible,.primary:focus-visible,summary:focus-visible{outline:3px solid #74e1ce;outline-offset:4px}
-@media(max-width:700px){body{padding-bottom:110px}.shell{width:calc(100% - 32px)}header,.listening header{padding:8px 0}.intro,.listening .intro{font-size:10px;line-height:1.7}.foundation{padding-top:18px}.journey-heading{padding-right:0;padding-bottom:62px}.foundation h2{font-size:clamp(42px,12vw,74px)}.journey-heading #nextMovement{right:4px;bottom:0}.foundation #movementDetail{font-size:10px}.wavefield{margin-top:18px}#waves{height:220px}.movement-trail{gap:2px;padding:15px 0 22px}.movement-trail span{font-size:8px;padding:7px}.mix-tools summary span{display:none}.mix-body{grid-template-columns:1fr}.foundation-actions{flex-direction:row}.accompaniment{grid-template-columns:1fr;gap:12px}.atlas>summary span+span{font-size:8px}.transport{width:calc(100% - 20px);max-width:none;padding:8px 10px;border-radius:26px;gap:8px;flex-wrap:nowrap;bottom:10px}.transport .primary{min-width:80px;padding:13px 17px}.transport .playstate{min-width:0;flex:1}.transport #playStatus{font-size:9px}#phase{font-size:8px}.transport .volume{order:initial!important;flex:0 0 65px}.transport .volume input{width:62px;min-width:0}.transport #volumeValue{display:none}.transport #mute{padding:8px;font-size:9px}.panel summary small{font-size:9px}.topbar{padding:12px 0}.wavehead{letter-spacing:.02em}.entry{padding:20px}.entry strong{font-size:17px}}
-
-</style>
+<link rel="stylesheet" href="listen-room.css?v=1">
 </head>
 <body>
 <a class="skip" href="#room">Skip to the listening room</a>
 <div class="shell">
   <nav class="topbar" aria-label="Sound Map"><a class="wordmark" href="/">SAIGON_MIỀN TÂY SOUND MAP</a><a class="back" href="/">Back to the map</a></nav>
   <header>
-    <div><p class="eyebrow">A journey through listening</p><h1><span lang="vi" style="font:inherit;color:inherit;margin:0">Phòng nghe</span><span>The Listening Room</span></h1>
-    <p class="intro">Listen to a place, notice a detail, meet it again among different sounds. An evolving composition from the archive: what catches your attention when it returns?</p></div>
+    <div><p class="eyebrow">An Officine Gặp listening space</p><h1><span lang="vi" style="font:inherit;color:inherit;margin:0">Phòng nghe</span><span>The Listening Room</span></h1>
+    <p class="intro">Listen to a place. Follow a detail. Notice what changes when it returns.</p></div>
     <div class="citytime"><p class="eyebrow">Saigon time</p><time id="cityClock">—</time><small>UTC +07:00</small></div>
   </header>
   <nav class="roomnav" aria-label="Choose a listening room"><a id="cityRoom" href="/listen">Whole city</a><a id="thanhDaRoom" href="/listen?walk=thanh-da">Thanh Đa</a></nav>
-  <div class="entry" id="entry"><div><strong>Get lost in the city.</strong><p>Enter a nine-minute cycle of places, encounters and returning sounds. Headphones bring out distance and detail.</p></div><button class="primary" id="start">Let’s wander</button></div>
+  <div class="entry" id="entry"><div><strong>Take a moment. Stay a while.</strong><p>A nine-minute composition of field recordings. Best heard with headphones.</p></div><button class="primary" id="start">Enter</button></div>
   <p id="notice" role="status" aria-live="polite"></p>
   <main class="room" id="room" tabindex="-1">
     <section class="foundation" aria-labelledby="movementTitle">
-      <div class="journey-heading"><p class="eyebrow" id="movementLabel">MOVEMENT 01 / 06</p><h2 id="movementTitle">Arrival</h2><p id="movementDetail">Settle into a place. Listen beneath the surface.</p><button class="pill" id="nextMovement" disabled>Take me further</button></div>
-      <div class="wavefield"><div class="wavehead"><span>THE CITY IS PLAYING</span><span id="waveState">WAITING FOR SOUND</span><button id="freezeWaves" class="pill" aria-pressed="false">Freeze visual</button></div><svg id="waves" role="img" aria-label="Live waveforms of the voice, surrounding recordings, percussion and bass" preserveAspectRatio="none"><path data-wave="voice"/><path data-wave="city"/><path data-wave="percussion"/><path data-wave="bass"/></svg><p class="wavecaption">VOICES · PLACES · PERCUSSION · BASS <span>WAVE HEIGHT FOLLOWS THE SOUND.</span></p></div>
+      <div class="journey-heading"><p class="eyebrow" id="movementLabel">MOVEMENT 01 / 06</p><h2 id="movementTitle">Arrival</h2><p id="movementDetail">Settle into a place. Listen beneath the surface.</p><button class="pill" id="nextMovement" disabled>Next movement</button></div>
+      <div class="wavefield">
+        <div class="wavehead"><span>THE LISTENING FIELD</span><span id="waveState">WAITING FOR SOUND</span><button id="freezeWaves" class="pill" aria-pressed="false">Freeze visual</button></div>
+        <div class="signal-stage">
+          <svg id="waves" role="img" aria-label="Live amplitude traces of voice, surrounding recordings, percussion and bass" preserveAspectRatio="none"><path data-wave="voice"/><path data-wave="city"/><path data-wave="percussion"/><path data-wave="bass"/></svg>
+          <div class="signal-labels" aria-hidden="true"><span><b>01</b> Voice</span><span><b>02</b> Place</span><span><b>03</b> Pulse</span><span><b>04</b> Bass</span></div>
+        </div>
+        <p class="wavecaption">Four layers, one listening space.<span>Traces follow the sound.</span></p>
+      </div>
       <div class="movement-trail" aria-label="Journey movements"><span>Arrival</span><span>Encounter</span><span>Pulse</span><span>Open space</span><span>Afterimage</span><span>Return</span></div>
-      <details class="mix-tools"><summary>Play with the mix <span>Voices, rhythm & little surprises</span></summary><div class="mix-body"><div class="motif-info"><p class="eyebrow" id="foundationHeading">Voice motif</p><h3><a id="anchorTitle">A voice will enter the journey</a></h3><p id="anchorDetail">One motif among many. Voices enter and leave as the composition unfolds.</p></div>      <div class="foundation-actions"><button class="pill" id="holdVoice" aria-pressed="false" disabled>Stay with this voice</button><button class="pill" id="nextVoice" disabled>Let another voice in</button></div>
+      <details class="mix-tools"><summary>Listening balance <span>Voice, place, rhythm</span></summary><div class="mix-body"><div class="motif-info"><p class="eyebrow" id="foundationHeading">Voice motif</p><h3><a id="anchorTitle">A voice will enter the journey</a></h3><p id="anchorDetail">One motif among many. Voices enter and leave as the composition unfolds.</p></div>      <div class="foundation-actions"><button class="pill" id="holdVoice" aria-pressed="false" disabled>Stay with this voice</button><button class="pill" id="nextVoice" disabled>Let another voice in</button></div>
       <div class="accompaniment"><label for="rhythmAmount">Percussion <output id="rhythmValue">28%</output><input id="rhythmAmount" type="range" min="0" max="70" value="28"></label><label for="bassAmount">Bass <output id="bassValue">18%</output><input id="bassAmount" type="range" min="0" max="70" value="18"></label><label for="ambienceAmount">Places <output id="ambienceValue">55%</output><input id="ambienceAmount" type="range" min="0" max="70" value="55"></label><button id="voiceSolo" class="pill" aria-pressed="false">Solo voice</button><span>Set the balance; the journey shapes its presence. Zero is silent. Solo voice isolates the vocal motif.</span></div>
 <div class="mix-extras"><button class="pill" id="effects" aria-pressed="false">Effects off</button><button class="pill" id="reroll" disabled>Change surroundings</button></div></div></details>
     </section>
-    <details class="atlas" id="atlas"><summary><span>SOUND ATLAS</span><span>WHERE ARE THESE SOUNDS?</span></summary><div class="stage">
+    <details class="atlas" id="atlas"><summary><span>SOUND ATLAS</span><span>Recordings &amp; their origins</span></summary><div class="stage">
       <section class="maparea" aria-label="Spatial listening field">
         <div class="sectionhead"><h2 id="roomTitle">Across Sài Gòn</h2><span class="badge" id="corpusCount">Field recordings</span></div>
         <canvas id="map" tabindex="0" role="group" aria-label="Spatial listener. Use arrow keys to move through the city." aria-describedby="mapHelp">Use the arrow keys to move the listener through the spatial field.</canvas>
@@ -111,7 +56,7 @@ body{background:var(--bg);color:var(--paper);padding-bottom:115px}.shell{width:m
 
     </div>
     <details class="panel" id="instrument">
-      <summary><span><strong>A little more control</strong><small>Warmth, distance and a little rhythm. Follow the movement, or stay with a place.</small></span></summary>
+      <summary><span><strong>Sound settings</strong><small>Shape the room, or leave it to unfold.</small></span></summary>
       <div class="panelbody">
         <div class="presets" aria-label="Sound presets"><span>Start somewhere</span><button class="pill" data-preset="close" aria-pressed="false">Close listening</button><button class="pill" data-preset="drift" aria-pressed="true">Slow return</button><button class="pill" data-preset="night" aria-pressed="false">Soft pulse</button><button class="pill" id="reset">Reset sound</button></div>
         <div class="knobs" id="knobs"></div>
@@ -144,7 +89,7 @@ $('start').onclick = async () => {
     document.body.classList.add('listening');
     $('entry').hidden = true; $('entry').style.display = 'none';
     syncCorpus(); renderNow(); syncTransport();
-    $('playback').focus();
+    $('playback').focus({preventScroll:true});
   } catch (error) {
     $('start').textContent = 'Try again'; $('start').disabled = false;
     $('notice').textContent = error.message || 'Could not open the room. Please try again.';
@@ -231,25 +176,25 @@ function drawMap() {
   if(!w||!h)return;
   g.clearRect(0,0,w,h);
   // Geographic grid, positioned from the current room's latitude/longitude bounds.
-  g.strokeStyle='#252832';g.lineWidth=scale;
+  g.strokeStyle='#c8c5b8';g.lineWidth=scale;
   for(let i=1;i<6;i++){g.beginPath();g.moveTo(w*i/6,0);g.lineTo(w*i/6,h);g.stroke();g.beginPath();g.moveTo(0,h*i/6);g.lineTo(w,h*i/6);g.stroke();}
   const [lx,ly]=xy(Room.state.listener);
   const active=new Map([...Room.state.nowPlaying.entries()].map(([slot,r])=>[r.id,{slot,rec:r}]));
   for(const r of pts) {
     const [x,y]=xy(r);if(x<0||y<0||x>w||y>h)continue;
-    const on=active.get(r.id),voice=on?.slot==='anchor',color=voice?'#dbff00':on?'#63e8ef':'#81879b';
+    const on=active.get(r.id),voice=on?.slot==='anchor',color=voice?'#4d563d':on?'#947147':'#929285';
     if(on){g.beginPath();g.moveTo(lx,ly);g.lineTo(x,y);g.strokeStyle=color+'66';g.lineWidth=scale;g.stroke();}
     g.beginPath();g.arc(x,y,(on?5:2)*scale,0,Math.PI*2);g.fillStyle=color;g.fill();
     if(on){g.beginPath();g.arc(x,y,9*scale,0,Math.PI*2);g.strokeStyle=color+'66';g.stroke();}
   }
   // A scale ring corresponds to one kilometre of longitude at Saigon.
   const kmPixels=w/((HB.lngMax-HB.lngMin)*102);
-  if(kmPixels>8*scale && kmPixels<w/2){g.beginPath();g.arc(lx,ly,kmPixels,0,Math.PI*2);g.setLineDash([3*scale,5*scale]);g.strokeStyle='#dbff0060';g.stroke();g.setLineDash([]);}
-  g.beginPath();g.arc(lx,ly,12*scale,0,Math.PI*2);g.strokeStyle='#ffffff';g.lineWidth=2*scale;g.stroke();
-  g.beginPath();g.arc(lx,ly,3*scale,0,Math.PI*2);g.fillStyle='#fff';g.fill();
-  g.font=`600 ${10*scale}px system-ui,sans-serif`;g.fillStyle='#aeb4c6';g.fillText('N ↑',w-42*scale,23*scale);
+  if(kmPixels>8*scale && kmPixels<w/2){g.beginPath();g.arc(lx,ly,kmPixels,0,Math.PI*2);g.setLineDash([3*scale,5*scale]);g.strokeStyle='#4d563d60';g.stroke();g.setLineDash([]);}
+  g.beginPath();g.arc(lx,ly,12*scale,0,Math.PI*2);g.strokeStyle='#343b2d';g.lineWidth=2*scale;g.stroke();
+  g.beginPath();g.arc(lx,ly,3*scale,0,Math.PI*2);g.fillStyle='#343b2d';g.fill();
+  g.font=`600 ${10*scale}px system-ui,sans-serif`;g.fillStyle='#68685c';g.fillText('N ↑',w-42*scale,23*scale);
   g.fillText(`${HB.latMin.toFixed(3)}° N / ${HB.lngMin.toFixed(3)}° E`,14*scale,h-16*scale);
-  g.fillStyle='#dbff00';g.fillText(Room.state.roomFilter?.label.toUpperCase()||'SAIGON / MIỀN TÂY',14*scale,23*scale);
+  g.fillStyle='#4d563d';g.fillText(Room.state.roomFilter?.label.toUpperCase()||'SAIGON / MIỀN TÂY',14*scale,23*scale);
 }
 $('atlas').addEventListener('toggle',()=>{sizeMap();drawMap();});
 const offset = ([x, y], dx, dy) => [x + dx, y + dy];
@@ -280,7 +225,7 @@ $('map').addEventListener('keydown', e => {
 });
 window.addEventListener('room-drift', drawMap);
 
-/* ---------- knobs (Roland spirit: rows of colored caps, drag up/down) ---------- */
+/* ---------- tactile sound controls: drag up/down or use the keyboard ---------- */
 const KNOBS = [
   { key: 'dream', label: 'Dream', cap: 'var(--capA)', min: 0, max: 1, get: () => Room.state.dream, fmt: v => Math.round(v * 100) + '%' },
   { key: 'percDensity', label: 'Groove', cap: 'var(--capA)', min: 0, max: 1,
@@ -405,7 +350,7 @@ function renderNow() {
   syncFoundation(); drawMap(); syncTransport();
 }
 Room.state.onNowPlaying = renderNow;
-const waveTracks=[['voice','VOICE','#e4fa71'],['city','CITY','#74e1ce'],['percussion','PERC','#f3a1ce'],['bass','BASS','#b39aff']];
+const waveTracks=[['voice','VOICE','#292c29'],['city','CITY','#555e4d'],['percussion','PERC','#70614d'],['bass','BASS','#404947']];
 const waveHistory=Object.fromEntries(waveTracks.map(([key])=>[key,new Float32Array(180)]));
 const waveSamples=new Float32Array(1024);let visualFrozen=reducedMotion.matches,lastWaveAt=0;
 function sizeWaves(){const c=$('waves');c.setAttribute('viewBox',`0 0 ${Math.max(1,c.clientWidth)} ${Math.max(1,c.clientHeight)}`);}
@@ -413,15 +358,16 @@ function drawWaves(timestamp=0){
   requestAnimationFrame(drawWaves);
   if(timestamp-lastWaveAt<65 || document.hidden)return;lastWaveAt=timestamp;
   const c=$('waves'),scale=1,w=c.clientWidth,h=c.clientHeight;
-  if(visualFrozen && Room.state.started)return;
   const playing=Room.state.started&&!Room.state.paused&&!Room.state.muted;
-  $('waveState').textContent=playing?'LIVE / 72 BPM':Room.state.paused?'PAUSED':Room.state.muted?'MUTED':'WAITING FOR SOUND';
+  $('waveState').textContent=Room.state.paused?'PAUSED':Room.state.muted?'MUTED':visualFrozen&&Room.state.started?'VISUAL FROZEN':playing?'LIVE / 72 BPM':'WAITING FOR SOUND';
+  if(visualFrozen && Room.state.started)return;
   waveTracks.forEach(([key,label,color],track)=>{
     const history=waveHistory[key],analyser=Room.state.meters?.[key];let level=0;
     if(playing&&analyser){analyser.getFloatTimeDomainData(waveSamples);for(const v of waveSamples)level+=v*v;level=Math.sqrt(level/waveSamples.length)*Room.state.volume;}
     history.copyWithin(0,1);history[history.length-1]=Number.isFinite(level)?Math.min(1,level*13):0;
     // Each ribbon follows measured amplitude history. No invented audio activity.
-    const center=h*(.30+track*.13),amplitude=h*.22,left=10*scale,right=w-10*scale;
+    const placement=[[.27,.31,.42],[.75,.46,.36],[.32,.79,.24],[.72,.83,.28]][track];
+    const center=h*placement[1],amplitude=h*(track<2?.19:.10),left=w*(placement[0]-placement[2]/2),right=w*(placement[0]+placement[2]/2);
     const points=Array.from(history,(v,i)=>({x:left+(right-left)*i/(history.length-1),a:v*amplitude}));
     function edge(sign,reverse){
       const list=reverse?[...points].reverse():points;
@@ -431,14 +377,16 @@ function drawWaves(timestamp=0){
     }
     const path=c.querySelector(`[data-wave="${key}"]`);
     path.setAttribute('d',edge(-1,false)+edge(1,true)+' Z');
-    path.setAttribute('fill',color+'48');path.setAttribute('stroke',color);path.setAttribute('stroke-width','1.7');
+    path.setAttribute('fill',color+'24');path.setAttribute('stroke',color);path.setAttribute('stroke-width','1.1');
 
 
   });
 }
 $('freezeWaves').onclick=()=>{visualFrozen=!visualFrozen;$('freezeWaves').setAttribute('aria-pressed',String(visualFrozen));$('freezeWaves').textContent=visualFrozen?'Resume visual':'Freeze visual';};
 if(visualFrozen){$('freezeWaves').textContent='Resume visual';$('freezeWaves').setAttribute('aria-pressed','true');}
-window.addEventListener('resize',sizeWaves);sizeWaves();requestAnimationFrame(drawWaves);
+window.addEventListener('resize',sizeWaves);
+new ResizeObserver(sizeWaves).observe($('waves'));
+sizeWaves();requestAnimationFrame(drawWaves);
 
 $('effects').onclick=()=>Room.toggleEffects();
 $('rhythmAmount').oninput=e=>{Room.set('percDensity',Number(e.target.value)/100);syncFoundation();syncSound();};
