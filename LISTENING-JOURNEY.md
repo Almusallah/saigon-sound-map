@@ -35,3 +35,7 @@ CASC (2022) remains the project’s own genealogy of field listening, collaborat
 ## Visual revision — 12 October 2026
 
 OJAS is a mood board for colours, industrial material sensibility and placement only, as clarified by Yuri. Phòng nghe uses neutral grey/olive surfaces, charcoal uppercase typography, generous spacing and four separated live amplitude traces. It contains no generated room image, photographic illustration or simulated speaker installation. Optional controls remain collapsed and transport stays accessible. The audio engine and score are unchanged by this visual revision. See design-qa.md for checks and limitations.
+
+## Minimal glass and sound atlas — 12 October 2026
+
+The approved menu study is now the default interface: dark translucent surfaces, ordinary system typography, blue selected room, compact amplitude rows and collapsible controls. The atlas remains a spatial score. Abstract river gestures evoke Saigon; actual archive positions still place the sources and guide proximity. Active-source connections follow the current listening position, while a legend distinguishes attention, active sources and the archive. Compass/grid/distance/coordinate annotations were removed. No audio-engine changes or generated imagery are included.

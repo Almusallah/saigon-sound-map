@@ -6,9 +6,10 @@
 <title>Phòng nghe — Saigon_Miền Tây Sound Map</title>
 <meta property="og:title" content="Phòng nghe · The Listening Room">
 <meta property="og:description" content="An evolving composition made from the sounds of the city — live from the Saigon_Miền Tây Sound Map. Play it.">
-<meta name="theme-color" content="#d8d9d3">
+<meta name="theme-color" content="#10110e">
 <meta name="description" content="Enter Phòng nghe: an evolving composition of field recordings from Saigon and the Mekong Delta. Listen, explore, or shape the sound.">
 <link rel="stylesheet" href="listen-room.css?v=1">
+<link rel="stylesheet" href="listen-minimal.css?v=2">
 </head>
 <body>
 <a class="skip" href="#room">Skip to the listening room</a>
@@ -38,11 +39,12 @@
       <div class="accompaniment"><label for="rhythmAmount">Percussion <output id="rhythmValue">28%</output><input id="rhythmAmount" type="range" min="0" max="70" value="28"></label><label for="bassAmount">Bass <output id="bassValue">18%</output><input id="bassAmount" type="range" min="0" max="70" value="18"></label><label for="ambienceAmount">Places <output id="ambienceValue">55%</output><input id="ambienceAmount" type="range" min="0" max="70" value="55"></label><button id="voiceSolo" class="pill" aria-pressed="false">Solo voice</button><span>Set the balance; the journey shapes its presence. Zero is silent. Solo voice isolates the vocal motif.</span></div>
 <div class="mix-extras"><button class="pill" id="effects" aria-pressed="false">Effects off</button><button class="pill" id="reroll" disabled>Change surroundings</button></div></div></details>
     </section>
-    <details class="atlas" id="atlas"><summary><span>SOUND ATLAS</span><span>Recordings &amp; their origins</span></summary><div class="stage">
+    <details class="atlas" id="atlas"><summary><span>Sound atlas</span><span>Recordings &amp; their origins</span></summary><div class="stage">
       <section class="maparea" aria-label="Spatial listening field">
-        <div class="sectionhead"><h2 id="roomTitle">Across Sài Gòn</h2><span class="badge" id="corpusCount">Field recordings</span></div>
-        <canvas id="map" tabindex="0" role="group" aria-label="Spatial listener. Use arrow keys to move through the city." aria-describedby="mapHelp">Use the arrow keys to move the listener through the spatial field.</canvas>
-        <p class="maplabel" id="mapHelp">YOUR LISTENING POSITION IS THE RING. DRAG TO BRING NEARBY SOUNDS FORWARD. COORDINATES COME FROM THE ARCHIVE; THIS IS A SPATIAL SCORE, NOT A STREET MAP.</p>
+        <div class="sectionhead"><h2 id="roomTitle">Sài Gòn · spatial score</h2><span class="badge" id="corpusCount">Field recordings</span></div>
+        <canvas id="map" tabindex="0" role="group" aria-label="Spatial score. Use arrow keys to move your listening position." aria-describedby="mapHelp">Use the arrow keys to move the listener through the spatial field.</canvas>
+        <div class="score-legend" aria-label="Score symbols"><span><i class="attention-symbol" aria-hidden="true"></i>Your attention</span><span><i class="sounding-symbol" aria-hidden="true"></i>Active sources</span><span><i class="archive-symbol" aria-hidden="true"></i>Archive</span></div>
+        <p class="maplabel" id="mapHelp">Drag the ring, or use arrow keys, to shift the mix. Curves evoke the river’s flow; points follow the archive. A score for listening.</p>
         <div class="maptools"><span id="journeyStatus">A slow journey through the archive</span><button class="pill" id="tour" aria-pressed="true">Auto journey on</button></div>
       </section>
       <aside id="now" aria-label="Current recordings"><div class="sectionhead"><h2>Places in the composition</h2><span class="badge" id="activeCount">0 layers</span></div><ul id="nowlist"><li class="empty">Your first sounds will appear here when you enter the room.</li></ul><p class="source-note">Real voices and places, transformed into a composition. Open a title to hear its original recording on the map.</p></aside>
@@ -97,9 +99,9 @@ $('start').onclick = async () => {
 };
 function syncCorpus() {
   HB = Room.state.roomFilter?.bounds || { latMin: 10.62, latMax: 10.98, lngMin: 106.52, lngMax: 106.98 };
-  $('roomTitle').textContent = Room.state.roomFilter?.label || 'Across Sài Gòn';
+  $('roomTitle').textContent = (Room.state.roomFilter?.label || 'Sài Gòn') + ' · spatial score';
   pts = Room.state.recs.filter(r => r.lat >= HB.latMin && r.lat <= HB.latMax && r.lng >= HB.lngMin && r.lng <= HB.lngMax);
-  $('corpusCount').textContent = `${pts.length} sounds in view`;
+  $('corpusCount').textContent = `${pts.length} recordings`;
   sizeMap(); drawMap();
 }
 function phase() {
@@ -175,26 +177,43 @@ function drawMap() {
   const c=$('map'),g=c.getContext('2d'),scale=Math.min(2,window.devicePixelRatio||1),w=c.width,h=c.height;
   if(!w||!h)return;
   g.clearRect(0,0,w,h);
-  // Geographic grid, positioned from the current room's latitude/longitude bounds.
-  g.strokeStyle='#c8c5b8';g.lineWidth=scale;
-  for(let i=1;i<6;i++){g.beginPath();g.moveTo(w*i/6,0);g.lineTo(w*i/6,h);g.stroke();g.beginPath();g.moveTo(0,h*i/6);g.lineTo(w,h*i/6);g.stroke();}
+  // Abstract river gestures are score lines, not surveyed riverbanks or streets.
+  // Their normalized positions never alter archive coordinates or audio proximity.
+  g.save(); g.scale(w,h); g.lineWidth=.8*scale/w; g.lineCap='round';
+  for(const shift of [-.024,0,.024]) {
+    g.beginPath(); g.moveTo(.68+shift,-.05);
+    g.bezierCurveTo(.42+shift,.16,.89+shift,.22,.65+shift,.41);
+    g.bezierCurveTo(.42+shift,.56,.81+shift,.60,.57+shift,.78);
+    g.bezierCurveTo(.46+shift,.87,.54+shift,.94,.70+shift,1.05);
+    g.strokeStyle=shift===0?'#8eaa9970':'#8eaa9930'; g.stroke();
+  }
+  for(const bend of [.30,.66]) {
+    g.beginPath();g.moveTo(-.05,bend);
+    g.bezierCurveTo(.16,bend-.09,.20,bend+.11,.36,bend+.05);
+    g.bezierCurveTo(.47,bend,.49,bend+.06,.59,bend+.09);
+    g.strokeStyle='#aab79b28';g.stroke();
+  }
+  g.restore();
   const [lx,ly]=xy(Room.state.listener);
-  const active=new Map([...Room.state.nowPlaying.entries()].map(([slot,r])=>[r.id,{slot,rec:r}]));
+  const active=new Set([...Room.state.nowPlaying.values()].map(r=>r.id));
+  const sounding=[];
+  // Quiet archive points remain underneath the sounding layer.
   for(const r of pts) {
     const [x,y]=xy(r);if(x<0||y<0||x>w||y>h)continue;
-    const on=active.get(r.id),voice=on?.slot==='anchor',color=voice?'#4d563d':on?'#947147':'#929285';
-    if(on){g.beginPath();g.moveTo(lx,ly);g.lineTo(x,y);g.strokeStyle=color+'66';g.lineWidth=scale;g.stroke();}
-    g.beginPath();g.arc(x,y,(on?5:2)*scale,0,Math.PI*2);g.fillStyle=color;g.fill();
-    if(on){g.beginPath();g.arc(x,y,9*scale,0,Math.PI*2);g.strokeStyle=color+'66';g.stroke();}
+    if(active.has(r.id)){sounding.push([x,y]);continue;}
+    g.beginPath();g.arc(x,y,1.8*scale,0,Math.PI*2);g.fillStyle='#aeb7a56b';g.fill();
   }
-  // A scale ring corresponds to one kilometre of longitude at Saigon.
-  const kmPixels=w/((HB.lngMax-HB.lngMin)*102);
-  if(kmPixels>8*scale && kmPixels<w/2){g.beginPath();g.arc(lx,ly,kmPixels,0,Math.PI*2);g.setLineDash([3*scale,5*scale]);g.strokeStyle='#4d563d60';g.stroke();g.setLineDash([]);}
-  g.beginPath();g.arc(lx,ly,12*scale,0,Math.PI*2);g.strokeStyle='#343b2d';g.lineWidth=2*scale;g.stroke();
-  g.beginPath();g.arc(lx,ly,3*scale,0,Math.PI*2);g.fillStyle='#343b2d';g.fill();
-  g.font=`600 ${10*scale}px system-ui,sans-serif`;g.fillStyle='#68685c';g.fillText('N ↑',w-42*scale,23*scale);
-  g.fillText(`${HB.latMin.toFixed(3)}° N / ${HB.lngMin.toFixed(3)}° E`,14*scale,h-16*scale);
-  g.fillStyle='#4d563d';g.fillText(Room.state.roomFilter?.label.toUpperCase()||'SAIGON / MIỀN TÂY',14*scale,23*scale);
+  for(const [x,y] of sounding) {
+    // These curves connect current attention to actual playing sources.
+    g.beginPath();g.moveTo(lx,ly);
+    g.quadraticCurveTo((lx+x)/2+(ly-y)*.12,(ly+y)/2+(x-lx)*.12,x,y);
+    g.strokeStyle='#96bfff8c';g.lineWidth=1.2*scale;g.stroke();
+    g.beginPath();g.arc(x,y,10*scale,0,Math.PI*2);g.fillStyle='#8bb7ff1f';g.fill();
+    g.beginPath();g.arc(x,y,4*scale,0,Math.PI*2);g.fillStyle='#a9caff';g.fill();
+    g.strokeStyle='#172219';g.lineWidth=1.5*scale;g.stroke();
+  }
+  g.beginPath();g.arc(lx,ly,12*scale,0,Math.PI*2);g.strokeStyle='#f0f1e8';g.lineWidth=2*scale;g.stroke();
+  g.beginPath();g.arc(lx,ly,3*scale,0,Math.PI*2);g.fillStyle='#f0f1e8';g.fill();
 }
 $('atlas').addEventListener('toggle',()=>{sizeMap();drawMap();});
 const offset = ([x, y], dx, dy) => [x + dx, y + dy];
@@ -366,8 +385,8 @@ function drawWaves(timestamp=0){
     if(playing&&analyser){analyser.getFloatTimeDomainData(waveSamples);for(const v of waveSamples)level+=v*v;level=Math.sqrt(level/waveSamples.length)*Room.state.volume;}
     history.copyWithin(0,1);history[history.length-1]=Number.isFinite(level)?Math.min(1,level*13):0;
     // Each ribbon follows measured amplitude history. No invented audio activity.
-    const placement=[[.27,.31,.42],[.75,.46,.36],[.32,.79,.24],[.72,.83,.28]][track];
-    const center=h*placement[1],amplitude=h*(track<2?.19:.10),left=w*(placement[0]-placement[2]/2),right=w*(placement[0]+placement[2]/2);
+    const placement=[.64,.125+track*.25,.62];
+    const center=h*placement[1],amplitude=h*.075,left=w*(placement[0]-placement[2]/2),right=w*(placement[0]+placement[2]/2);
     const points=Array.from(history,(v,i)=>({x:left+(right-left)*i/(history.length-1),a:v*amplitude}));
     function edge(sign,reverse){
       const list=reverse?[...points].reverse():points;
