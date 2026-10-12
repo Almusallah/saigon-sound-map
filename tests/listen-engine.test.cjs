@@ -201,3 +201,125 @@ test('return recalls an actual earlier place and solo bypasses a voiceless movem
  h.Room.state.ctx.currentTime=820;h.run('scoreTick()');h.Room.set('voiceSolo',true);assert.equal(h.run('sceneGates.voice.gain.value'),1);assert.equal(h.run('sceneGates.city.gain.value'),0);
  h.Room.set('voiceSolo',false);assert.equal(h.run('sceneGates.voice.gain.value'),0);
 });
+
+function watchScoreRamps(h){
+ h.run(`globalThis.scoreRamps=[];for(const [name,node] of Object.entries(sceneGates)){
+   const ramp=node.gain.linearRampToValueAtTime;
+   node.gain.linearRampToValueAtTime=function(value,time){scoreRamps.push({name,value,time});return ramp.call(this,value,time)};
+ }`);
+}
+for(const [index,name] of [[3,'Open space'],[4,'Afterimage']]){
+ test(`${name} restores the fallback on last field loss and withdraws it on recovery`,async()=>{
+  const h=harness();await h.Room.start();h.run(`scoreIndex=${index};applyScore()`);
+  assert.equal(h.run('sceneGates.voice.gain.value'),0);
+  watchScoreRamps(h);h.Room.state.ctx.currentTime=10;
+  h.Room.state.slots.bedA.src.onended();
+  assert.equal(h.run('sceneGates.voice.gain.value'),.25);
+  assert.equal(h.run('scoreRamps.length'),1);assert.equal(h.run('scoreRamps[0].time'),34);
+  await h.Room.refresh();
+  assert.ok(h.Room.state.slots.bedA);assert.equal(h.run('sceneGates.voice.gain.value'),0);
+  assert.equal(h.run('scoreRamps.length'),2);assert.equal(h.run("scoreRamps.every(r=>r.name==='voice')"),true);
+ });
+}
+test('field additions, replacements and stale endings do not restart score fades',async()=>{
+ const h=harness();await h.Room.start();h.run('scoreIndex=3;applyScore()');watchScoreRamps(h);
+ // Emulate an AudioParam partway through its ramp: instantaneous value is not the target.
+ h.run('sceneGates.voice.gain.value=.1');
+ await h.Room.refresh();assert.ok(h.Room.state.slots.texA);
+ h.Room.state.slots.texA.src.onended();assert.equal(h.run('sceneGates.voice.gain.value'),.1);
+ const old=h.Room.state.slots.bedA;
+ await h.run("startLayer('bedA',state.recs.find(r=>r.id!==state.slots.bedA.rec.id && r.role!=='voice'))");
+ const replacement=h.Room.state.slots.bedA;assert.notEqual(replacement,old);
+ old.src.onended();assert.equal(h.Room.state.slots.bedA,replacement);
+ assert.equal(h.run('scoreRamps.length'),0);assert.equal(h.run('sceneGates.voice.gain.value'),.1);
+});
+test('field availability respects solo and the visitor zero and mute controls',async()=>{
+ const h=harness();await h.Room.start();h.run('scoreIndex=3;applyScore()');h.Room.set('voiceSolo',true);
+ h.Room.set('ambienceLevel',0);h.Room.set('bassLevel',0);h.Room.set('percDensity',0);h.Room.toggleMute();
+ watchScoreRamps(h);h.Room.state.slots.bedA.src.onended();await h.Room.refresh();
+ assert.equal(h.run('sceneGates.voice.gain.value'),1);assert.equal(h.run('scoreRamps.length'),0);
+ h.Room.set('voiceSolo',false);assert.equal(h.run('sceneGates.voice.gain.value'),0);
+ h.Room.state.slots.bedA.src.onended();assert.equal(h.run('sceneGates.voice.gain.value'),.25);
+ for(const bus of ['output','fieldBus','bassBus','percBus'])assert.equal(h.run(bus+'.gain.value'),0,bus);
+});
+test('pending recovery leaves the fallback until decoded and respects a new movement during pause',async()=>{
+ const h=harness();await h.Room.start();h.run('scoreIndex=3;applyScore()');
+ h.Room.state.slots.bedA.src.onended();
+ // Hold decoding even for a cached source, without changing the source lifecycle.
+ h.run('globalThis.originalGetBuffer=getBuffer;getBuffer=rec=>new Promise(resolve=>{globalThis.finishDecode=()=>originalGetBuffer(rec).then(resolve)})');
+ const recovery=h.Room.refresh();await new Promise(setImmediate);
+ assert.equal(h.run('sceneGates.voice.gain.value'),.25);
+ await h.Room.pause();h.run('scoreIndex=1;applyScore()');watchScoreRamps(h);
+ await h.run('finishDecode()');await recovery;
+ assert.equal(h.Room.state.ctx.state,'suspended');assert.equal(h.run('sceneGates.voice.gain.value'),1);
+ assert.equal(h.run('scoreRamps.length'),0);
+ await h.Room.resume();assert.equal(h.run('sceneGates.voice.gain.value'),1);
+});
+test('failed recovery and retiring the last sparse texture retain the voice fallback',async()=>{
+ const h=harness();await h.Room.start();await h.Room.refresh();
+ h.Room.state.slots.bedA.src.onended();assert.ok(h.Room.state.slots.texA);
+ h.run("scoreIndex=4;applyScore();getBuffer=async()=>{throw new Error('offline')}");watchScoreRamps(h);
+ const outgoing=h.Room.state.slots.texA;await h.Room.refresh();
+ assert.equal(h.Room.state.slots.texA,undefined);assert.equal(h.Room.state.slots.bedA,undefined);
+ assert.equal(h.run('sceneGates.voice.gain.value'),.25);assert.equal(h.run('scoreRamps.length'),1);
+ outgoing.src.onended();await h.Room.refresh();
+ assert.equal(h.run('sceneGates.voice.gain.value'),.25);assert.equal(h.run('scoreRamps.length'),1);
+});
+
+test('arrival keeps its initial scene for 45 score seconds; a visitor can still change it',async()=>{
+ const h=harness();await h.Room.start();const opening=h.Room.state.slots.bedA,downloads=h.calls.length;
+ h.Room.state.ctx.currentTime=40;h.run('scoreTick()');await h.run('rotate(true)');
+ assert.equal(h.Room.state.slots.bedA,opening);assert.equal(h.Room.state.slots.texA,undefined);assert.equal(h.calls.length,downloads);
+ await h.Room.refresh();assert.ok(h.Room.state.slots.texA);
+ const other=harness();await other.Room.start();other.Room.state.ctx.currentTime=46;other.run('scoreTick()');await other.run('rotate(false)');assert.ok(other.Room.state.slots.texA);
+});
+test('an exact opening excerpt emerges, leaves for two movements and returns after cache eviction',async()=>{
+ const h=harness();await h.Room.start();const original=h.Room.state.slots.bedA;
+ const memory=h.run('sceneMemory');assert.equal(memory.rec.id,original.rec.id);assert.notEqual(memory.buffer,original.src.buffer);
+ assert.ok(memory.buffer.duration<14);assert.equal(memory.offset,3);
+ h.Room.state.ctx.currentTime=80;h.run('scoreTick()');await h.run('rotate(false)');
+ const detail=h.Room.state.slots.bedA;assert.equal(detail.src.buffer,memory.buffer);
+ assert.equal(detail.attention.gain.value,1);assert.equal(h.Room.state.slots.texA.attention.gain.value,.28);
+ assert.equal(h.run('sceneGates.voice.gain.value'),.35);
+ await h.run('rotate(true)');assert.equal(h.Room.state.slots.bedA,detail);
+ h.Room.state.ctx.currentTime=190;h.run('scoreTick()');await h.run('rotate(false)');
+ assert.equal(h.Room.state.slots.bedA.detail,null);assert.ok(detail.src.stopTime>190);
+ h.Room.state.ctx.currentTime=280;h.run('scoreTick()');await h.run('rotate(false)');assert.equal(h.Room.state.slots.bedA.detail,null);
+ h.Room.state.buffers.clear();h.Room.state.bufferBytes=0;
+ h.Room.state.ctx.currentTime=460;h.run('scoreTick()');await h.run('rotate(false)');
+ assert.equal(h.Room.state.slots.bedA.src.buffer,memory.buffer);assert.equal(h.Room.state.slots.bedA.rec.id,original.rec.id);
+ assert.equal(h.run('sceneGates.voice.gain.value'),.35);
+ h.Room.set('voiceSolo',true);assert.equal(h.run('sceneGates.voice.gain.value'),1);assert.equal(h.run('fieldBus.gain.value'),0);
+ h.Room.set('voiceSolo',false);assert.equal(h.run('sceneGates.voice.gain.value'),.35);
+ h.Room.set('ambienceLevel',0);assert.equal(h.run('fieldBus.gain.value'),0);
+});
+test('a delayed context replacement retains the detail until ready and discards stale movement loads',async()=>{
+ const h=harness();await h.Room.start();h.Room.state.ctx.currentTime=80;h.run('scoreTick()');await h.run('rotate(false)');
+ const detail=h.Room.state.slots.bedA;
+ h.run('globalThis.originalGetBuffer=getBuffer;getBuffer=rec=>new Promise(resolve=>{globalThis.finishDecode=()=>originalGetBuffer(rec).then(resolve)})');
+ h.Room.state.ctx.currentTime=190;h.run('scoreTick()');await new Promise(setImmediate);
+ assert.equal(h.Room.state.slots.bedA,detail);assert.equal(detail.src.stopTime,undefined);
+ h.Room.state.ctx.currentTime=280;h.run('scoreTick()');await h.run('finishDecode()');await h.run('rotate(false)');
+ assert.equal(h.Room.state.slots.bedA,detail);assert.equal(detail.src.stopTime,undefined);
+ h.run('getBuffer=originalGetBuffer');await h.run('rotate(false)');assert.equal(h.Room.state.slots.bedA.detail,null);
+});
+test('manual surroundings are not replaced by a remembered detail at the next scheduler tick',async()=>{
+ const h=harness();await h.Room.start();h.run('scoreIndex=1;applyScore()');
+ await h.Room.refresh();assert.equal(h.Room.state.slots.bedA.detail,null);
+ await h.run('rotate(false)');assert.equal(h.Room.state.slots.bedA.detail,null);
+ h.Room.state.ctx.currentTime=460;h.run('scoreTick()');await h.run('rotate(false)');assert.ok(h.Room.state.slots.bedA.detail);
+});
+test('recall does not use a recording removed from the filtered corpus',async()=>{
+ const h=harness();await h.Room.start();const memory=h.run('sceneMemory');
+ h.Room.state.recs=h.Room.state.recs.filter(r=>r.id!==memory.rec.id);
+ h.run('scoreIndex=5;applyScore()');await h.run('rotate(true)');assert.equal(h.Room.state.slots.bedA.detail,null);
+});
+test('atlas destinations are sounding sources, including the returning excerpt',async()=>{
+ const h=harness();await h.Room.start();h.run('pickDestination()');
+ assert.equal(h.run('journey.to.lat'),h.Room.state.slots.bedA.rec.lat);
+ assert.equal(h.run('journey.to.lng'),h.Room.state.slots.bedA.rec.lng);
+ h.Room.state.ctx.currentTime=460;h.run('scoreTick()');await h.run('rotate(false)');h.run('pickDestination()');
+ assert.equal(h.run('journey.to.lat'),h.run('sceneMemory.rec.lat'));
+ assert.equal(h.run('journey.to.lng'),h.run('sceneMemory.rec.lng'));
+ h.run('state.slots={};journey=null;pickDestination()');assert.equal(h.run('journey'),null);
+});

@@ -78,7 +78,7 @@ body{background:var(--bg);color:var(--paper);padding-bottom:115px}.shell{width:m
   <nav class="topbar" aria-label="Sound Map"><a class="wordmark" href="/">SAIGON_MIỀN TÂY SOUND MAP</a><a class="back" href="/">Back to the map</a></nav>
   <header>
     <div><p class="eyebrow">A journey through listening</p><h1><span lang="vi" style="font:inherit;color:inherit;margin:0">Phòng nghe</span><span>The Listening Room</span></h1>
-    <p class="intro">Places open, voices pass, rhythms gather and familiar sounds return. A slow journey through the archive, with space to listen between movements.</p></div>
+    <p class="intro">Listen to a place, notice a detail, meet it again among different sounds. An evolving composition from the archive: what catches your attention when it returns?</p></div>
     <div class="citytime"><p class="eyebrow">Saigon time</p><time id="cityClock">—</time><small>UTC +07:00</small></div>
   </header>
   <nav class="roomnav" aria-label="Choose a listening room"><a id="cityRoom" href="/listen">Whole city</a><a id="thanhDaRoom" href="/listen?walk=thanh-da">Thanh Đa</a></nav>
@@ -125,7 +125,7 @@ body{background:var(--bg);color:var(--paper);padding-bottom:115px}.shell{width:m
 </div>
 
 <script src="voice-loop.js?v=11"></script>
-<script src="listen-engine.js?v=11"></script>
+<script src="listen-engine.js?v=12"></script>
 <script>
 'use strict';
 const $ = id => document.getElementById(id);
@@ -395,6 +395,8 @@ function renderNow() {
     }
     const meta = document.createElement('span'); meta.className = 'cat';
     const duration = Math.round(r.duration); meta.textContent = `${r.category} · ${Math.floor(duration/60)}:${String(duration%60).padStart(2,'0')}`;
+    const detail=Room.state.slots[slot]?.detail;
+    if(detail)meta.textContent+=` · ${detail.buffer.duration.toFixed(1)}s loop from ${detail.offset.toFixed(1)}s · softened seam`;
     li.append(title,meta); el.append(li);
   }
   if (!el.childElementCount) { const li = document.createElement('li'); li.className = 'empty'; li.textContent = 'Space for the city to enter. Surrounding recordings arrive gradually.'; el.append(li); }
@@ -452,6 +454,10 @@ function syncFoundation() {
     $('movementTitle').textContent=movement.name;
     document.querySelectorAll('.movement-trail span').forEach((el,i)=>{if(i===movement.index)el.setAttribute('aria-current','step');else el.removeAttribute('aria-current');});
     $('movementDetail').textContent=movement.detail;
+    const detail=Room.state.slots.bedA?.detail;
+    if(detail && ['Encounter','Return'].includes(movement.name)){
+      $('movementDetail').textContent+=` ${movement.name==='Return'?'The same excerpt returns':'A detail comes forward'}: ${Room.state.slots.bedA.rec.title}.`;
+    }
   }
   $('ambienceAmount').value=Math.round(Room.state.ambienceLevel*100);$('ambienceValue').textContent=$('ambienceAmount').value+'%';
   $('voiceSolo').setAttribute('aria-pressed',String(Room.state.voiceSolo));

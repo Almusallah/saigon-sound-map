@@ -430,9 +430,7 @@
     @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: .3; } }
 
     /* ── Archive panel ─────────────────────────────────────────────── */
-    /* Matches the Sound Heritage modal palette: black surface, lime
-       accents, subtle lime-tinted cards. Functionally identical to the
-       previous panel — only the visual identity changed. */
+    /* Location-first archive, with Saigon as the home collection. */
     .archive {
       position: fixed; top: 0; right: 0; width: 400px;
       height: 100%; height: 100dvh; /* see .overlay — phone toolbars */
@@ -477,6 +475,25 @@
       background-color: rgba(0,0,0,.5);
     }
     .archive-filter { padding: 6px 16px 12px; }
+    .archive-places { padding: 16px 16px 4px; }
+    .archive-home {
+      width: 100%; border: 1px solid var(--primary); border-radius: 16px;
+      padding: 16px; text-align: left; cursor: pointer; font-family: inherit;
+      color: var(--primary); background: rgba(184,255,0,.07);
+    }
+    .archive-home[aria-pressed="true"] { background: var(--primary); color: #111; }
+    .archive-home small { display: block; font-size: 10px; text-transform: uppercase; letter-spacing: 1.5px; }
+    .archive-home strong { display: block; font-size: 32px; letter-spacing: -1px; line-height: 1.2; }
+    .archive-home span { display: block; margin-top: 5px; font-size: 12px; }
+    .archive-filter label { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; margin: 8px 0; }
+    .archive-location-note { font-size: 11px; line-height: 1.5; opacity: .7; margin: 8px 0 0; }
+    .archive-group { padding: 0; list-style: none; }
+    .archive-group > h3 { padding: 16px 4px 4px; font-size: 13px; text-transform: uppercase; letter-spacing: 1px; }
+    .archive-group > ul { padding: 0; list-style: none; }
+    .archive-empty { padding: 24px 8px; line-height: 1.6; font-size: 14px; }
+    .archive-more { margin: 8px 0 16px; padding: 12px; width: 100%; min-height: 44px; border: 1px solid var(--primary); border-radius: 20px; color: var(--primary); background: transparent; font: inherit; cursor: pointer; }
+    .archive { overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
+    .archive-home:focus-visible { outline: 2px solid white; outline-offset: 3px; }
     .archive-filter select {
       width: 100%; padding: 10px 12px;
       border: 1px solid rgba(184,255,0,.3);
@@ -962,18 +979,29 @@
 <div class="archive" id="archive-panel">
   <div class="archive-head">
     <h2>Sound Archive</h2>
-    <button class="archive-close" id="archive-close">&times;</button>
+    <button class="archive-close" id="archive-close" aria-label="Close archive">&times;</button>
+  </div>
+  <div class="archive-places">
+    <button type="button" class="archive-home" id="archive-home" aria-pressed="true">
+      <small>Our home collection</small><strong>SAIGON</strong>
+      <span id="archive-home-count">Loading recordings…</span>
+    </button>
+  </div>
+  <div class="archive-filter">
+    <label for="archive-location">Explore by location</label>
+    <select id="archive-location"><option value="Saigon">Saigon</option></select>
+    <p class="archive-location-note">Nearby recordings grouped by location. Miền Tây has its own collection.</p>
   </div>
   <div class="archive-search">
-    <input type="text" id="archive-search-input" placeholder="Search recordings...">
+    <input type="search" id="archive-search-input" aria-label="Search recordings in selected location" placeholder="Search this location...">
   </div>
   <div class="archive-filter">
     <!-- options populated from CATS at runtime via buildCategoryDropdowns() -->
-    <select id="cat-filter">
+    <select id="cat-filter" aria-label="Filter archive by category">
       <option value="">All categories</option>
     </select>
   </div>
-  <div class="rec-count" id="rec-count">0 recordings</div>
+  <div class="rec-count" id="rec-count" role="status" aria-live="polite">Loading recordings…</div>
   <ul class="rec-list" id="rec-list"></ul>
 </div>
 
@@ -989,6 +1017,7 @@
 <!-- Scripts -->
 <script src="https://api.mapbox.com/mapbox-gl-js/v3.7.0/mapbox-gl.js"></script>
 <script src="/draft-store.js"></script>
+<script src="/archive-locations.js"></script>
 <script>
 (function () {
   'use strict';
@@ -1041,6 +1070,9 @@
     'New York': { center: [-74.0060, 40.7128], zoom: 11 },
   };
   const DEFAULT_CITY = 'Saigon';
+  const archiveLocations = ArchiveLocations.create(CITIES);
+  let archiveLocation = DEFAULT_CITY;
+  let archiveLocationChosen = false;
 
   // Feature flag: when false, the District 4 heritage marker is not added
   // to the map AND the heritage modal never opens (the HTML stays in the
@@ -1354,20 +1386,16 @@
     return 2 * R * Math.asin(Math.sqrt(a));
   }
 
-  // Recordings within the city's radius (default 150 km — wide enough that
-  // Miền Tây recordings count as "Saigon"). Cities with close neighbours
-  // (Beirut/Damascus, Dammam/Qatar) set a tighter `radius` in CITIES so
-  // counts and framing don't bleed across borders.
+  // Use the same browsing areas as Archive: Miền Tây is distinct from Saigon.
   function cityRecordings(name) {
-    const { center: [lng, lat], radius = 150 } = CITIES[name];
-    return recordings.filter(r => distKm(lat, lng, r.latitude, r.longitude) < radius);
+    return recordings.filter(r => archiveLocations.locate(r) === name);
   }
   function cityCount(name) { return cityRecordings(name).length; }
 
   function buildCitySelect() {
     const sel = $('city-select');
     sel.innerHTML = Object.keys(CITIES)
-      .map(c => `<option${c === DEFAULT_CITY ? ' selected' : ''}>${c}</option>`).join('');
+      .map(c => `<option value="${esc(c)}"${c === DEFAULT_CITY ? ' selected' : ''}>${esc(c)}</option>`).join('');
     sel.onchange = () => flyToCity(sel.value, true);
   }
 
@@ -1393,6 +1421,11 @@
   function flyToCity(name, announce) {
     const c = CITIES[name];
     if (!c) return;
+    if (announce) {
+      archiveLocation = name;
+      archiveLocationChosen = true;
+      updateArchive();
+    }
     setCityTitle(name);
     // Animated camera moves are dropped while the style is still loading
     // (slow tiles / the 8s boot fallback) — jump instantly in that case
@@ -1604,6 +1637,16 @@
       lastPayload = text;
       recordings = data.recordings.filter(r => r && typeof r.latitude === 'number' && typeof r.longitude === 'number' && r.audioUrl).map(r => ({ ...r, category: CAT_ALIASES[r.category] || r.category }));
       $('count-badge').textContent = recordings.length;
+      if (!archiveLocationChosen) {
+        const params = new URLSearchParams(location.search);
+        const linked = params.get('rec') && recordings.find(r => r.id.startsWith(params.get('rec')));
+        const city = Object.keys(CITIES).find(c => c.toLowerCase() === (params.get('city') || '').toLowerCase());
+        archiveLocation = linked ? archiveLocations.locate(linked) : city || DEFAULT_CITY;
+        archiveLocationChosen = true;
+      }
+      // A background metadata refresh must not interrupt an archive player.
+      if ($('archive-panel').classList.contains('open') &&
+          ![...$('rec-list').querySelectorAll('audio')].some(a => !a.paused)) updateArchive();
       renderMarkers();
       openDeepLink();
     } catch (err) {
@@ -2361,26 +2404,52 @@
   }
 
   // ── Archive panel ───────────────────────────────────────────────
-  $('archive-btn').onclick   = () => { $('archive-panel').classList.toggle('open'); requestAnimationFrame(() => updateArchive()); };
+  $('archive-btn').onclick = () => {
+    const open = $('archive-panel').classList.toggle('open');
+    if (open && ![...$('rec-list').querySelectorAll('audio')].some(a => !a.paused)) requestAnimationFrame(updateArchive);
+  };
   $('archive-close').onclick = () => $('archive-panel').classList.remove('open');
   $('cat-filter').onchange   = updateArchive;
   $('archive-search-input').oninput = updateArchive;
+  $('archive-location').onchange = () => {
+    archiveLocation = $('archive-location').value;
+    archiveLocationChosen = true;
+    updateArchive();
+  };
+  $('archive-home').onclick = () => {
+    archiveLocation = DEFAULT_CITY;
+    archiveLocationChosen = true;
+    updateArchive();
+  };
 
   function updateArchive() {
+    const groups = archiveLocations.group(recordings);
+    const homeCount = groups.find(g => g.key === DEFAULT_CITY)?.recordings.length || 0;
+    $('archive-home-count').textContent = `${homeCount} recordings · Ho Chi Minh City`;
+    $('archive-home').setAttribute('aria-pressed', String(archiveLocation === DEFAULT_CITY));
+    const options = groups.map(g => ({ key: g.key, label: g.label, count: g.recordings.length }));
+    // Keep an explicitly selected empty place visible after filtering/refresh.
+    if (archiveLocation && !options.some(g => g.key === archiveLocation)) {
+      options.push({ key: archiveLocation, label: archiveLocations.label(archiveLocation), count: 0 });
+    }
+    $('archive-location').innerHTML = `<option value="">All locations · ${recordings.length}</option>` +
+      options.map(g => `<option value="${esc(g.key)}">${esc(g.label)} · ${g.count}</option>`).join('');
+    $('archive-location').value = archiveLocation;
     const catFilter = $('cat-filter').value;
     const search = $('archive-search-input').value.toLowerCase().trim();
 
     let filtered = recordings;
+    if (archiveLocation) filtered = filtered.filter(r => archiveLocations.locate(r) === archiveLocation);
     if (catFilter) filtered = filtered.filter(r => catInfo(r).cat === catFilter);
     if (search) filtered = filtered.filter(r =>
       (r.title || '').toLowerCase().includes(search) ||
       (r.description || '').toLowerCase().includes(search)
     );
 
-    $('rec-count').textContent = `${filtered.length} recording${filtered.length !== 1 ? 's' : ''}`;
+    $('rec-count').textContent = `${filtered.length} recording${filtered.length !== 1 ? 's' : ''} · ${archiveLocation ? archiveLocations.label(archiveLocation) : 'All locations'}`;
 
     const list = $('rec-list');
-    list.innerHTML = filtered.map(r => {
+    const cardHTML = r => {
       const { cat, color, icon } = catInfo(r);
       return `
         <li class="rec-item" data-lat="${r.latitude}" data-lng="${r.longitude}">
@@ -2390,20 +2459,36 @@
           <p>${esc(r.description || 'No description')}</p>
           ${audioPlayerHTML(r.audioUrl, audioType(r.audioUrl), r.title, r.id, r.duration)}
         </li>`;
-    }).join('');
+    };
+    const visibleGroups = archiveLocations.group(filtered);
+    const pageSize = 24;
+    list.innerHTML = visibleGroups.map(g => `
+      <li class="archive-group"><h3>${esc(g.label)} · ${g.recordings.length}</h3>
+      <ul>${g.recordings.slice(0, pageSize).map(cardHTML).join('')}</ul>
+      ${g.recordings.length > pageSize ? `<button type="button" class="archive-more" data-location="${esc(g.key)}">Load more from ${esc(g.label)} (${g.recordings.length - pageSize} remaining)</button>` : ''}</li>`).join('') ||
+      '<li class="archive-empty">No recordings match here. Try another location, category or search.</li>';
 
     // Hook every newly-rendered player
     list.querySelectorAll('.apc').forEach(attachAudioPlayer);
 
-    list.querySelectorAll('.rec-item').forEach(el => {
-      el.onclick = e => {
-        // Don't fly-to-pin if the click was inside the audio player or
-        // on the photo (which opens the full image instead)
-        if (e.target.closest('.apc') || e.target.closest('.rec-photo-link')) return;
-        map.flyTo({ center: [parseFloat(el.dataset.lng), parseFloat(el.dataset.lat)], zoom: 15 });
-        $('archive-panel').classList.remove('open');
-      };
-    });
+    list.onclick = e => {
+      const more = e.target.closest('.archive-more');
+      if (more) {
+        const group = visibleGroups.find(g => g.key === more.dataset.location);
+        const items = more.previousElementSibling;
+        const offset = items.children.length;
+        items.insertAdjacentHTML('beforeend', group.recordings.slice(offset, offset + pageSize).map(cardHTML).join(''));
+        [...items.children].slice(offset).forEach(item => item.querySelectorAll('.apc').forEach(attachAudioPlayer));
+        const remaining = group.recordings.length - items.children.length;
+        more.textContent = remaining ? `Load more from ${group.label} (${remaining} remaining)` : 'All recordings loaded';
+        more.disabled = !remaining;
+        return;
+      }
+      const el = e.target.closest('.rec-item');
+      if (!el || e.target.closest('.apc, .rec-photo-link, .share-btn')) return;
+      map.flyTo({ center: [parseFloat(el.dataset.lng), parseFloat(el.dataset.lat)], zoom: 15 });
+      $('archive-panel').classList.remove('open');
+    };
   }
 
   // ── Init ────────────────────────────────────────────────────────

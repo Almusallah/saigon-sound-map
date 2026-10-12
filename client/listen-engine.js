@@ -1,4 +1,4 @@
-/* Saigon_Miền Tây Sound Map — Phòng nghe / listening room engine (v11)
+/* Saigon_Miền Tây Sound Map — Phòng nghe / listening room engine (v12)
    A generative Web Audio conductor over the live archive.
    - corpus = /api/recordings (live, grows with every upload) + listen-features.json (offline analysis)
    - Six audio-clock movements shape places, voices, pulse, space and returning memories.
@@ -161,6 +161,7 @@ const gainForLufs = (lufs, t = -28) => Math.min(3.2, Math.max(0.05, Math.pow(10,
 
 /* ---------- graph ---------- */
 let sceneGates = {};
+const scoreGateTargets = new WeakMap();
 let output, master, lowpass, comp, delaySend, delayNode, delayFb, delayFilter, reverbSend, reverbTone, convolver, synthBus, synthWet, percBus, bassBus, fieldBus, voiceBus, cityDelayGate, cityReverbGate;
 function buildGraph() {
   const c = state.ctx;
@@ -344,33 +345,40 @@ function pickRec(roles, excludeIds) {
   if (remembered) return remembered;
   return pool.map(r => [weight(r)*(movement.categories.includes(r.category)?4:1)*(recentPlaces.includes(r.id)?.15:1), r]).sort((a, b) => b[0] - a[0])[0][1];
 }
-async function startLayer(slotName, rec, { fadeIn = 22, level = 1 } = {}) {
+async function startLayer(slotName, rec, { fadeIn = 22, level = 1, detail = null, movementIndex = null } = {}) {
   const c = state.ctx;
   let buf;
-  try { buf = await getBuffer(rec); } catch (e) { return false; }
-  if (!state.started || c !== state.ctx || (slotName==='texA' && currentMovement().name==='Afterimage')) return false;
+  try { buf = detail ? detail.buffer : await getBuffer(rec); } catch (e) { return false; }
+  if (!state.started || c !== state.ctx || (movementIndex!==null && movementIndex!==scoreIndex) || (slotName==='texA' && currentMovement().name==='Afterimage')) return false;
   const src = c.createBufferSource();
   // Long ambience also needs a soft seam; only the dedicated foundation repeats speech.
   const looping = buf.duration > 8 && rec.role !== 'voice';
-  src.buffer = looping ? loopBuffer(buf, Math.min(65, buf.duration), 2, 0) : buf;
-  src.loop = looping;
+  src.buffer = detail ? buf : looping ? loopBuffer(buf, Math.min(65, buf.duration), 2, 0) : buf;
+  src.loop = !!detail || looping;
   src.playbackRate.value = Math.pow(2, state.pitch / 12);
   const g = c.createGain(); g.gain.value = 0;
   const dSend = c.createGain(), rSend = c.createGain();
-  const spatial = c.createGain();
+  const spatial = c.createGain(), attention = c.createGain();
   const panner = c.createStereoPanner ? c.createStereoPanner() : null;
   src.connect(g); g.connect(spatial);
   const positioned = panner || spatial;
   if (panner) spatial.connect(panner);
-  positioned.connect(fieldBus);
+  positioned.connect(attention); attention.connect(fieldBus);
   g.gain.linearRampToValueAtTime(measuredGain(src.buffer, .055) * level, c.currentTime + fadeIn);
   updateSendMix(dSend, rSend, rec.role);
   src.start(0, 0);
   const old = state.slots[slotName];
   if (old) stopLayer(old, fadeIn);
-  const layer = { src, g, spatial, panner, dSend, rSend, rec };
+  const layer = { src, g, spatial, attention, panner, dSend, rSend, rec, detail };
   updatePosition(layer);
   state.slots[slotName] = layer;
+  // Keep one small, exact excerpt independently of the evictable full-file cache.
+  if(!sceneMemory && slotName==='bedA' && !detail && rec.role!=='voice' && buf.duration>=8){
+    sceneMemory={rec,buffer:loopBuffer(buf),offset:Math.min(3,buf.duration/5)};
+  }
+  if(slotName==='bedA')journey=null;
+  applyAttention();
+  syncVoiceScore();
   if (!scoreMemory) scoreMemory=rec.id;
   recentPlaces.push(rec.id);if(recentPlaces.length>8)recentPlaces.shift();
   state.nowPlaying.set(slotName, rec);
@@ -378,9 +386,10 @@ async function startLayer(slotName, rec, { fadeIn = 22, level = 1 } = {}) {
   // Audio-clock lifetimes freeze with pause; short voices clean up on their natural end.
   layer.endsAt = c.currentTime + (rec.role === 'voice' ? Math.min(buf.duration + fadeIn, 70) : rnd(110, 170));
   src.onended = () => {
-    src.disconnect(); g.disconnect(); spatial.disconnect(); panner?.disconnect(); dSend.disconnect(); rSend.disconnect();
+    src.disconnect(); g.disconnect(); spatial.disconnect(); attention.disconnect(); panner?.disconnect(); dSend.disconnect(); rSend.disconnect();
     if (state.slots[slotName] === layer) {
-      delete state.slots[slotName]; state.nowPlaying.delete(slotName); state.onNowPlaying();
+      delete state.slots[slotName]; applyAttention(); syncVoiceScore();
+      state.nowPlaying.delete(slotName); state.onNowPlaying();
     }
   };
   announce('');
@@ -580,14 +589,26 @@ function previewStab() {
 /* ---------- a score in six movements; time belongs to the audio clock ---------- */
 const MOVEMENTS = [
   {name:'Arrival',seconds:75,voice:.12,city:1,percussion:0,bass:.12,categories:['Home','Waterways','Nature'],detail:'Settle into a place. Listen beneath the surface.'},
-  {name:'Encounter',seconds:105,voice:1,city:.55,percussion:.25,bass:.35,categories:['Conversations','Markets','Sidewalks'],detail:'A human presence comes close, then leaves room around it.'},
+  {name:'Encounter',seconds:105,voice:1,city:.8,percussion:.12,bass:.2,categories:['Conversations','Markets','Sidewalks'],detail:'Notice a detail from the opening place. The surroundings step back.'},
   {name:'Pulse',seconds:90,voice:.3,city:.75,percussion:1,bass:1,categories:['Work','Repairing','Music'],detail:'Repeated gestures gather into a rhythm.'},
   {name:'Open space',seconds:120,voice:0,city:1,percussion:.12,bass:.15,categories:['Waterways','Nature','Sidewalks'],detail:'The voice leaves. Distance and texture open the scene.'},
   {name:'Afterimage',seconds:60,voice:0,city:.18,percussion:0,bass:0,categories:['Nature','Home'],detail:'Almost empty. Stay with the traces of what you heard.'},
-  {name:'Return',seconds:90,voice:.55,city:.7,percussion:.35,bass:.4,categories:[],detail:'An earlier place returns in a different light.'},
+  {name:'Return',seconds:90,voice:.55,city:.7,percussion:.2,bass:.25,categories:[],detail:'Listen for the same detail, now among different surroundings.'},
 ];
 let scoreElapsed=0,scoreLast=null,scoreIndex=-1,scoreMemory=null,recentPlaces=[];
+let sceneMemory=null,detailDismissedAt=null;
 function currentMovement(){ return MOVEMENTS[Math.max(0,scoreIndex)]; }
+function detailMovement(){return ['Encounter','Return'].includes(currentMovement().name);}
+function applyAttention(){
+  const focused=detailMovement() && !!state.slots.bedA?.detail;
+  for(const layer of Object.values(state.slots)){
+    if(!layer.attention)continue;
+    const target=focused && !layer.detail ? .28 : 1;
+    if(layer.attentionTarget===target)continue;
+    layer.attention.gain.setTargetAtTime(target,state.ctx.currentTime,4);
+    layer.attentionTarget=target;
+  }
+}
 function scoreAt(seconds){
   const total=MOVEMENTS.reduce((sum,m)=>sum+m.seconds,0);
   let offset=((seconds%total)+total)%total;
@@ -602,37 +623,43 @@ function scoreTick(){
   scoreIndex=at.index;const movement=currentMovement();
   state.movement={...movement,index:scoreIndex,elapsed:at.offset};
   if(changed){
+    detailDismissedAt=null;
     if(movement.name==='Afterimage' && state.slots.texA){stopLayer(state.slots.texA,24);delete state.slots.texA;state.nowPlaying.delete('texA');state.onNowPlaying();}
-    applyScore();journey=null;
-    if(scoreIndex!==0)void rotate(true);
+    applyAttention();applyScore();journey=null;
+    if(scoreIndex!==0 || sceneMemory)void rotate(true);
     window.dispatchEvent(new Event('room-status'));
   }
 }
+function scoreTarget(name){
+  if(state.voiceSolo)return name==='voice'?1:0;
+  const target=name==='voice' && detailMovement() && state.slots.bedA?.detail ? .35 : currentMovement()[name];
+  // A voice-only room still has something to hear in the spatial movements.
+  return name==='voice' && !Object.values(state.slots).some(l=>!l.anchor) ? Math.max(target,.25) : target;
+}
+function rampScoreGate(name,target){
+  const node=sceneGates[name],now=state.ctx.currentTime;
+  if(node.gain.cancelAndHoldAtTime)node.gain.cancelAndHoldAtTime(now);
+  else {const value=node.gain.value;node.gain.cancelScheduledValues(now);node.gain.setValueAtTime(value,now);}
+  node.gain.linearRampToValueAtTime(target,now+(state.voiceSolo?1:24));
+  scoreGateTargets.set(node,target);
+}
+function syncVoiceScore(){
+  if(!state.started)return;
+  const target=scoreTarget('voice');
+  // Source lifecycle changes must not prolong an existing fade or touch the other buses.
+  if(scoreGateTargets.get(sceneGates.voice)!==target)rampScoreGate('voice',target);
+}
 function applyScore(){
   if(!state.started)return;
-  const m=currentMovement(),now=state.ctx.currentTime;
-  for(const [name,node] of Object.entries(sceneGates)){
-    let target=m[name];
-    if(state.voiceSolo)target=name==='voice'?1:0;
-    // A voice-only room still has something to hear in the spatial movements.
-    else if(name==='voice' && !Object.values(state.slots).some(l=>!l.anchor))target=Math.max(target,.25);
-    if(node.gain.cancelAndHoldAtTime)node.gain.cancelAndHoldAtTime(now);
-    else {const value=node.gain.value;node.gain.cancelScheduledValues(now);node.gain.setValueAtTime(value,now);}
-    node.gain.linearRampToValueAtTime(target,now+(state.voiceSolo?1:24));
-  }
+  for(const name of Object.keys(sceneGates))rampScoreGate(name,scoreTarget(name));
 }
 
 /* ---------- the journey: a slow continuous ride between the city's places ---------- */
 let journey = null;
 function pickDestination() {
-  const b = state.roomFilter ? state.roomFilter.bounds : HCMC;
-  const pool = state.recs.filter(r =>
-    r.lat >= b.latMin && r.lat <= b.latMax && r.lng >= b.lngMin && r.lng <= b.lngMax &&
-    kmDist(r, state.listener) > (state.roomFilter ? 0.25 : 1.2));
-  const related=pool.filter(r=>currentMovement().categories.includes(r.category));
-  const memory=currentMovement().name==='Return' && state.recs.find(r=>r.id===scoreMemory);
-  const dest = memory || (related.length?choice(related):pool.length ? choice(pool) : { lat: (b.latMin + b.latMax) / 2, lng: (b.lngMin + b.lngMax) / 2 });
-  const km = kmDist(dest, state.listener);
+  // A virtual shift of attention toward the sounding source, never an invented GPS route.
+  const dest=state.slots.bedA?.rec || state.slots.texA?.rec || state.slots.anchor?.rec;
+  if(!dest)return;
   journey = {
     from: { ...state.listener }, to: { lat: dest.lat, lng: dest.lng },
     t0: state.ctx.currentTime, dur: currentMovement().seconds,   // slow ride, ~2 km/min
@@ -644,6 +671,7 @@ function journeyTick() {
   if(!state.touring)return;
   if (Date.now() - state.lastTouch < 30000) { journey = null; return; }  // hands on = you drive
   if (!journey) pickDestination();
+  if (!journey) return;
   const p = Math.min(1, (state.ctx.currentTime - journey.t0) / journey.dur);
   const e = p < 0.5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2;       // ease in-out
   state.listener = {
@@ -668,24 +696,36 @@ function tick() {
     nextStepTime += BEAT / 4; stepCount++;
   }
 }
-async function rotate(force) {
+async function rotate(force, manual = false) {
   if (!state.started || state.ctx.state !== 'running') return;
   if (rotation) return rotation;
-  rotation = rotateLayers(force);
+  rotation = rotateLayers(force, manual);
   try { await rotation; } finally { rotation = null; }
 }
-async function rotateLayers(force) {
+async function rotateLayers(force, manual = false) {
+  // Let the first place unfold before adding more layers. Explicit visitor choices still work.
+  if(!manual && scoreIndex===0 && scoreAt(scoreElapsed).offset<45 && state.slots.bedA && !state.slots.bedA.detail)return;
+  if(manual && detailMovement())detailDismissedAt=scoreIndex;
+  const remembered=sceneMemory && state.recs.find(r=>r.id===sceneMemory.rec.id);
+  if(!manual && detailMovement() && detailDismissedAt!==scoreIndex && remembered && !state.slots.bedA?.detail){
+    const installed=await startLayer('bedA',remembered,{level:.7,detail:sceneMemory,movementIndex:scoreIndex});
+    if(installed && state.slots.texA?.rec.id===remembered.id){
+      stopLayer(state.slots.texA,22);delete state.slots.texA;state.nowPlaying.delete('texA');state.onNowPlaying();
+    }
+  }
   const active = new Set(Object.values(state.slots).filter(Boolean).map(l => l.rec.id));
   const sparse=currentMovement().name==='Afterimage';
-  if(sparse && state.slots.texA){stopLayer(state.slots.texA,24);delete state.slots.texA;state.nowPlaying.delete('texA');state.onNowPlaying();}
-  const plan = sparse ? [['bedA',['bed','texture'],.7]] : [['bedA', ['bed','texture'], .7], ['texA', ['texture','tonal','rhythm'], .45]];
+  if(sparse && state.slots.texA){stopLayer(state.slots.texA,24);delete state.slots.texA;syncVoiceScore();state.nowPlaying.delete('texA');state.onNowPlaying();}
+  const plan = (sparse ? [['bedA',['bed','texture'],.7]] : [['bedA', ['bed','texture'], .7], ['texA', ['texture','tonal','rhythm'], .45]])
+    .filter(([slot])=>manual || !(slot==='bedA' && detailMovement() && state.slots.bedA?.detail));
   const empty=plan.filter(([slot])=>!state.slots[slot]);
   const expired=plan.filter(([slot])=>state.slots[slot] && state.ctx.currentTime>=state.slots[slot].endsAt);
-  const target=empty.length ? empty.slice(0,1) : expired.length ? expired.slice(0,1) : force ? [choice(plan)] : [];
+  const retiringDetail=state.slots.bedA?.detail && !detailMovement();
+  const target=retiringDetail ? plan.filter(([slot])=>slot==='bedA') : empty.length ? empty.slice(0,1) : expired.length ? expired.slice(0,1) : force && plan.length ? [choice(plan)] : [];
   for(const [slot,roles,level] of target) {
     if(state.ctx.state!=='running') break;
-    const rec=pickRec(roles,active);
-    if(rec && await startLayer(slot,rec,{level,fadeIn:22})) active.add(rec.id);
+    const rec=pickRec(roles,active) || (retiringDetail && slot==='bedA' ? state.slots.bedA.rec : null);
+    if(rec && await startLayer(slot,rec,{level,fadeIn:22,movementIndex:scoreIndex})) active.add(rec.id);
   }
 }
 
@@ -781,7 +821,7 @@ window.Room = {
     state.lastTouch = Date.now(); journey = null; updatePositions();
     window.dispatchEvent(new Event('room-status'));
   },
-  refresh() { return rotate(true); },
+  refresh() { return rotate(true,true); },
   toggleEffects() { state.effectsOn=!state.effectsOn; this.applyControls(); window.dispatchEvent(new Event('room-status')); },
   holdAnchor(on) { state.anchorHeld=!!on; window.dispatchEvent(new Event('room-status')); },
   nextAnchor() { return renewAnchor(true); },
@@ -792,7 +832,7 @@ window.Room = {
     state[key] = v; this.applyControls();if(key==='voiceSolo')applyScore();
     if (key.startsWith('synth') && key !== 'synthOn') previewStab();
   },
-  async reroll() { announce('Finding new sounds…'); await Promise.all([rotate(true), loadPerc()]); if (state.nowPlaying.size) announce(''); },
+  async reroll() { announce('Finding new sounds…'); await Promise.all([rotate(true,true), loadPerc()]); if (state.nowPlaying.size) announce(''); },
 };
 
 window.addEventListener('pagehide', () => { if (state.started) void Room.pause(); });
