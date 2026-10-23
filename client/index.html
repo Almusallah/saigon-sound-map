@@ -579,6 +579,23 @@
       transition: all .15s; line-height: 1;
     }
     .apc-dl:hover { background: var(--primary); color: var(--header-bg); }
+    .apc-loop {
+      flex: 0 0 22px; width: 22px; height: 22px; padding: 0;
+      display: flex; align-items: center; justify-content: center;
+      border-radius: 50%; cursor: pointer; background: transparent;
+      color: var(--primary); font-size: 13px; line-height: 1;
+      border: 1px solid rgba(184,255,0,.35);
+      transition: all .15s;
+    }
+    .apc-loop::before { content: '\21BB'; } /* ↻ — glyph in CSS so auto-translate can't touch it */
+    .apc-loop:hover { border-color: var(--primary); }
+    .apc.looping .apc-loop { background: var(--primary); color: var(--header-bg); border-color: var(--primary); }
+    /* Six controls share a phone-width popup; tighter gaps keep the
+       scrubber wide enough for a finger. */
+    @media (max-width: 420px) {
+      .apc { gap: 6px; padding: 8px 10px; }
+      .apc-time { min-width: 26px; }
+    }
     .rec-item-tag {
       display: inline-block; padding: 2px 10px; border-radius: 12px;
       font-size: 10px; font-weight: 600; margin-top: 6px;
@@ -1307,42 +1324,100 @@
     // preload="none" — otherwise 60 archive cards would each fetch file
     // metadata from B2 just to display a number we already have.
     const knownDur = isFinite(dur) && dur > 0;
-    return `<div class="apc">
+    return `<div class="apc" data-rec="${esc(id || '')}">
       <button class="apc-btn" type="button" aria-label="Play/Pause"></button>
       <span class="apc-time apc-now">0:00</span>
       <div class="apc-track"><div class="apc-fill"></div></div>
       <span class="apc-time apc-total">${knownDur ? fmtTime(dur) : '--:--'}</span>
+      <button class="apc-loop" type="button" aria-pressed="false" aria-label="Loop" title="Loop"></button>
       ${downloadUrl ? `<a class="apc-dl" href="${esc(downloadUrl)}" aria-label="Download recording" title="Download">↓</a>` : ''}
       <audio preload="${knownDur ? 'none' : 'metadata'}" src="${esc(src)}" type="${esc(mime)}"></audio>
     </div>`;
   }
 
+  // Players that are playing or about to. Tracked here rather than queried
+  // from the DOM because a looping popup that gets closed keeps sounding
+  // from the dock below, detached from its controls — a DOM query would
+  // miss it and let two recordings play at once.
+  const soundingPlayers = new Set();
+
+  // A browser pauses any media element that leaves the document, so
+  // closing a popup — its ✕, or one stray tap on the map — would end the
+  // sound. For a loop that is the wrong outcome: in a live listening room
+  // a loop is a running layer, not a preview. Its <audio> parks here while
+  // the popup is closed and returns when the popup reopens. Moving it in
+  // one synchronous step keeps it in the document, so it never pauses.
+  const audioDock = document.body.appendChild(document.createElement('div'));
+  audioDock.hidden = true;
+  function dockIfLooping(wrap) {
+    const a = wrap._audio;
+    if (a && a.loop && !a.paused) audioDock.appendChild(a);
+  }
+  function undockAudio(wrap) {
+    const a = wrap._audio;
+    if (a && a.parentNode === audioDock) wrap.appendChild(a);
+  }
+
+  // Keep the screen awake while a loop plays: in a live listening room the
+  // phone is a speaker, and an auto-locking screen can end the piece.
+  // Browsers drop the lock whenever the page is hidden, so re-request it
+  // on return.
+  let wakeLock = null, wakeLockPending = false;
+  async function syncWakeLock() {
+    const want = document.visibilityState === 'visible' &&
+      [...soundingPlayers].some(w => w._audio.loop);
+    if (want && !wakeLock && !wakeLockPending && 'wakeLock' in navigator) {
+      wakeLockPending = true;
+      try {
+        wakeLock = await navigator.wakeLock.request('screen');
+        wakeLock.addEventListener('release', () => { wakeLock = null; });
+      } catch {} finally { wakeLockPending = false; }
+    } else if (!want && wakeLock) {
+      wakeLock.release().catch(() => {});
+      wakeLock = null;
+    }
+  }
+  document.addEventListener('visibilitychange', syncWakeLock);
+
   function attachAudioPlayer(wrap) {
     if (wrap._attached) return;
     wrap._attached = true;
-    const audio = wrap.querySelector('audio');
+    const audio = wrap._audio = wrap.querySelector('audio'); // held: it may be parked in audioDock
     const btn   = wrap.querySelector('.apc-btn');
     const now   = wrap.querySelector('.apc-now');
     const total = wrap.querySelector('.apc-total');
     const track = wrap.querySelector('.apc-track');
     const fill  = wrap.querySelector('.apc-fill');
+    const loop  = wrap.querySelector('.apc-loop');
 
     btn.onclick = (e) => {
       e.stopPropagation();
       // Pause every other player first — only one plays at a time
-      document.querySelectorAll('.apc.playing').forEach(p => {
-        if (p !== wrap) { p.classList.remove('playing'); p.querySelector('audio').pause(); }
-      });
+      soundingPlayers.forEach(p => { if (p !== wrap) p._audio.pause(); });
       if (audio.paused) {
         wrap.classList.add('loading');
-        audio.play().catch(err => { wrap.classList.remove('loading'); console.error('play:', err); });
+        soundingPlayers.add(wrap);
+        audio.play().catch(err => {
+          wrap.classList.remove('loading');
+          soundingPlayers.delete(wrap);
+          console.error('play:', err);
+        });
       } else {
         audio.pause();
       }
     };
-    audio.onplaying = () => { wrap.classList.remove('loading'); wrap.classList.add('playing'); };
-    audio.onpause   = () => { wrap.classList.remove('playing'); wrap.classList.remove('loading'); };
-    audio.onended   = () => { wrap.classList.remove('playing'); fill.style.width = '0%'; now.textContent = '0:00'; };
+    // Loop can be switched at any moment. Switching it off mid-play lets
+    // the current pass finish and stop on its own.
+    loop.onclick = (e) => {
+      e.stopPropagation();
+      audio.loop = !audio.loop;
+      wrap.classList.toggle('looping', audio.loop);
+      loop.setAttribute('aria-pressed', String(audio.loop));
+      syncWakeLock();
+    };
+    audio.onplaying = () => { wrap.classList.remove('loading'); wrap.classList.add('playing'); soundingPlayers.add(wrap); syncWakeLock(); };
+    audio.onpause   = () => { wrap.classList.remove('playing'); wrap.classList.remove('loading'); soundingPlayers.delete(wrap); undockAudio(wrap); syncWakeLock(); };
+    audio.onended   = () => { wrap.classList.remove('playing'); fill.style.width = '0%'; now.textContent = '0:00'; soundingPlayers.delete(wrap); undockAudio(wrap); syncWakeLock(); };
     // Duration updater. The popup case has a race: metadata can finish
     // loading BEFORE attachAudioPlayer runs (since the popup attaches
     // lazily on open), so a one-shot onloadedmetadata listener would
@@ -1644,9 +1719,10 @@
         archiveLocation = linked ? archiveLocations.locate(linked) : city || DEFAULT_CITY;
         archiveLocationChosen = true;
       }
-      // A background metadata refresh must not interrupt an archive player.
-      if ($('archive-panel').classList.contains('open') &&
-          ![...$('rec-list').querySelectorAll('audio')].some(a => !a.paused)) updateArchive();
+      // The open archive is deliberately not rebuilt here: during a walk or
+      // a live listening room the data changes on nearly every refresh,
+      // and a rebuild resets paused players, "Load more" pages and the
+      // scroll position. It picks up new recordings each time it opens.
       renderMarkers();
       openDeepLink();
     } catch (err) {
@@ -1780,9 +1856,18 @@
   }
 
   function renderMarkers() {
-    markers.forEach(m => m.remove());
-    markers = [];
-    markersById = {};
+    // A marker whose popup is still sounding (often a loop someone left
+    // running) survives the rebuild. Removing it would silently stop the
+    // sound — or, for a docked loop, leave it playing with its controls
+    // gone. Triggers include the 2-minute refresh whenever anyone uploads.
+    const soundingIds = new Set([...soundingPlayers]
+      .filter(w => w.closest('.popup-inner')).map(w => w.dataset.rec));
+    const kept = new Map();
+    Object.entries(markersById).forEach(([id, m]) => { if (soundingIds.has(id)) kept.set(id, m); });
+    const keptSet = new Set(kept.values());
+    markers.forEach(m => { if (!keptSet.has(m)) m.remove(); });
+    markers = [...kept.values()];
+    markersById = Object.fromEntries(kept);
     updateClusterData();
 
     const filtered = activeFilter ? recordings.filter(r => catInfo(r).cat === activeFilter) : recordings;
@@ -1810,6 +1895,7 @@
     };
 
     for (const r of filtered) {
+      if (kept.has(r.id)) continue;
       try {
         const { cat, color, icon } = catInfo(r);
 
@@ -1830,9 +1916,12 @@
         // Attach the custom audio-player JS once the popup is in the DOM.
         popup.on('open', () => {
           const el = popup.getElement();
-          if (el) el.querySelectorAll('.apc').forEach(attachAudioPlayer);
+          if (el) el.querySelectorAll('.apc').forEach(w => { attachAudioPlayer(w); undockAudio(w); });
           ensurePopupVisible(popup);
         });
+        popup.on('close', () => soundingPlayers.forEach(w => {
+          if (w.dataset.rec === r.id && w.closest('.popup-inner')) dockIfLooping(w);
+        }));
 
         const m = new mapboxgl.Marker({ element: el, offset: fanOffset(r) })
           .setLngLat([r.longitude, r.latitude])
@@ -2038,28 +2127,45 @@
   $('heritage-overlay').onclick = e => { if (e.target === $('heritage-overlay')) $('heritage-overlay').classList.remove('open'); };
 
   // ── Upload form ─────────────────────────────────────────────────
-  let draftFile = null, draftPhoto = null, draftKey = crypto.randomUUID(), draftReady = false;
+  // randomUUID needs a secure context and Safari 15.4+; the server accepts
+  // any 16–80 char [A-Za-z0-9-] key, so 32 random hex digits do as well.
+  const newDraftKey = () => crypto.randomUUID?.() ??
+    [...crypto.getRandomValues(new Uint8Array(16))].map(b => b.toString(16).padStart(2, '0')).join('');
+  let draftFile = null, draftPhoto = null, draftKey = newDraftKey(), draftReady = false;
   const draftFields = ['f-title','f-desc','f-category','f-lat','f-lng'];
   function draftSnapshot() {
     return { values: Object.fromEntries(draftFields.map(id => [id, $(id).value])),
       audio: recordedBlob, file: $('audio-file').files[0] || draftFile,
       photo: pickedPhoto(), key: draftKey };
   }
+  // A location alone is not a draft. Any map tap fills it, so saving it
+  // would "recover" an old pin next time and quietly place a new sound there.
+  const draftHasContent = d => !!(d.audio || d.file || d.photo ||
+    (d.values?.['f-title'] || '').trim() || (d.values?.['f-desc'] || '').trim());
   function saveDraft() {
     if (!draftReady) return Promise.resolve();
+    const snapshot = draftSnapshot();
+    if (!draftHasContent(snapshot)) return DraftStore.clear().catch(() => {});
     $('draft-status').textContent = 'Saving draft…';
-    return DraftStore.save(draftSnapshot()).then(() => {
+    return DraftStore.save(snapshot).then(() => {
       $('draft-status').textContent = 'Draft saved on this device';
     }, () => { $('draft-status').textContent = 'Draft could not be saved. Keep this page open and upload or try again.'; });
   }
   const draftLoaded = DraftStore.read().then(d => {
     if (!d) return;
-    draftFields.forEach(id => { $(id).value = d.values?.[id] || ''; });
+    if (!draftHasContent(d)) return DraftStore.clear().catch(() => {}); // location-only drafts saved before this rule
+    // Restore the location only together with a sound: that is where it was
+    // recorded. Without one, the saved pin was just an old map tap.
+    const hasSound = !!(d.audio || d.file);
+    draftFields.forEach(id => {
+      if (hasSound || (id !== 'f-lat' && id !== 'f-lng')) $(id).value = d.values?.[id] || '';
+    });
     recordedBlob = d.audio || null; draftFile = d.file || null; draftPhoto = d.photo || null;
     draftKey = d.key || draftKey;
     if (recordedBlob) { $('rec-play').disabled = false; $('rec-status').textContent = 'Recovered recording'; }
     if (draftFile) $('draft-status').textContent = 'Recovered file: ' + draftFile.name;
-    else $('draft-status').textContent = 'Recovered your unfinished recording';
+    else if (recordedBlob) $('draft-status').textContent = 'Recovered your unfinished recording';
+    else $('draft-status').textContent = 'Recovered your unfinished details';
     refreshPhotoPreview(); updateLocStatus();
   }).catch(() => { $('draft-status').textContent = 'Draft storage unavailable. Keep this page open until you upload.'; })
     .finally(() => { draftReady = true; });
@@ -2075,7 +2181,7 @@
     if (mediaRecorder?.state === 'recording') {
       await new Promise(resolve => { mediaRecorder.addEventListener('stop', resolve, { once: true }); $('rec-stop').click(); });
     }
-    resetRecorder(); draftFile = draftPhoto = null; draftKey = crypto.randomUUID();
+    resetRecorder(); draftFile = draftPhoto = null; draftKey = newDraftKey();
     $('upload-form').reset(); clearPhotoPreview(); updateLocStatus();
     await DraftStore.clear().then(() => { $('draft-status').textContent = 'Draft discarded'; },
       () => { $('draft-status').textContent = 'Could not remove the saved draft. Try Discard again.'; });
@@ -2216,6 +2322,9 @@
     const fd = new FormData();
     fd.append('audioFile', blob, filename);
     fd.append('uploadKey', draftKey);
+    // Lock before the first await (the draft save, then photo processing):
+    // a second tap in that window would start a duplicate upload.
+    $('form-submit').disabled = true;
     await saveDraft();
     // Title used to carry a "[Category] " prefix for pre-category-field
     // clients; category is its own field now, so store the clean title.
@@ -2225,10 +2334,7 @@
     fd.append('latitude', $('f-lat').value);
     fd.append('longitude', $('f-lng').value);
 
-    // Optional photo — downscaled client-side before it travels. The submit
-    // button is locked BEFORE the (possibly seconds-long) processing so a
-    // second tap can't start a duplicate upload.
-    $('form-submit').disabled = true;
+    // Optional photo — downscaled client-side before it travels.
     const photoFile = pickedPhoto();
     let photoAppended = false;
     if (photoFile) {
@@ -2311,7 +2417,7 @@
       }
       toast(photoSaved ? '✓ Upload successful!' : '✓ Sound saved — the photo could not be processed');
       $('form-overlay').classList.remove('open');
-      resetRecorder(); draftFile = draftPhoto = null; draftKey = crypto.randomUUID();
+      resetRecorder(); draftFile = draftPhoto = null; draftKey = newDraftKey();
       await DraftStore.clear().catch(() => { toast('Sound uploaded; saved draft could not be cleared'); });
       $('draft-status').textContent = '';
       $('upload-form').reset();
@@ -2462,11 +2568,22 @@
     };
     const visibleGroups = archiveLocations.group(filtered);
     const pageSize = 24;
+    // A player that is sounding (often a loop) is carried over into the
+    // rebuilt list instead of being destroyed with its card. It is moved
+    // back within the same synchronous step, so the browser never sees it
+    // leave the document and never pauses it.
+    const sounding = [...soundingPlayers].filter(w => list.contains(w));
     list.innerHTML = visibleGroups.map(g => `
       <li class="archive-group"><h3>${esc(g.label)} · ${g.recordings.length}</h3>
       <ul>${g.recordings.slice(0, pageSize).map(cardHTML).join('')}</ul>
       ${g.recordings.length > pageSize ? `<button type="button" class="archive-more" data-location="${esc(g.key)}">Load more from ${esc(g.label)} (${g.recordings.length - pageSize} remaining)</button>` : ''}</li>`).join('') ||
       '<li class="archive-empty">No recordings match here. Try another location, category or search.</li>';
+
+    sounding.forEach(w => {
+      const fresh = w.dataset.rec && list.querySelector(`.apc[data-rec="${CSS.escape(w.dataset.rec)}"]`);
+      if (fresh) fresh.replaceWith(w);
+      else w._audio.pause(); // its card is filtered out: nothing left to control it from
+    });
 
     // Hook every newly-rendered player
     list.querySelectorAll('.apc').forEach(attachAudioPlayer);
