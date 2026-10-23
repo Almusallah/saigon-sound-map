@@ -23,20 +23,19 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
   <meta name="apple-mobile-web-app-title" content="Sound Map">
-  <link href="https://api.mapbox.com/mapbox-gl-js/v3.7.0/mapbox-gl.css" rel="stylesheet">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://api.mapbox.com/mapbox-gl-js/v3.24.0/mapbox-gl.css" rel="stylesheet">
   <style>
     /* ── Variables ──────────────────────────────────────────────────── */
     :root {
-      --primary: #B8FF00;
-      --primary-dark: #9DD600;
+      --primary: #121212;   /* ink (was the lime) — Phòng nghe palette since 23 Oct 2026 */
+      --primary-dark: #000000;
       --accent: #1A1A1A;
       --accent-light: #333333;
-      --bg: #F5F0E8;
+      --bg: #f3f3f1;
       --card: #FFFFFF;
       --text: #000000;
-      --text-light: #555555;
-      --header-bg: #000000;
+      --text-light: #6b6b66;
+      --header-bg: #f3f3f1;   /* paper */
       --shadow: 0 2px 12px rgba(0,0,0,.08);
       --shadow-lg: 0 8px 24px rgba(0,0,0,.12);
       --radius: 12px;
@@ -46,7 +45,7 @@
     /* ── Reset ──────────────────────────────────────────────────────── */
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     body {
-      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      font-family: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;   /* the room's type */
       display: flex; flex-direction: column;
       /* 100vh on iOS Safari is the TALL viewport (toolbars hidden), so the
          bottom of the page hides behind the browser toolbar. dvh tracks the
@@ -78,7 +77,7 @@
       font-family: inherit; cursor: pointer; transition: all .2s;
       backdrop-filter: blur(4px);
     }
-    .header-btn:hover { background: rgba(184,255,0,.15); }
+    .header-btn:hover { background: rgba(18,18,18,.15); }
     .header-btn.active { background: var(--primary); color: var(--header-bg); border-color: var(--primary); }
     /* City switcher — same visual language as .header-btn, with a lime chevron. */
     .city-select {
@@ -87,10 +86,10 @@
       border-radius: var(--radius-sm); color: var(--primary);
       padding: 8px 28px 8px 14px; font-size: 13px; font-weight: 500;
       font-family: inherit; cursor: pointer; transition: all .2s;
-      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23B8FF00' stroke-width='1.5' fill='none'/%3E%3C/svg%3E");
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23121212' stroke-width='1.5' fill='none'/%3E%3C/svg%3E");
       background-repeat: no-repeat; background-position: right 10px center;
     }
-    .city-select:hover { background-color: rgba(184,255,0,.15); }
+    .city-select:hover { background-color: rgba(18,18,18,.15); }
     .city-select:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; }
     .city-select option { background: var(--header-bg); color: var(--primary); }
     .badge {
@@ -120,7 +119,7 @@
       content: ''; position: absolute; inset: -9px; border-radius: 50%;
     }
     .marker:hover, .marker:focus-visible {
-      box-shadow: 0 2px 8px rgba(0,0,0,.4), 0 0 0 4px rgba(184,255,0,.25);
+      box-shadow: 0 2px 8px rgba(0,0,0,.4), 0 0 0 4px rgba(18,18,18,.25);
       outline: none;
     }
     .temp-marker {
@@ -186,7 +185,7 @@
       display: block; width: 100%; max-height: 120px;
       object-fit: cover; border-radius: var(--radius-sm);
       margin-bottom: 8px; cursor: zoom-in;
-      border: 1px solid rgba(184,255,0,.2);
+      border: 1px solid rgba(18,18,18,.2);
     }
 
     /* ── FAB (record) ──────────────────────────────────────────────── */
@@ -207,7 +206,7 @@
     }
     .fab:hover {
       transform: translateX(-50%) translateY(-2px);
-      box-shadow: 0 6px 24px rgba(184,255,0,.25);
+      box-shadow: 0 6px 24px rgba(18,18,18,.25);
     }
     .fab-icon { font-size: 20px; }
 
@@ -222,12 +221,12 @@
     .filter-bar::-webkit-scrollbar { display: none; }
     .filter-chip {
       white-space: nowrap; padding: 7px 14px; border-radius: 18px;
-      border: none; background: rgba(91,117,83,.08);
+      border: none; background: rgba(18,18,18,.05);
       font-size: 12px; font-weight: 500; font-family: inherit;
       color: var(--text); cursor: pointer; transition: all .2s;
     }
-    .filter-chip:hover { background: rgba(91,117,83,.15); }
-    .filter-chip.active { background: var(--primary); color: var(--text); }
+    .filter-chip:hover { background: rgba(18,18,18,.1); }
+    .filter-chip.active { background: var(--primary); color: var(--header-bg); }
 
     /* ── Modal / Overlay ────────────────────────────────────────────── */
     .overlay {
@@ -238,7 +237,7 @@
          over `bottom` when both are set, so this pins the overlay to the
          visible area. */
       height: 100vh; height: 100dvh;
-      background: rgba(45,62,45,.5); backdrop-filter: blur(4px);
+      background: rgba(18,18,18,.28); backdrop-filter: blur(4px);
       z-index: 1000; justify-content: center; align-items: center;
     }
     .overlay.open { display: flex; }
@@ -258,7 +257,7 @@
       color: var(--primary); letter-spacing: 0.3px;
     }
     .form-subtitle {
-      font-size: 13px; color: rgba(184,255,0,.7);
+      font-size: 13px; color: rgba(18,18,18,.7);
       margin-bottom: 22px;
     }
     .form-close {
@@ -292,7 +291,7 @@
     /* Thin lime rule before the contact section. */
     .about-card .about-divider {
       height: 0; margin: 18px 0 14px;
-      border-top: 1px solid rgba(184,255,0,.25);
+      border-top: 1px solid rgba(18,18,18,.25);
     }
     .about-close {
       position: absolute; top: 16px; right: 16px; background: var(--bg);
@@ -312,16 +311,16 @@
     }
     .fg input, .fg textarea, .fg select {
       width: 100%; padding: 10px 12px;
-      border: 1px solid rgba(184,255,0,.3);
+      border: 1px solid rgba(18,18,18,.3);
       border-radius: var(--radius-sm); font-size: 14px;
       font-family: inherit; color: var(--primary);
-      background: rgba(0,0,0,.3);
+      background: rgba(18,18,18,.05);
       transition: border-color .15s, background .15s;
     }
-    .fg input::placeholder, .fg textarea::placeholder { color: rgba(184,255,0,.4); }
+    .fg input::placeholder, .fg textarea::placeholder { color: rgba(18,18,18,.4); }
     .fg input:focus, .fg textarea:focus, .fg select:focus {
       outline: none; border-color: var(--primary);
-      background: rgba(0,0,0,.5);
+      background: rgba(18,18,18,.08);
     }
     .fg textarea { resize: vertical; min-height: 70px; }
     .fg select option { background: var(--header-bg); color: var(--primary); }
@@ -338,7 +337,7 @@
     /* Thumbnail of the optional photo, shown once one is chosen. */
     .photo-preview {
       display: none; margin-top: 8px; max-height: 90px; max-width: 100%;
-      border-radius: var(--radius-sm); border: 1px solid rgba(184,255,0,.3);
+      border-radius: var(--radius-sm); border: 1px solid rgba(18,18,18,.3);
     }
     .photo-preview.show { display: block; }
     /* Remove button appears only while a photo is selected. */
@@ -359,19 +358,19 @@
     }
     .btn-primary {
       background: var(--primary); color: var(--header-bg);
-      box-shadow: 0 2px 8px rgba(184,255,0,.2);
+      box-shadow: 0 2px 8px rgba(18,18,18,.2);
     }
-    .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(184,255,0,.35); }
+    .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(18,18,18,.35); }
     .btn-cancel {
       background: transparent; color: var(--primary);
       border: 1px solid var(--primary);
     }
-    .btn-cancel:hover { background: rgba(184,255,0,.1); }
+    .btn-cancel:hover { background: rgba(18,18,18,.1); }
 
     /* ── Recorder ───────────────────────────────────────────────────── */
     .recorder {
-      background: rgba(184,255,0,.04);
-      border: 1px solid rgba(184,255,0,.2);
+      background: rgba(18,18,18,.04);
+      border: 1px solid rgba(18,18,18,.2);
       border-left: 3px solid var(--primary);
       border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
       padding: 14px; margin-bottom: 18px;
@@ -392,7 +391,7 @@
     .loc-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
     .loc-status {
       flex: 1 1 100%; font-size: 12px;
-      color: rgba(184,255,0,.55);
+      color: rgba(18,18,18,.55);
     }
     .loc-status.set { color: var(--primary); font-weight: 600; }
     .loc-btn {
@@ -400,9 +399,9 @@
       cursor: pointer; font-size: 13px; font-weight: 600;
       font-family: inherit; transition: all .15s;
       background: transparent; color: var(--primary);
-      border: 1px solid rgba(184,255,0,.4);
+      border: 1px solid rgba(18,18,18,.4);
     }
-    .loc-btn:hover { background: rgba(184,255,0,.12); }
+    .loc-btn:hover { background: rgba(18,18,18,.12); }
     /* Record stays red — universally recognized as "record".
        Stop and Play match the lime/black palette. */
     .rec-btn.record { background: #C9302C; }
@@ -411,14 +410,14 @@
       background: transparent; color: var(--primary);
       border: 1px solid var(--primary);
     }
-    .rec-btn.stop:hover:not(:disabled) { background: rgba(184,255,0,.12); }
+    .rec-btn.stop:hover:not(:disabled) { background: rgba(18,18,18,.12); }
     .rec-btn.play {
       background: var(--primary); color: var(--header-bg);
     }
     .rec-btn.play:hover:not(:disabled) { transform: translateY(-1px); }
     .rec-btn:disabled { opacity: .4; cursor: not-allowed; }
     .rec-status {
-      font-size: 12px; color: rgba(184,255,0,.7);
+      font-size: 12px; color: rgba(18,18,18,.7);
       margin-top: 8px;
       display: flex; align-items: center; gap: 6px;
     }
@@ -444,7 +443,7 @@
     .archive-head {
       position: sticky; top: 0; background: var(--header-bg);
       padding: 18px 20px; display: flex; justify-content: space-between;
-      align-items: center; border-bottom: 1px solid rgba(184,255,0,.25);
+      align-items: center; border-bottom: 1px solid rgba(18,18,18,.25);
       z-index: 1;
     }
     .archive-head h2 {
@@ -464,24 +463,24 @@
     .archive-search { padding: 12px 16px; }
     .archive-search input {
       width: 100%; padding: 10px 12px 10px 36px;
-      border: 1px solid rgba(184,255,0,.3); border-radius: 20px;
+      border: 1px solid rgba(18,18,18,.3); border-radius: 20px;
       font-size: 14px; font-family: inherit; color: var(--primary);
-      background: rgba(0,0,0,.3) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='%23B8FF00' viewBox='0 0 16 16'%3E%3Cpath d='M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85zm-5.242.156a5 5 0 1 1 0-10 5 5 0 0 1 0 10z'/%3E%3C/svg%3E") no-repeat 12px center;
+      background: rgba(18,18,18,.05) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='%23121212' viewBox='0 0 16 16'%3E%3Cpath d='M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85zm-5.242.156a5 5 0 1 1 0-10 5 5 0 0 1 0 10z'/%3E%3C/svg%3E") no-repeat 12px center;
       transition: border-color .2s;
     }
-    .archive-search input::placeholder { color: rgba(184,255,0,.45); }
+    .archive-search input::placeholder { color: rgba(18,18,18,.45); }
     .archive-search input:focus {
       outline: none; border-color: var(--primary);
-      background-color: rgba(0,0,0,.5);
+      background-color: rgba(18,18,18,.08);
     }
     .archive-filter { padding: 6px 16px 12px; }
     .archive-places { padding: 16px 16px 4px; }
     .archive-home {
       width: 100%; border: 1px solid var(--primary); border-radius: 16px;
       padding: 16px; text-align: left; cursor: pointer; font-family: inherit;
-      color: var(--primary); background: rgba(184,255,0,.07);
+      color: var(--primary); background: rgba(18,18,18,.07);
     }
-    .archive-home[aria-pressed="true"] { background: var(--primary); color: #111; }
+    .archive-home[aria-pressed="true"] { background: var(--primary); color: var(--header-bg); }
     .archive-home small { display: block; font-size: 10px; text-transform: uppercase; letter-spacing: 1.5px; }
     .archive-home strong { display: block; font-size: 32px; letter-spacing: -1px; line-height: 1.2; }
     .archive-home span { display: block; margin-top: 5px; font-size: 12px; }
@@ -496,10 +495,10 @@
     .archive-home:focus-visible { outline: 2px solid white; outline-offset: 3px; }
     .archive-filter select {
       width: 100%; padding: 10px 12px;
-      border: 1px solid rgba(184,255,0,.3);
+      border: 1px solid rgba(18,18,18,.3);
       border-radius: var(--radius-sm);
       font-size: 13px; font-weight: 500; font-family: inherit;
-      color: var(--primary); background: rgba(0,0,0,.3);
+      color: var(--primary); background: rgba(18,18,18,.05);
       cursor: pointer;
     }
     .archive-filter select:focus {
@@ -511,17 +510,17 @@
       padding: 12px 14px; margin: 8px 0;
       border-left: 3px solid var(--primary);
       border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
-      background: rgba(184,255,0,.04); cursor: pointer;
+      background: rgba(18,18,18,.04); cursor: pointer;
       transition: background .2s;
     }
-    .rec-item:hover { background: rgba(184,255,0,.10); }
+    .rec-item:hover { background: rgba(18,18,18,.10); }
     .rec-item h3 {
       font-size: 14px; font-weight: 600; color: var(--primary);
       margin-bottom: 4px; letter-spacing: 0.2px;
     }
     .rec-item p {
       font-size: 12px; line-height: 1.4;
-      color: rgba(184,255,0,.7);
+      color: rgba(18,18,18,.7);
     }
     /* Custom audio player (.apc) — replaces native browser controls
        across Archive cards AND map marker popups, so the visual is
@@ -531,7 +530,7 @@
       display: flex; align-items: center; gap: 10px;
       padding: 8px 12px; margin-top: 10px;
       background: rgba(0,0,0,.4);
-      border: 1px solid rgba(184,255,0,.3);
+      border: 1px solid rgba(18,18,18,.3);
       border-radius: 22px;
     }
     .apc-btn {
@@ -560,7 +559,7 @@
     }
     .apc-track {
       flex: 1 1 auto; height: 4px;
-      background: rgba(184,255,0,.18);
+      background: rgba(18,18,18,.18);
       border-radius: 2px; cursor: pointer;
       position: relative; overflow: hidden;
     }
@@ -575,7 +574,7 @@
       display: flex; align-items: center; justify-content: center;
       border-radius: 50%; text-decoration: none;
       color: var(--primary); font-size: 13px;
-      border: 1px solid rgba(184,255,0,.35);
+      border: 1px solid rgba(18,18,18,.35);
       transition: all .15s; line-height: 1;
     }
     .apc-dl:hover { background: var(--primary); color: var(--header-bg); }
@@ -584,7 +583,7 @@
       display: flex; align-items: center; justify-content: center;
       border-radius: 50%; cursor: pointer; background: transparent;
       color: var(--primary); font-size: 13px; line-height: 1;
-      border: 1px solid rgba(184,255,0,.35);
+      border: 1px solid rgba(18,18,18,.35);
       transition: all .15s;
     }
     .apc-loop::before { content: '\21BB'; } /* ↻ — glyph in CSS so auto-translate can't touch it */
@@ -600,7 +599,7 @@
       display: inline-block; padding: 2px 10px; border-radius: 12px;
       font-size: 10px; font-weight: 600; margin-top: 6px;
       background: transparent; color: var(--primary);
-      border: 1px solid rgba(184,255,0,.4);
+      border: 1px solid rgba(18,18,18,.4);
       letter-spacing: 0.3px;
     }
     /* Recording date+time (Vietnam time), shown in archive cards and map popups.
@@ -608,7 +607,7 @@
     .rec-date {
       display: inline-block; margin: 6px 0 0 8px;
       font-size: 10px; font-weight: 500;
-      color: rgba(184,255,0,.55);
+      color: rgba(18,18,18,.55);
       letter-spacing: 0.3px;
       vertical-align: middle;
     }
@@ -620,7 +619,7 @@
     }
     .share-btn:hover { opacity: 1; }
     .rec-count {
-      font-size: 11px; color: rgba(184,255,0,.6);
+      font-size: 11px; color: rgba(18,18,18,.6);
       padding: 4px 20px 12px; font-weight: 500;
       letter-spacing: 0.3px;
     }
@@ -654,7 +653,7 @@
     /* ── Loading ────────────────────────────────────────────────────── */
     .loading {
       display: none; position: fixed; inset: 0;
-      background: rgba(45,62,45,.6); backdrop-filter: blur(4px);
+      background: rgba(18,18,18,.35); backdrop-filter: blur(4px);
       z-index: 2000; justify-content: center; align-items: center;
       flex-direction: column; gap: 16px;
     }
@@ -703,14 +702,14 @@
     /* Title stays lime; body copy in white for higher readability. */
     .welcome-card p {
       font-size: 13.5px; line-height: 1.6;
-      color: rgba(255,255,255,.92); margin-bottom: 12px;
+      color: rgba(18,18,18,.82); margin-bottom: 12px;
     }
     .welcome-card p:last-of-type { margin-bottom: 0; }
     .welcome-card .welcome-hint {
       margin-top: 18px; padding-top: 12px;
-      border-top: 1px solid rgba(184,255,0,.2);
+      border-top: 1px solid rgba(18,18,18,.2);
       font-size: 11px; font-style: italic;
-      color: rgba(255,255,255,.55);
+      color: rgba(18,18,18,.5);
       text-align: center; letter-spacing: 0.4px;
     }
     .welcome-close {
@@ -751,14 +750,14 @@
       letter-spacing: 0.5px;
     }
     .heritage-subtitle {
-      font-size: 13px; color: rgba(184,255,0,.7);
+      font-size: 13px; color: rgba(18,18,18,.7);
       margin-bottom: 24px; font-style: italic;
     }
     .heritage-tree { display: flex; flex-direction: column; gap: 16px; }
     .heritage-branch {
       border-left: 3px solid var(--primary);
       padding: 12px 16px;
-      background: rgba(184,255,0,.04);
+      background: rgba(18,18,18,.04);
       border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
     }
     .heritage-branch-head {
@@ -777,7 +776,7 @@
     }
     .heritage-era {
       margin: 8px 0; padding: 10px 12px;
-      background: rgba(0,0,0,.3); border-radius: var(--radius-sm);
+      background: rgba(18,18,18,.05); border-radius: var(--radius-sm);
     }
     .heritage-era summary {
       font-size: 13px; font-weight: 500; color: var(--primary);
@@ -791,18 +790,18 @@
     }
     .heritage-era[open] summary::after { content: '−'; }
     .heritage-era p {
-      font-size: 13px; line-height: 1.6; color: rgba(184,255,0,.85);
+      font-size: 13px; line-height: 1.6; color: rgba(18,18,18,.85);
       margin-top: 8px; padding-top: 8px;
-      border-top: 1px dashed rgba(184,255,0,.2);
+      border-top: 1px dashed rgba(18,18,18,.2);
     }
     .heritage-sources {
       margin-top: 12px; padding-top: 10px;
-      border-top: 1px dashed rgba(184,255,0,.2);
+      border-top: 1px dashed rgba(18,18,18,.2);
       display: flex; flex-wrap: wrap; gap: 8px;
     }
     .heritage-sources a {
       font-size: 11px; color: var(--primary); text-decoration: none;
-      padding: 4px 10px; border: 1px solid rgba(184,255,0,.3);
+      padding: 4px 10px; border: 1px solid rgba(18,18,18,.3);
       border-radius: 12px; transition: all .2s;
     }
     .heritage-sources a:hover {
@@ -812,14 +811,14 @@
       width: 44px; height: 44px; border-radius: 50%;
       background: var(--header-bg);
       border: 3px solid var(--primary);
-      box-shadow: 0 0 0 6px rgba(184,255,0,.2), 0 0 20px rgba(184,255,0,.4);
+      box-shadow: 0 0 0 6px rgba(18,18,18,.2), 0 0 20px rgba(18,18,18,.4);
       animation: heritage-pulse 2s ease-in-out infinite;
       display: flex; align-items: center; justify-content: center;
       font-size: 22px; cursor: pointer;
     }
     @keyframes heritage-pulse {
-      0%, 100% { box-shadow: 0 0 0 6px rgba(184,255,0,.2), 0 0 20px rgba(184,255,0,.4); }
-      50% { box-shadow: 0 0 0 12px rgba(184,255,0,.05), 0 0 30px rgba(184,255,0,.6); }
+      0%, 100% { box-shadow: 0 0 0 6px rgba(18,18,18,.2), 0 0 20px rgba(18,18,18,.4); }
+      50% { box-shadow: 0 0 0 12px rgba(18,18,18,.05), 0 0 30px rgba(18,18,18,.6); }
     }
 
     /* ── Responsive ─────────────────────────────────────────────────── */
@@ -844,7 +843,38 @@
       .heritage-branch { padding: 10px 12px; }
     }
 
-#draft-status{font:13px/1.5 Inter,system-ui,sans-serif;color:#b8dd94;background:#192419;border:1px solid #3c5134;padding:10px 13px;border-radius:8px;margin:12px 0}#draft-status:empty{display:none}.draft-help{font-size:12px;line-height:1.6;color:#abb4a5}.form-actions{flex-wrap:wrap;gap:10px}#form-submit{flex:1 1 100%;min-height:48px}#draft-discard{color:#e3aaa0;background:transparent}#form-cancel{flex:1}.fg input,.fg select,.fg textarea{font-size:16px}.fg label{font-size:13px}.rec-controls .rec-btn{min-height:44px}.form-card{border:1px solid #445038;box-shadow:0 24px 80px #0009}button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:3px solid #b8ff00;outline-offset:3px}
+#draft-status{font:12px/1.6 inherit;color:#121212;background:rgba(18,18,18,.05);border:1px solid rgba(18,18,18,.15);padding:10px 13px;border-radius:8px;margin:12px 0}#draft-status:empty{display:none}.draft-help{font-size:12px;line-height:1.6;color:#6b6b66}.form-actions{flex-wrap:wrap;gap:10px}#form-submit{flex:1 1 100%;min-height:48px}#draft-discard{color:#a5432f;background:transparent}#form-cancel{flex:1}.fg input,.fg select,.fg textarea{font-size:16px}.fg label{font-size:13px}.rec-controls .rec-btn{min-height:44px}.form-card{border:1px solid rgba(18,18,18,.18);box-shadow:0 24px 80px rgba(0,0,0,.14)}button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid #121212;outline-offset:3px}
+
+    /* ── Phòng nghe look (23 Oct 2026): paper and ink, quiet mono type, no lime ──
+       The palette tokens above carry most of it; this layer sets the room's
+       typographic voice and the few controls whose shape changes. */
+    header { border-bottom: 1px solid rgba(18,18,18,.12); }
+    header h1 { font-size: 12px; font-weight: 500; letter-spacing: .2em; }
+    .header-btn, .city-select, .badge, .filter-chip, .fab, .loc-btn, .rec-btn, .share-btn, .archive-more,
+    .welcome-hint, .rec-item-tag, .popup-tag, #initial-loading p, .toast { text-transform: uppercase; letter-spacing: .12em; }
+    .header-btn, .city-select { border: 0; background-color: transparent; border-radius: 0; font-size: 10px; font-weight: 500; opacity: .6; padding: 10px 8px; backdrop-filter: none; }
+    .city-select { padding-right: 24px; }
+    .header-btn:hover, .city-select:hover, .header-btn:focus-visible { opacity: 1; background-color: transparent; }
+    .header-btn.active { opacity: 1; background: transparent; color: var(--primary); text-decoration: underline; text-underline-offset: 4px; }
+    .badge { background: transparent; border-color: rgba(18,18,18,.35); font-size: 9px; font-weight: 500; }
+    .filter-bar { background: rgba(243,243,241,.94); border: 1px solid rgba(18,18,18,.1); box-shadow: none; border-radius: 4px; }
+    .filter-chip { font-size: 10px; font-weight: 500; border-radius: 2px; padding: 7px 11px; }
+    .fab { height: 48px; border-radius: 4px; font-size: 11px; font-weight: 500; background: var(--primary); color: var(--header-bg); box-shadow: 0 8px 24px rgba(0,0,0,.16); }
+    .fab:hover { box-shadow: 0 10px 28px rgba(0,0,0,.22); }
+    .toast { border-radius: 4px; font-size: 11px; background: #121212; color: #f3f3f1; }
+    .apc { background: rgba(18,18,18,.04); }
+    .share-btn { font-size: 9px; }
+    .popup-inner h3, .rec-item h3 { font-weight: 500; letter-spacing: .02em; }
+    .popup-tag, .rec-item-tag { border-radius: 2px; font-size: 9px; font-weight: 500; }
+    .welcome-card h2, .about-card h2 { font-size: 13px; font-weight: 500; letter-spacing: .18em; text-transform: uppercase; }
+    #initial-loading p { font-size: 11px; font-weight: 500; }
+    .mapboxgl-map { font-family: inherit; }   /* Mapbox sets Helvetica on the map; popups follow the page */
+    .mapboxgl-popup-content { border-radius: 4px; }
+    .archive-head h2 { font-size: 12px; font-weight: 500; letter-spacing: .2em; text-transform: uppercase; }
+    .archive-home { border-radius: 4px; }
+    .archive-home strong { font-size: 24px; font-weight: 500; letter-spacing: .06em; }
+    .archive-home:focus-visible { outline-color: #121212; }
+    .rec-btn, .loc-btn, .archive-more, .apc, #archive-panel input, #archive-panel select, .fg input, .fg select, .fg textarea { border-radius: 4px; }
 </style>
 </head>
 <body>
@@ -880,7 +910,7 @@
 
   <!-- Record FAB -->
   <button class="fab" id="upload-btn">
-    <span class="fab-icon">🎙</span> New Recording
+    New recording
   </button>
 </div>
 
@@ -892,7 +922,7 @@
     <p class="form-subtitle">Capture a sound at the selected location</p>
 
     <div class="recorder">
-      <div class="recorder-label">🎙 Record audio</div>
+      <div class="recorder-label">Record audio</div>
       <div class="rec-controls">
         <button class="rec-btn record" id="rec-start">⏺ Record</button>
         <button class="rec-btn stop" id="rec-stop" disabled>⏹ Stop</button>
@@ -910,8 +940,8 @@
       <div class="fg">
         <label>Add a photo (optional)</label>
         <div class="loc-row">
-          <button type="button" class="loc-btn" id="photo-camera-btn">📷 Take a photo</button>
-          <button type="button" class="loc-btn" id="photo-gallery-btn">🖼️ From gallery</button>
+          <button type="button" class="loc-btn" id="photo-camera-btn">Take a photo</button>
+          <button type="button" class="loc-btn" id="photo-gallery-btn">From gallery</button>
           <button type="button" class="loc-btn photo-remove" id="photo-remove-btn">✕ Remove</button>
         </div>
         <!-- Two inputs on purpose: `capture` forces the camera app on
@@ -939,8 +969,8 @@
         <label>Location *</label>
         <div class="loc-row">
           <span class="loc-status" id="loc-status">No location set yet</span>
-          <button type="button" class="loc-btn" id="loc-gps">📍 Use my location</button>
-          <button type="button" class="loc-btn" id="loc-pin">🗺️ Drop a pin</button>
+          <button type="button" class="loc-btn" id="loc-gps">Use my location</button>
+          <button type="button" class="loc-btn" id="loc-pin">Drop a pin</button>
         </div>
       </div>
       <input type="hidden" id="f-lat">
@@ -1032,7 +1062,7 @@
 <div class="toast" id="toast"></div>
 
 <!-- Scripts -->
-<script src="https://api.mapbox.com/mapbox-gl-js/v3.7.0/mapbox-gl.js"></script>
+<script src="https://api.mapbox.com/mapbox-gl-js/v3.24.0/mapbox-gl.js"></script>
 <script src="/draft-store.js"></script>
 <script src="/archive-locations.js"></script>
 <script>
@@ -1098,24 +1128,24 @@
 
   // Category config: color + icon (earth-tone palette)
     const CATS = {
-          'Food & Drink':              { color: '#B14632', icon: '🍜' },
-          'Sidewalks':                 { color: '#7B9E87', icon: '🚶' },
-          'Street Vendors':            { color: '#D4A574', icon: '🛒' },
-          'Music':                     { color: '#8B7B8B', icon: '🎵' },
-          'Home':                      { color: '#9DB58C', icon: '🏠' },
-          'Work':                      { color: '#8B7660', icon: '🔨' },
-          'Repairing':                 { color: '#7D8D88', icon: '🔧' },
-          'Conversations':             { color: '#C4B37F', icon: '💬' },
-          'Vehicles':                  { color: '#B87333', icon: '🚗' },
-          'Markets':                   { color: '#9BA878', icon: '🏪' },
-          'Shops':                     { color: '#8B9E92', icon: '🏬' },
-          'Play & Leisure':            { color: '#E8B547', icon: '🎈' },
-          'Ritual & Ceremony':         { color: '#8B3424', icon: '📿' },
-          'Announcements & Signals':   { color: '#E17314', icon: '📢' },
-          'Infrastructure & Utilities':{ color: '#A87660', icon: '🔌' },
-          'Nature':                    { color: '#7BA699', icon: '🌿' },
-          'Waterways':                 { color: '#6B9DAE', icon: '🌊' },
-          'Background':                { color: '#8B9195', icon: '🎙' },
+          'Food & Drink':              { color: '#B14632', icon: '' },
+          'Sidewalks':                 { color: '#7B9E87', icon: '' },
+          'Street Vendors':            { color: '#D4A574', icon: '' },
+          'Music':                     { color: '#8B7B8B', icon: '' },
+          'Home':                      { color: '#9DB58C', icon: '' },
+          'Work':                      { color: '#8B7660', icon: '' },
+          'Repairing':                 { color: '#7D8D88', icon: '' },
+          'Conversations':             { color: '#C4B37F', icon: '' },
+          'Vehicles':                  { color: '#B87333', icon: '' },
+          'Markets':                   { color: '#9BA878', icon: '' },
+          'Shops':                     { color: '#8B9E92', icon: '' },
+          'Play & Leisure':            { color: '#E8B547', icon: '' },
+          'Ritual & Ceremony':         { color: '#8B3424', icon: '' },
+          'Announcements & Signals':   { color: '#E17314', icon: '' },
+          'Infrastructure & Utilities':{ color: '#A87660', icon: '' },
+          'Nature':                    { color: '#7BA699', icon: '' },
+          'Waterways':                 { color: '#6B9DAE', icon: '' },
+          'Background':                { color: '#8B9195', icon: '' },
     };
 
     const CAT_ALIASES = {
@@ -1135,7 +1165,12 @@
   // ── State ───────────────────────────────────────────────────────
   let map, recordings = [], markers = [], tempMarker = null;
   let markersById = {};      // recording id -> mapboxgl.Marker, for ?rec= deep links
-  let currentStyle = 'mapbox://styles/sidewalkcity/cmojyebpi000301s89p4p2km6';
+  // The basemap is Mapbox Standard in monochrome: neutral, so the recordings'
+  // colours carry the map (same family as the streets in Phòng nghe).
+  const NEUTRAL_STYLE = 'mapbox://styles/mapbox/standard';
+  const NEUTRAL_CONFIG = { theme: 'monochrome', lightPreset: 'day', show3dObjects: false,
+    showPointOfInterestLabels: false, showTransitLabels: false };
+  let currentStyle = NEUTRAL_STYLE;
   let activeFilter = '';
   let mediaRecorder, recordedChunks = [], recordedBlob = null;
 
@@ -1189,13 +1224,13 @@
   }
   function recDateHTML(r) {
     const t = fmtDate(r.createdAt);
-    return t ? `<span class="rec-date">🕐 ${t}</span>` : '';
+    return t ? `<span class="rec-date">${t}</span>` : '';
   }
 
   // Share button — every recording is addressable as /?rec=<id-prefix>.
   // Native share sheet on mobile, clipboard copy on desktop.
   function shareBtnHTML(r) {
-    return `<button class="share-btn" type="button" data-rec="${r.id.split('-')[0]}" title="Share link to this recording" aria-label="Share">🔗</button>`;
+    return `<button class="share-btn" type="button" data-rec="${r.id.split('-')[0]}" title="Share link to this recording" aria-label="Share">Share</button>`;
   }
   // Capture phase so stopPropagation also silences the archive card's
   // own fly-to-pin click handler underneath the button.
@@ -1209,7 +1244,7 @@
       navigator.share({ title: 'Saigon_Miền Tây Sound Map', url }).catch(() => {});
     } else if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(url).then(
-        () => toast('🔗 Link copied — send it to someone'),
+        () => toast('Link copied — send it to someone'),
         () => prompt('Copy this link:', url)
       );
     } else {
@@ -1529,10 +1564,10 @@
     } catch {}
     if (announce) {
       // Don't claim "no recordings yet" while the archive is still loading.
-      if (!recordings.length) { toast(`📍 ${name}`); return; }
+      if (!recordings.length) { toast(name); return; }
       const n = cityCount(name);
-      toast(n ? `📍 ${name} — ${n} recording${n === 1 ? '' : 's'} so far`
-              : `📍 ${name} — no recordings yet. Be the first!`);
+      toast(n ? `${name} — ${n} recording${n === 1 ? '' : 's'} so far`
+              : `${name} — no recordings yet. Be the first!`);
     }
   }
 
@@ -1555,7 +1590,7 @@
     const bar = $('filter-bar');
     bar.innerHTML = '<button class="filter-chip active" data-cat="">All</button>';
     Object.entries(CATS).forEach(([name, { icon }]) => {
-      bar.innerHTML += `<button class="filter-chip" data-cat="${name}">${icon} ${name}</button>`;
+      bar.innerHTML += `<button class="filter-chip" data-cat="${name}">${name}</button>`;
     });
     bar.querySelectorAll('.filter-chip').forEach(chip => {
       chip.onclick = () => {
@@ -1595,13 +1630,14 @@
   const BLANK_STYLE = {
     version: 8, name: 'blank-local', sources: {},
     glyphs: 'mapbox://fonts/mapbox/{fontstack}/{range}.pbf',
-    layers: [{ id: 'bg', type: 'background', paint: { 'background-color': '#F5F0E8' } }],
+    layers: [{ id: 'bg', type: 'background', paint: { 'background-color': '#f3f3f1' } }],
   };
   function initMap() {
     mapboxgl.accessToken = MAPBOX_TOKEN;
     map = new mapboxgl.Map({
       container: 'map',
       style: LOCAL_DEV ? BLANK_STYLE : currentStyle,
+      ...(LOCAL_DEV ? {} : { config: { basemap: NEUTRAL_CONFIG } }),
       center: SAIGON, zoom: 12,   minZoom: 5, maxZoom: 18,
     });
     if (LOCAL_DEV) window.__map = map; // console access for local debugging
@@ -1615,7 +1651,7 @@
     });
     map.addControl(geolocate, 'top-left');
     geolocate.on('error', (e) => {
-      toast('📍 Location unavailable: ' + ((e && e.message) || 'permission denied or timeout') + '. On iOS, enable Location for Safari in Settings.');
+      toast('Location unavailable: ' + ((e && e.message) || 'permission denied or timeout') + '. On iOS, enable Location for Safari in Settings.');
     });
     // No hint on load: a visitor who declined location is not reminded on
     // every visit. Pressing the locate button explains it if it fails (above).
@@ -1688,7 +1724,7 @@
         pinMode = false;
         openForm();
       } else {
-        toast('📍 Location set! Tap "New Recording" to upload.');
+        toast('Location set — tap New recording to upload.');
       }
     });
   }
@@ -1754,9 +1790,9 @@
       source: 'recordings-source',
       filter: ['has', 'point_count'],
       paint: {
-        'circle-color':        '#000000',
+        'circle-color':        '#121212',
         'circle-radius':       ['step', ['get', 'point_count'], 18, 5, 22, 10, 26, 25, 32],
-        'circle-stroke-color': '#B8FF00',
+        'circle-stroke-color': '#f3f3f1',
         'circle-stroke-width': 2,
         'circle-opacity':      0.92,
       },
@@ -1774,7 +1810,7 @@
         'text-size':    14,
         'text-allow-overlap': true,
       },
-      paint: { 'text-color': '#B8FF00' },
+      paint: { 'text-color': '#f3f3f1' },
     });
 
     // Lone (unclustered) recordings: clusters only render for 2+ points and
@@ -1906,7 +1942,7 @@
           <div class="popup-inner">
             <h3>${esc(displayTitle(r))}</h3>
             <p>${esc(r.description || 'No description')}</p>
-            <span class="popup-tag" style="background:${color}">${icon} ${esc(cat)}</span>${recDateHTML(r)}${shareBtnHTML(r)}
+            <span class="popup-tag" style="background:${color}">${esc(cat)}</span>${recDateHTML(r)}${shareBtnHTML(r)}
             ${audioPlayerHTML(r.audioUrl, audioType(r.audioUrl), r.title, r.id, r.duration)}
           </div>
         `);
@@ -1943,9 +1979,9 @@
 
   // ── Style toggle ────────────────────────────────────────────────
   $('style-toggle').onclick = () => {
-    currentStyle = currentStyle === 'mapbox://styles/sidewalkcity/cmojyebpi000301s89p4p2km6' ? 'mapbox://styles/mapbox/satellite-streets-v11' : 'mapbox://styles/sidewalkcity/cmojyebpi000301s89p4p2km6';
-    map.setStyle(currentStyle);
-    $('style-toggle').textContent = currentStyle === 'mapbox://styles/sidewalkcity/cmojyebpi000301s89p4p2km6' ? 'Satellite' : 'Map';
+    currentStyle = currentStyle === NEUTRAL_STYLE ? 'mapbox://styles/mapbox/satellite-streets-v11' : NEUTRAL_STYLE;
+    map.setStyle(currentStyle, currentStyle === NEUTRAL_STYLE ? { config: { basemap: NEUTRAL_CONFIG } } : undefined);
+    $('style-toggle').textContent = currentStyle === NEUTRAL_STYLE ? 'Satellite' : 'Map';
     $('style-toggle').classList.toggle('active');
     map.once('styledata', () => { setupClusters(); renderMarkers(); });
   };
@@ -2259,7 +2295,7 @@
     if (!s) return;
     const lat = $('f-lat').value, lng = $('f-lng').value;
     if (lat && lng) {
-      s.textContent = `✓ Location set (${(+lat).toFixed(4)}, ${(+lng).toFixed(4)})`;
+      s.textContent = `Location set (${(+lat).toFixed(4)}, ${(+lng).toFixed(4)})`;
       s.classList.add('set');
     } else {
       s.textContent = 'No location set yet';
@@ -2286,7 +2322,7 @@
     // Hide the overlay WITHOUT closeForm() — that would reset the recorder
     // and silently discard a recording the contributor just made.
     $('form-overlay').classList.remove('open');
-    toast('🗺️ Tap the map where this sound was recorded');
+    toast('Tap the map where this sound was recorded');
   };
 
   $('upload-btn').onclick = openForm;
@@ -2303,7 +2339,7 @@
     if (!title) { toast('Please enter a title'); return; }
     if (!cat)   { toast('Please select a category'); return; }
     if (!$('f-lat').value || !$('f-lng').value) {
-      toast('📍 Set a location — use the buttons above');
+      toast('Set a location — use the buttons above');
       return;
     }
 
@@ -2558,7 +2594,7 @@
         <li class="rec-item" data-lat="${r.latitude}" data-lng="${r.longitude}">
           ${r.imageUrl ? `<a class="rec-photo-link" href="${esc(r.imageUrl)}" target="_blank" rel="noopener"><img class="rec-item-photo" src="${esc(r.imageUrl)}" alt="" loading="lazy"></a>` : ''}
           <h3>${esc(displayTitle(r))}</h3>
-          <span class="rec-item-tag">${icon} ${esc(cat)}</span>${recDateHTML(r)}${shareBtnHTML(r)}
+          <span class="rec-item-tag">${esc(cat)}</span>${recDateHTML(r)}${shareBtnHTML(r)}
           <p>${esc(r.description || 'No description')}</p>
           ${audioPlayerHTML(r.audioUrl, audioType(r.audioUrl), r.title, r.id, r.duration)}
         </li>`;
