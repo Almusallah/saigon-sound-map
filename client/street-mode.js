@@ -64,7 +64,7 @@
     })();
     const player = { x: start.x, z: start.z, bearing: 0, vx: 0, vz: 0, turn: 0 };
     const keys = new Set(), tapped = new Set();   // tapped: pressed since the last frame, even if already released
-    let glide = null, map = null, raf = 0, tickTimer = 0, levelTimer = 0, lightTimer = 0, alive = false;
+    let glide = null, map = null, raf = 0, tickTimer = 0, levelTimer = 0, lightTimer = 0, alive = false, entered = false;
 
     /* ---------- audio graph ---------- */
     const out = ctx.createGain(); out.gain.value = 0;
@@ -208,7 +208,7 @@
       map.addLayer({ id: 'sound-label', type: 'symbol', source: 'sounds', slot: 'top', minzoom: 17, layout: {
         'text-field': ['get', 'title'], 'text-size': 10, 'text-letter-spacing': .12, 'text-offset': [0, -2.2],
         'text-font': ['DIN Pro Medium', 'Arial Unicode MS Regular'], 'text-max-width': 14, 'text-optional': true,
-      }, paint: { 'text-color': colour, 'text-emissive-strength': 1, 'text-opacity': ['+', .35, ['*', .65, lvl]], 'text-halo-color': halo(), 'text-halo-width': 1 } });
+      }, paint: { 'text-color': colour, 'text-emissive-strength': 1, 'text-occlusion-opacity': 0, 'text-opacity': ['+', .35, ['*', .65, lvl]], 'text-halo-color': halo(), 'text-halo-width': 1 } });
       for (const id of found) { const s = sounds.find(x => x.id === id); if (s) map.setFeatureState({ source: 'sounds', id: s.n }, { found: true }); }
       for (const id of found) { const s = sounds.find(x => x.id === id); if (s) map.setFeatureState({ source: 'pillars', id: s.n }, { found: true }); }
     }
@@ -301,6 +301,10 @@
         if (e.code.startsWith('Arrow')) e.preventDefault();
       }
     }
+    // A key released while the page is not focused never sends keyup, and the
+    // walker would walk on alone (seen in testing: half an hour, 14 sounds).
+    function releaseAll() { keys.clear(); tapped.clear(); drag.walk = 0; drag.id = null; }
+    function onVisibility() { if (document.visibilityState !== 'visible') releaseAll(); }
     function onDown(e) { if (drag.id !== null) return; drag.id = e.pointerId; drag.x = e.clientX; drag.y = e.clientY; drag.moved = 0; container.setPointerCapture?.(e.pointerId); }
     function onMoveP(e) {
       if (e.pointerId !== drag.id) return;
@@ -326,6 +330,10 @@
       enter() {
         if (alive) return Promise.resolve();
         alive = true;
+        if (!entered) {   // the first time in, face the nearest sound rather than whatever wall is north
+          entered = true; const n = nearestUnfound() || { s: sounds[0] };
+          player.bearing = ((Math.atan2(n.s.x - player.x, -(n.s.z - player.z)) * 180 / Math.PI) + 360) % 360;
+        }
         mapboxgl.accessToken = opts.token;
         const p = fromXZ(player.x, player.z);
         map = new mapboxgl.Map({
@@ -335,6 +343,7 @@
         });
         applyView();   // above: the player a little below the middle of the screen
         addEventListener('keydown', onKey); addEventListener('keyup', onKey);
+        addEventListener('blur', releaseAll); document.addEventListener('visibilitychange', onVisibility);
         container.addEventListener('pointerdown', onDown); container.addEventListener('pointermove', onMoveP);
         container.addEventListener('pointerup', onUp); container.addEventListener('pointercancel', onUp);
         container.addEventListener('wheel', onWheel, { passive: false });
@@ -355,6 +364,7 @@
         alive = false;
         cancelAnimationFrame(raf); clearInterval(tickTimer); clearInterval(levelTimer); clearInterval(lightTimer);
         removeEventListener('keydown', onKey); removeEventListener('keyup', onKey);
+        removeEventListener('blur', releaseAll); document.removeEventListener('visibilitychange', onVisibility);
         container.removeEventListener('pointerdown', onDown); container.removeEventListener('pointermove', onMoveP);
         container.removeEventListener('pointerup', onUp); container.removeEventListener('pointercancel', onUp); container.removeEventListener('wheel', onWheel);
         keys.clear(); tapped.clear();
