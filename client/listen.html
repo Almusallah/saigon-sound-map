@@ -36,7 +36,7 @@
   #status { min-height: 1.6em; margin-top: 18px; opacity: .55; }
   #streets-view { position: fixed; inset: 0; z-index: 1; background: var(--bg); touch-action: none; }
   #streets-view .mapboxgl-ctrl-logo, #streets-view .mapboxgl-ctrl-attrib { opacity: .45; }
-  .hud { position: fixed; left: 20px; bottom: max(18px, env(safe-area-inset-bottom)); z-index: 2; pointer-events: none; line-height: 2; }
+  .hud { position: fixed; left: 20px; bottom: max(40px, calc(env(safe-area-inset-bottom) + 28px)); z-index: 2;   /* clear of the Mapbox logo */ pointer-events: none; line-height: 2; }
   .hud .count { opacity: .8; }
   .hud .near { opacity: .55; display: flex; align-items: center; gap: 10px; max-width: 70vw; }
   .hud .arrow { display: inline-block; width: 12px; text-align: center; transition: transform .2s linear; }
@@ -81,7 +81,7 @@
 
 <script src="room-view.js?v=2"></script>
 <script src="journey-engine.js?v=3"></script>
-<script src="street-mode.js?v=2"></script>
+<script src="street-mode.js?v=3"></script>
 <script>
 (function () {
   'use strict';

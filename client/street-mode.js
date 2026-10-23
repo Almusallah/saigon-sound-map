@@ -48,7 +48,7 @@
       return { x: best.x + 10, z: best.z + 45 };
     })();
     const player = { x: start.x, z: start.z, bearing: 0, vx: 0, vz: 0, turn: 0 };
-    const keys = new Set();
+    const keys = new Set(), tapped = new Set();   // tapped: pressed since the last frame, even if already released
     let glide = null, map = null, raf = 0, tickTimer = 0, levelTimer = 0, alive = false;
 
     /* ---------- audio graph ---------- */
@@ -138,7 +138,7 @@
         if (d < FOUND && voices.has(s.n) && !found.has(s.id)) {
           found.add(s.id);
           try { localStorage.setItem(STORE_KEY, JSON.stringify([...found])); } catch {}
-          if (map) map.setFeatureState({ source: 'sounds', id: s.n }, { found: true });
+          if (map) { map.setFeatureState({ source: 'sounds', id: s.n }, { found: true }); map.setFeatureState({ source: 'pillars', id: s.n }, { found: true }); }
           onStatus({ type: 'found', title: s.title, count: found.size, total: sounds.length });
         }
       }
@@ -165,13 +165,13 @@
       };
     }
     const ink = () => theme === 'white' ? '#141414' : '#ffffff';
-    const LIME = '#B8FF00';
+    const foundColour = () => theme === 'white' ? '#4F7A00' : '#B8FF00';   // the map's lime; deepened to stay legible on white
     function addLayers() {
       const data = soundData();
       map.addSource('sounds', { type: 'geojson', data: data.points });
       map.addSource('pillars', { type: 'geojson', data: data.pillars });
       const lvl = ['coalesce', ['feature-state', 'level'], 0];
-      const colour = ['case', ['boolean', ['feature-state', 'found'], false], LIME, ink()];
+      const colour = ['case', ['boolean', ['feature-state', 'found'], false], foundColour(), ink()];
       map.addLayer({ id: 'sound-ground', type: 'circle', source: 'sounds', slot: 'top', paint: {
         'circle-pitch-alignment': 'map', 'circle-color': colour, 'circle-blur': .9, 'circle-emissive-strength': 1,
         'circle-radius': ['interpolate', ['exponential', 2], ['zoom'], 15, ['+', 2, ['*', 6, lvl]], 20, ['+', 12, ['*', 60, lvl]]],
@@ -216,9 +216,11 @@
     function frame(now) {
       raf = requestAnimationFrame(frame);
       const dt = Math.min(.05, (now - (last || now)) / 1000); last = now;
-      const fwd = (keys.has('ArrowUp') || keys.has('KeyW') ? 1 : 0) - (keys.has('ArrowDown') || keys.has('KeyS') ? 1 : 0) + drag.walk;
-      const turn = (keys.has('ArrowRight') || keys.has('KeyD') ? 1 : 0) - (keys.has('ArrowLeft') || keys.has('KeyA') ? 1 : 0);
-      const speed = (keys.has('ShiftLeft') || keys.has('ShiftRight') ? RUN : WALK);
+      const on = c => keys.has(c) || tapped.has(c);
+      const fwd = (on('ArrowUp') || on('KeyW') ? 1 : 0) - (on('ArrowDown') || on('KeyS') ? 1 : 0) + drag.walk;
+      const turn = (on('ArrowRight') || on('KeyD') ? 1 : 0) - (on('ArrowLeft') || on('KeyA') ? 1 : 0);
+      const speed = (on('ShiftLeft') || on('ShiftRight') ? RUN : WALK);
+      tapped.clear();
       player.bearing = (player.bearing + turn * 75 * dt + drag.turn) % 360; drag.turn = 0;
       const b = player.bearing * Math.PI / 180, target = clamp(fwd, -1, 1) * speed;
       const k = 1 - Math.exp(-dt * 6);
@@ -243,7 +245,7 @@
     function onKey(e) {
       if (e.target.closest && e.target.closest('input,textarea,select')) return;
       if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'KeyW', 'KeyA', 'KeyS', 'KeyD', 'ShiftLeft', 'ShiftRight'].includes(e.code)) {
-        if (e.type === 'keydown') { keys.add(e.code); glide = null; } else keys.delete(e.code);
+        if (e.type === 'keydown') { keys.add(e.code); tapped.add(e.code); glide = null; } else keys.delete(e.code);
         if (e.code.startsWith('Arrow')) e.preventDefault();
       }
     }
@@ -303,13 +305,13 @@
         removeEventListener('keydown', onKey); removeEventListener('keyup', onKey);
         container.removeEventListener('pointerdown', onDown); container.removeEventListener('pointermove', onMoveP);
         container.removeEventListener('pointerup', onUp); container.removeEventListener('pointercancel', onUp); container.removeEventListener('wheel', onWheel);
-        keys.clear();
+        keys.clear(); tapped.clear();
         for (const n of [...voices.keys()]) stopVoice(n, fade);
         const t = ctx.currentTime; out.gain.cancelScheduledValues(t); out.gain.setValueAtTime(out.gain.value, t); out.gain.linearRampToValueAtTime(0, t + fade);
         if (map) { map.remove(); map = null; }
       },
       setTheme(t) { theme = t === 'white' ? 'white' : 'black'; if (map) { map.setConfig('basemap', styleConfig()); for (const id of ['sound-ground', 'sound-pillar', 'sound-label']) if (map.getLayer(id)) {
-        const colour = ['case', ['boolean', ['feature-state', 'found'], false], LIME, ink()];
+        const colour = ['case', ['boolean', ['feature-state', 'found'], false], foundColour(), ink()];
         if (id === 'sound-ground') map.setPaintProperty(id, 'circle-color', colour);
         if (id === 'sound-pillar') map.setPaintProperty(id, 'fill-extrusion-color', colour);
         if (id === 'sound-label') { map.setPaintProperty(id, 'text-color', colour); map.setPaintProperty(id, 'text-halo-color', theme === 'white' ? '#f3f3f1' : '#000'); }
