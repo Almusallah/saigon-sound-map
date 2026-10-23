@@ -82,8 +82,8 @@
 <div class="sr" aria-live="polite" id="live"></div>
 
 <script src="room-view.js?v=2"></script>
-<script src="journey-engine.js?v=4"></script>
-<script src="street-mode.js?v=5"></script>
+<script src="journey-engine.js?v=5"></script>
+<script src="street-mode.js?v=6"></script>
 <script>
 (function () {
   'use strict';
@@ -130,6 +130,13 @@
 
   /* ---------- audio ---------- */
   let ctx = null, perf = null, journeys = 0, lastSection = '', muted = false, wake = null;
+  // Links from the walks keep working: ?walk=thanh-da composes from Thanh Đa
+  // alone, with the peninsula filling the room, and the streets start there.
+  const WALKS = { 'thanh-da': { label: 'Thanh Đa', lat: 10.8186, lng: 106.7165, radius: 1000, frame: { lat: 10.8186, lng: 106.7165, spanLat: .0035, spanLng: .0035 } } };
+  const walkKey = (new URLSearchParams(location.search).get('walk') || '').toLowerCase();
+  const WALK = Object.hasOwn(WALKS, walkKey) ? WALKS[walkKey] : null;
+  const nearWalk = r => { const dl = (r.lat - WALK.lat) * 110574, dg = (r.lng - WALK.lng) * 111320 * Math.cos(WALK.lat * Math.PI / 180); return Math.hypot(dl, dg) <= WALK.radius; };
+  if (WALK) document.querySelector('.door .sub').textContent = WALK.label + ' · the listening room';
   async function getBuffer(s) {
     const url = LOCAL && s.file ? 'audio/' + encodeURIComponent(s.file) : s.audioUrl;
     const ac = new AbortController(), timer = setTimeout(() => ac.abort(), 30000);
@@ -140,11 +147,18 @@
     } finally { clearTimeout(timer); }
   }
   function begin() {
-    const score = Journey.compose(corpus, { duration: 660 });
+    let score;
+    try { score = Journey.compose(WALK ? corpus.filter(nearWalk) : corpus, { duration: 660, frame: WALK && WALK.frame }); }
+    catch { score = Journey.compose(corpus, { duration: 660 }); }   // a walk too thin to compose falls back to the whole archive
     const l = view.getListener();
     perf = Journey.createPerformer(ctx, score, { getBuffer, volume: muted ? 0 : .85, listener: l, startAt: ctx.currentTime + .6 });
     perf.start();
     journeys++; lastSection = '';
+    // Face the opening sound, unless someone is already walking around.
+    if (!touched || performance.now() - lastInput > 20000) {
+      const first = score.events.find(e => e.id), s = first && score.sources.find(x => x.id === first.id);
+      if (s) view.setListener({ x: l.x, z: l.z, yaw: Math.atan2(s.x - l.x, -(s.z - l.z)) }, { glide: true });
+    }
   }
   function next(fade = 3) {
     if (perf) perf.stop(fade);
@@ -220,7 +234,7 @@
     $('streets').textContent = 'Room'; $('streets').setAttribute('aria-pressed', 'true');
     syncStreetButtons();
     const mapboxgl = await loadMapbox();
-    street ||= StreetMode.create({ container: $('streets-view'), ctx, corpus, getBuffer, theme, mapboxgl, token: MAPBOX_TOKEN, volume: muted ? 0 : .85, onStatus: onStreetStatus, view: streetPrefs.view, palette: streetPrefs.palette });
+    street ||= StreetMode.create({ container: $('streets-view'), ctx, corpus, getBuffer, theme, mapboxgl, token: MAPBOX_TOKEN, volume: muted ? 0 : .85, onStatus: onStreetStatus, view: streetPrefs.view, palette: streetPrefs.palette, start: WALK && { lat: WALK.lat, lng: WALK.lng } });
     await street.enter();
     $('streets-view').focus();
   }
@@ -265,15 +279,15 @@
     if (!perf) return;
     view.setSources(perf.presentSources().map(s => ({ id: s.id, x: s.x, z: s.z, label: s.title, radius: 10 })));
     const sec = perf.section(), i = perf.score.sections.indexOf(sec) + 1;
-    view.setCaption(`${sec.label} · ${String(i).padStart(2, '0')} / 06`);
+    view.setCaption(`${WALK ? WALK.label.toUpperCase() + ' · ' : ''}${sec.label} · ${String(i).padStart(2, '0')} / 06`);
     if (sec.key !== lastSection) { lastSection = sec.key; $('live').textContent = `${sec.label.toLowerCase()}, part ${i} of 6`; }
     if (perf.position() >= perf.score.duration - .5) next(1);
   }, 1000);
 
   // Left alone, the listener drifts slowly toward what is sounding — the
   // room keeps performing as an installation. Any touch hands control back.
-  let lastInput = performance.now();
-  for (const type of ['pointerdown', 'keydown', 'wheel']) $('room').addEventListener(type, () => { lastInput = performance.now(); }, { passive: true });
+  let lastInput = performance.now(), touched = false;
+  for (const type of ['pointerdown', 'keydown', 'wheel']) $('room').addEventListener(type, () => { lastInput = performance.now(); touched = true; }, { passive: true });
   setInterval(() => {
     if (!perf || reduced.matches || performance.now() - lastInput < 40000) return;
     const lv = perf.levels(), l = view.getListener();

@@ -57,6 +57,7 @@
     // Start where the archive is dense and the city is legible: the cluster
     // in central District 1, a few steps south of its middle, facing north.
     const start = (() => {
+      if (opts.start) { const p = toXZ(opts.start.lng, opts.start.lat); return { x: p.x + 10, z: p.z + 45 }; }   // e.g. a walk's own streets
       const centre = sounds.filter(s => Math.hypot(s.x, s.z) < 3000);
       let best = centre[0] || sounds[0], bestN = -1;
       for (const s of centre) { const n = centre.filter(o => Math.hypot(o.x - s.x, o.z - s.z) < 250).length; if (n > bestN) { best = s; bestN = n; } }

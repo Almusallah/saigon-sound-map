@@ -66,8 +66,8 @@
   const SAIGON = { lat: 10.80, lng: 106.72, spanLat: .19, spanLng: .25 };
   // Saigon fills the room; everything farther away sits near the walls in its
   // true direction, so Miền Tây is southwest and Venice far to the northwest.
-  function place(rec) {
-    const dx = (rec.lng - SAIGON.lng) / SAIGON.spanLng, dz = -(rec.lat - SAIGON.lat) / SAIGON.spanLat;
+  function place(rec, frame = SAIGON) {   // frame: the area that fills the room (a walk uses its own)
+    const dx = (rec.lng - frame.lng) / frame.spanLng, dz = -(rec.lat - frame.lat) / frame.spanLat;
     const r = Math.hypot(dx, dz);
     const j = hash(rec.id), jx = ((j & 255) / 255 - .5) * 6, jz = (((j >> 8) & 255) / 255 - .5) * 6;
     let x, z;
@@ -141,7 +141,7 @@
     const events = [], sources = new Map();
     const src = rec => {
       if (!rec) return null;
-      if (!sources.has(rec.id)) sources.set(rec.id, { id: rec.id, title: rec.title || '', file: rec.file, audioUrl: rec.audioUrl, duration: rec.duration, lufs: rec.lufs ?? -30, hour: rec.hour, category: rec.category, ...place(rec) });
+      if (!sources.has(rec.id)) sources.set(rec.id, { id: rec.id, title: rec.title || '', file: rec.file, audioUrl: rec.audioUrl, duration: rec.duration, lufs: rec.lufs ?? -30, hour: rec.hour, category: rec.category, ...place(rec, opts.frame) });
       return rec.id;
     };
     const ev = e => { if (e.dur > 0.05 && e.t < D) events.push({ ...e, dur: Math.min(e.dur, D - e.t) }); };
@@ -357,7 +357,8 @@
     function getBuf(id) {
       if (bufs.has(id)) return Promise.resolve(bufs.get(id));
       if (failed.has(id)) return Promise.resolve(null);
-      if (!loading.has(id)) loading.set(id, io.getBuffer(srcById.get(id)).then(b => { bufs.set(id, b); return b; }, () => { failed.add(id); return null; }));
+      // The settled promise is dropped too: it would otherwise hold the decoded audio after eviction.
+      if (!loading.has(id)) loading.set(id, io.getBuffer(srcById.get(id)).then(b => { bufs.set(id, b); loading.delete(id); return b; }, () => { failed.add(id); loading.delete(id); return null; }));
       return loading.get(id);
     }
 
@@ -564,6 +565,11 @@
       }
       for (let i = active.length - 1; i >= 0; i--) if (active[i]._done) active.splice(i, 1);
       for (let i = live.length - 1; i >= 0; i--) if (live[i].end < ctx.currentTime - 1) live.splice(i, 1);
+      // Let go of recordings the score is done with: decoded audio is ~10 MB a
+      // minute, and keeping a whole journey's worth strains a phone.
+      const now = ctx.currentTime - t0;
+      for (const id of bufs.keys())
+        if (!S.events.some(e => (e.id === id || (e.ids && e.ids.includes(id))) && e.t + e.dur > now - 5)) bufs.delete(id);
     }
 
     let timer = null;

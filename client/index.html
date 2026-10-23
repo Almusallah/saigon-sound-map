@@ -1617,11 +1617,8 @@
     geolocate.on('error', (e) => {
       toast('📍 Location unavailable: ' + ((e && e.message) || 'permission denied or timeout') + '. On iOS, enable Location for Safari in Settings.');
     });
-    if (navigator.permissions) {
-      navigator.permissions.query({ name: 'geolocation' })
-        .then(p => { if (p.state === 'denied') toast('Enable Location for Safari in iOS Settings'); })
-        .catch(() => {});
-    }
+    // No hint on load: a visitor who declined location is not reminded on
+    // every visit. Pressing the locate button explains it if it fails (above).
 
     // Boot runs on map 'load', with an 8 s fallback so a slow or failing
     // tile fetch (CDN hiccup, flaky mobile network) can't leave visitors
