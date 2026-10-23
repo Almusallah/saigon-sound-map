@@ -58,6 +58,8 @@
 </div>
 <div class="bar right">
   <button id="streets" type="button" aria-pressed="false" title="Walk the real streets of Saigon">Streets</button>
+  <button id="viewbtn" type="button" hidden title="Walk at eye height, or see from above">Above</button>
+  <button id="palette" type="button" hidden title="The city in colour, or in the room's monochrome">Mono</button>
   <button id="sound" type="button" aria-pressed="true">Sound on</button>
   <button id="theme" type="button">White</button>
   <button id="again" type="button">New journey</button>
@@ -80,8 +82,8 @@
 <div class="sr" aria-live="polite" id="live"></div>
 
 <script src="room-view.js?v=2"></script>
-<script src="journey-engine.js?v=3"></script>
-<script src="street-mode.js?v=3"></script>
+<script src="journey-engine.js?v=4"></script>
+<script src="street-mode.js?v=4"></script>
 <script>
 (function () {
   'use strict';
@@ -181,6 +183,15 @@
   const MAPBOX = 'https://api.mapbox.com/mapbox-gl-js/v3.24.0/mapbox-gl';
   const MAPBOX_TOKEN = 'pk.eyJ1Ijoic2lkZXdhbGtjaXR5IiwiYSI6ImNtb3kyZjBlbjA4Y3cydHNqdmp2djNqamwifQ.1FjkXIrL_BEWjzcY542lIw';
   let mode = 'room', street = null, mapboxLoading = null, toastTimer = 0;
+  // While in the streets the page's own colours follow the light over Saigon;
+  // the room keeps the theme you chose.
+  const showTheme = t => { document.documentElement.dataset.theme = t; document.querySelector('meta[name="theme-color"]').content = t === 'white' ? '#f3f3f1' : '#000000'; };
+  const streetPrefs = { view: store.get('street-view') === 'above' ? 'above' : 'street', palette: store.get('street-palette') === 'mono' ? 'mono' : 'colour' };
+  function syncStreetButtons() {
+    $('viewbtn').textContent = streetPrefs.view === 'street' ? 'Above' : 'Street';
+    $('palette').textContent = streetPrefs.palette === 'colour' ? 'Mono' : 'Colour';
+    $('theme').hidden = mode === 'streets' && streetPrefs.palette === 'colour';   // in colour the hour in Saigon decides
+  }
   function loadMapbox() {
     return mapboxLoading ||= new Promise((resolve, reject) => {
       const css = document.createElement('link'); css.rel = 'stylesheet'; css.href = MAPBOX + '.css'; document.head.appendChild(css);
@@ -198,16 +209,18 @@
       $('toast').innerHTML = ''; const a = document.createElement('div'); a.textContent = 'Found'; const b = document.createElement('small'); b.textContent = e.title;
       $('toast').append(a, b); $('toast').classList.add('on'); clearTimeout(toastTimer); toastTimer = setTimeout(() => $('toast').classList.remove('on'), 3200);
       $('live').textContent = `Found ${e.title}. ${e.count} of ${e.total}.`;
-    } else if (e.type === 'error') $('live').textContent = 'Map: ' + e.message;
+    } else if (e.type === 'light') { if (mode === 'streets') showTheme(e.dark ? 'black' : 'white'); }
+    else if (e.type === 'error') $('live').textContent = 'Map: ' + e.message;
   }
   async function toStreets() {
     mode = 'streets';
     if (perf) { perf.stop(1.5); perf = null; }
     $('room').hidden = true; $('streets-view').hidden = false; $('hud').hidden = false;
-    $('again').hidden = true; $('nextsound').hidden = false;
+    $('again').hidden = true; $('nextsound').hidden = false; $('viewbtn').hidden = false; $('palette').hidden = false;
     $('streets').textContent = 'Room'; $('streets').setAttribute('aria-pressed', 'true');
+    syncStreetButtons();
     const mapboxgl = await loadMapbox();
-    street ||= StreetMode.create({ container: $('streets-view'), ctx, corpus, getBuffer, theme, mapboxgl, token: MAPBOX_TOKEN, volume: muted ? 0 : .85, onStatus: onStreetStatus });
+    street ||= StreetMode.create({ container: $('streets-view'), ctx, corpus, getBuffer, theme, mapboxgl, token: MAPBOX_TOKEN, volume: muted ? 0 : .85, onStatus: onStreetStatus, view: streetPrefs.view, palette: streetPrefs.palette });
     await street.enter();
     $('streets-view').focus();
   }
@@ -215,12 +228,15 @@
     mode = 'room';
     if (street) street.exit();
     $('streets-view').hidden = true; $('hud').hidden = true; $('room').hidden = false;
-    $('again').hidden = false; $('nextsound').hidden = true;
+    $('again').hidden = false; $('nextsound').hidden = true; $('viewbtn').hidden = true; $('palette').hidden = true; $('theme').hidden = false;
     $('streets').textContent = 'Streets'; $('streets').setAttribute('aria-pressed', 'false');
+    showTheme(theme); view.setTheme(theme);
     begin(); $('room').focus();
   }
   $('streets').onclick = () => { if (!ctx) return enterThrough(true); (mode === 'room' ? toStreets() : Promise.resolve(toRoom())).catch(err => { $('live').textContent = err.message; toRoom(); }); };
   $('nextsound').onclick = () => { if (street) street.nextSound(); };
+  $('viewbtn').onclick = () => { streetPrefs.view = streetPrefs.view === 'street' ? 'above' : 'street'; store.set('street-view', streetPrefs.view); if (street) street.setView(streetPrefs.view); syncStreetButtons(); };
+  $('palette').onclick = () => { streetPrefs.palette = streetPrefs.palette === 'colour' ? 'mono' : 'colour'; store.set('street-palette', streetPrefs.palette); if (street) street.setPalette(streetPrefs.palette); syncStreetButtons(); };
   $('again').onclick = () => { if (perf || ctx) next(2.5); };
   $('sound').onclick = () => {
     muted = !muted;

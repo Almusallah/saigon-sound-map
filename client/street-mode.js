@@ -25,15 +25,30 @@
   const MAX_LOADS = 3;      // downloads at once — nearest first; a dense block must not starve itself
   const PRELOAD = 14;       // only the closest recordings are fetched at all
   const RETRY = 30000;      // a failed recording is tried again after this (ms)
-  const WALK = 7, RUN = 26; // m/s — a brisk walk, and a scooter
+  const SPEED = { street: [4.2, 15], above: [7, 26] };   // m/s: walking pace and scooter, per view
+  const EYE = 1.7, LOOK = 82;                            // eye height (m); gaze a little below the horizon (Mapbox allows 85° at most)
   const STORE_KEY = 'phongnghe-found';
 
   function create(opts) {
     const { container, ctx, getBuffer, mapboxgl } = opts;
     const onStatus = opts.onStatus || (() => {});
     let theme = opts.theme === 'white' ? 'white' : 'black';
+    let view = opts.view === 'above' ? 'above' : 'street';         // walking at eye height, or the overview
+    let palette = opts.palette === 'mono' ? 'mono' : 'colour';     // the city in colour, or the room's monochrome
+    const reduced = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
     const sounds = opts.corpus.filter(r => Number.isFinite(r.lat) && Number.isFinite(r.lng) && r.duration >= 2)
       .map((r, i) => ({ ...r, n: i + 1, ...toXZ(r.lng, r.lat) }));
+    // Recordings made at the same spot would stand inside one pillar; fan them
+    // a few metres apart, as the map fans its markers in pixels.
+    {
+      const piles = new Map();
+      for (const s of sounds) { const k = s.lat.toFixed(5) + ',' + s.lng.toFixed(5); if (!piles.has(k)) piles.set(k, []); piles.get(k).push(s); }
+      for (const pile of piles.values()) if (pile.length > 1) pile.forEach((s, i) => {
+        const a = i / pile.length * 2 * Math.PI, r = 3 + .6 * pile.length;
+        s.x += r * Math.sin(a); s.z -= r * Math.cos(a);
+        const ll = fromXZ(s.x, s.z); s.lng = ll.lng; s.lat = ll.lat;
+      });
+    }
     const byN = new Map(sounds.map(s => [s.n, s]));
     let found = new Set();
     try { found = new Set(JSON.parse(localStorage.getItem(STORE_KEY) || '[]')); } catch {}
@@ -49,7 +64,7 @@
     })();
     const player = { x: start.x, z: start.z, bearing: 0, vx: 0, vz: 0, turn: 0 };
     const keys = new Set(), tapped = new Set();   // tapped: pressed since the last frame, even if already released
-    let glide = null, map = null, raf = 0, tickTimer = 0, levelTimer = 0, alive = false;
+    let glide = null, map = null, raf = 0, tickTimer = 0, levelTimer = 0, lightTimer = 0, alive = false;
 
     /* ---------- audio graph ---------- */
     const out = ctx.createGain(); out.gain.value = 0;
@@ -164,8 +179,17 @@
         pillars: { type: 'FeatureCollection', features: sounds.map(s => ({ type: 'Feature', id: s.n, properties: {}, geometry: { type: 'Polygon', coordinates: [hexagon(s)] } })) },
       };
     }
-    const ink = () => theme === 'white' ? '#141414' : '#ffffff';
-    const foundColour = () => theme === 'white' ? '#4F7A00' : '#B8FF00';   // the map's lime; deepened to stay legible on white
+    // In colour the streets are lit by the real hour in Saigon; in monochrome
+    // they follow the room's black (night) or white (day).
+    function saigonLight() {
+      const h = Number(new Date().toLocaleString('en-GB', { hour: '2-digit', hour12: false, timeZone: 'Asia/Ho_Chi_Minh' }));
+      return h >= 5 && h < 7 ? 'dawn' : h >= 7 && h < 17 ? 'day' : h >= 17 && h < 19 ? 'dusk' : 'night';
+    }
+    const light = () => palette === 'mono' ? (theme === 'white' ? 'day' : 'night') : saigonLight();
+    const dark = () => ['night', 'dusk'].includes(light());
+    const ink = () => dark() ? '#ffffff' : '#141414';
+    const foundColour = () => dark() ? '#B8FF00' : '#4F7A00';   // the map's lime; deepened to stay legible in daylight
+    const halo = () => dark() ? '#000000' : '#f3f3f1';
     function addLayers() {
       const data = soundData();
       map.addSource('sounds', { type: 'geojson', data: data.points });
@@ -184,19 +208,41 @@
       map.addLayer({ id: 'sound-label', type: 'symbol', source: 'sounds', slot: 'top', minzoom: 17, layout: {
         'text-field': ['get', 'title'], 'text-size': 10, 'text-letter-spacing': .12, 'text-offset': [0, -2.2],
         'text-font': ['DIN Pro Medium', 'Arial Unicode MS Regular'], 'text-max-width': 14, 'text-optional': true,
-      }, paint: { 'text-color': colour, 'text-emissive-strength': 1, 'text-opacity': ['+', .35, ['*', .65, lvl]], 'text-halo-color': theme === 'white' ? '#f3f3f1' : '#000', 'text-halo-width': 1 } });
+      }, paint: { 'text-color': colour, 'text-emissive-strength': 1, 'text-opacity': ['+', .35, ['*', .65, lvl]], 'text-halo-color': halo(), 'text-halo-width': 1 } });
       for (const id of found) { const s = sounds.find(x => x.id === id); if (s) map.setFeatureState({ source: 'sounds', id: s.n }, { found: true }); }
       for (const id of found) { const s = sounds.find(x => x.id === id); if (s) map.setFeatureState({ source: 'pillars', id: s.n }, { found: true }); }
     }
     function styleConfig() {
-      return { theme: 'monochrome', lightPreset: theme === 'white' ? 'day' : 'night', show3dObjects: true,
-        showPointOfInterestLabels: false, showTransitLabels: false, showPlaceLabels: false, showRoadLabels: true };
+      const quiet = { showPointOfInterestLabels: false, showTransitLabels: false, showPlaceLabels: false, showRoadLabels: true };
+      if (palette === 'mono') return { theme: 'monochrome', lightPreset: light(), show3dObjects: true, ...quiet };
+      return { theme: 'default', lightPreset: light(), show3dObjects: true, show3dBuildings: true, show3dFacades: true,
+        show3dTrees: true, show3dLandmarks: true, ...quiet };
+    }
+    let shownLight = null;
+    function recolour() {
+      if (!map) return;
+      shownLight = light();
+      map.setConfig('basemap', styleConfig());
+      const colour = ['case', ['boolean', ['feature-state', 'found'], false], foundColour(), ink()];
+      if (map.getLayer('sound-ground')) map.setPaintProperty('sound-ground', 'circle-color', colour);
+      if (map.getLayer('sound-pillar')) map.setPaintProperty('sound-pillar', 'fill-extrusion-color', colour);
+      if (map.getLayer('sound-label')) { map.setPaintProperty('sound-label', 'text-color', colour); map.setPaintProperty('sound-label', 'text-halo-color', halo()); }
+      onStatus({ type: 'light', light: shownLight, dark: dark() });
     }
 
+    // Walking: a free camera at eye height on your own position, so what you
+    // see and what you hear share one point. Above: the third-person overview.
+    let bobPhase = 0, bob = 0;
     function camera() {
       const p = fromXZ(player.x, player.z);
-      map.jumpTo({ center: [p.lng, p.lat], bearing: player.bearing, pitch: 74, zoom: 19.1 });
+      if (view === 'street') {
+        const cam = map.getFreeCameraOptions();
+        cam.position = mapboxgl.MercatorCoordinate.fromLngLat([p.lng, p.lat], EYE + bob);
+        cam.setPitchBearing(LOOK, player.bearing);
+        map.setFreeCameraOptions(cam);
+      } else map.jumpTo({ center: [p.lng, p.lat], bearing: player.bearing, pitch: 74, zoom: 19.1 });
     }
+    function applyView() { if (map) map.setPadding({ top: view === 'above' ? Math.round(container.clientHeight * .28) : 0, bottom: 0, left: 0, right: 0 }); }
     // Levels on the map follow what you actually hear: distance-weighted.
     function levelTick() {
       if (!map) return;
@@ -219,9 +265,13 @@
       const on = c => keys.has(c) || tapped.has(c);
       const fwd = (on('ArrowUp') || on('KeyW') ? 1 : 0) - (on('ArrowDown') || on('KeyS') ? 1 : 0) + drag.walk;
       const turn = (on('ArrowRight') || on('KeyD') ? 1 : 0) - (on('ArrowLeft') || on('KeyA') ? 1 : 0);
-      const speed = (on('ShiftLeft') || on('ShiftRight') ? RUN : WALK);
+      const speed = SPEED[view][on('ShiftLeft') || on('ShiftRight') ? 1 : 0];
       tapped.clear();
-      player.bearing = (player.bearing + turn * 75 * dt + drag.turn) % 360; drag.turn = 0;
+      // Turning eases in and out; a drag's rotation settles over a few frames
+      // instead of snapping, so the street never jerks.
+      player.turn += (turn * 70 - player.turn) * (1 - Math.exp(-dt * 7));
+      const dyaw = drag.turn * (1 - Math.exp(-dt * 14)); drag.turn -= dyaw;
+      player.bearing = ((player.bearing + player.turn * dt + dyaw) % 360 + 360) % 360;
       const b = player.bearing * Math.PI / 180, target = clamp(fwd, -1, 1) * speed;
       const k = 1 - Math.exp(-dt * 6);
       player.vx += (Math.sin(b) * target - player.vx) * k; player.vz += (-Math.cos(b) * target - player.vz) * k;
@@ -232,13 +282,15 @@
         if (t >= 1) glide = null;
         player.vx = player.vz = 0;
       } else { player.x += player.vx * dt; player.z += player.vz * dt; }
+      const spd = Math.hypot(player.vx, player.vz);   // footsteps: a slight sway at walking pace
+      bobPhase += dt * spd * .55; bob = reduced || view !== 'street' ? 0 : .03 * Math.sin(bobPhase * 2 * Math.PI) * Math.min(1, spd / 4);
       camera(); setListener();
     }
     function glideTo(x, z) {
       const dist = Math.hypot(x - player.x, z - player.z); if (dist < 1) return;
       const to = Math.atan2(x - player.x, -(z - player.z)) * 180 / Math.PI;
       const db_ = ((to - player.bearing) % 360 + 540) % 360 - 180;
-      glide = { t0: performance.now(), ms: clamp(dist / RUN * 1000, 900, 9000), x0: player.x, z0: player.z, x1: x, z1: z, b0: player.bearing, db: db_ };
+      glide = { t0: performance.now(), ms: clamp(dist / SPEED[view][1] * 1000, 900, 9000), x0: player.x, z0: player.z, x1: x, z1: z, b0: player.bearing, db: db_ };
     }
 
     const drag = { walk: 0, turn: 0, id: null, x: 0, y: 0, moved: 0 };
@@ -278,21 +330,21 @@
         const p = fromXZ(player.x, player.z);
         map = new mapboxgl.Map({
           container, style: 'mapbox://styles/mapbox/standard', config: { basemap: styleConfig() },
-          center: [p.lng, p.lat], zoom: 19.1, pitch: 74, bearing: player.bearing, maxPitch: 85, antialias: true,
+          center: [p.lng, p.lat], zoom: 19.1, pitch: 74, bearing: player.bearing, maxPitch: 85, maxZoom: 24, antialias: true,
           interactive: false, attributionControl: true, fadeDuration: 0,
         });
-        // keep the player a little below the middle of the screen
-        map.setPadding({ top: Math.round(container.clientHeight * .28), bottom: 0, left: 0, right: 0 });
+        applyView();   // above: the player a little below the middle of the screen
         addEventListener('keydown', onKey); addEventListener('keyup', onKey);
         container.addEventListener('pointerdown', onDown); container.addEventListener('pointermove', onMoveP);
         container.addEventListener('pointerup', onUp); container.addEventListener('pointercancel', onUp);
         container.addEventListener('wheel', onWheel, { passive: false });
         return new Promise(resolve => {
           map.on('style.load', () => {
-            addLayers();
+            addLayers(); recolour();
             const t = ctx.currentTime; out.gain.cancelScheduledValues(t); out.gain.setValueAtTime(0, t); out.gain.linearRampToValueAtTime(opts.volume ?? .85, t + 2);
             raf = requestAnimationFrame(frame);
             audioTick(); tickTimer = setInterval(audioTick, 500); levelTimer = setInterval(levelTick, 120);
+            lightTimer = setInterval(() => { if (light() !== shownLight) recolour(); }, 60000);   // dusk falls on you
             resolve();
           });
           map.on('error', e => onStatus({ type: 'error', message: e?.error?.message || 'map error' }));
@@ -301,7 +353,7 @@
       exit(fade = 1.5) {
         if (!alive) return;
         alive = false;
-        cancelAnimationFrame(raf); clearInterval(tickTimer); clearInterval(levelTimer);
+        cancelAnimationFrame(raf); clearInterval(tickTimer); clearInterval(levelTimer); clearInterval(lightTimer);
         removeEventListener('keydown', onKey); removeEventListener('keyup', onKey);
         container.removeEventListener('pointerdown', onDown); container.removeEventListener('pointermove', onMoveP);
         container.removeEventListener('pointerup', onUp); container.removeEventListener('pointercancel', onUp); container.removeEventListener('wheel', onWheel);
@@ -310,12 +362,10 @@
         const t = ctx.currentTime; out.gain.cancelScheduledValues(t); out.gain.setValueAtTime(out.gain.value, t); out.gain.linearRampToValueAtTime(0, t + fade);
         if (map) { map.remove(); map = null; }
       },
-      setTheme(t) { theme = t === 'white' ? 'white' : 'black'; if (map) { map.setConfig('basemap', styleConfig()); for (const id of ['sound-ground', 'sound-pillar', 'sound-label']) if (map.getLayer(id)) {
-        const colour = ['case', ['boolean', ['feature-state', 'found'], false], foundColour(), ink()];
-        if (id === 'sound-ground') map.setPaintProperty(id, 'circle-color', colour);
-        if (id === 'sound-pillar') map.setPaintProperty(id, 'fill-extrusion-color', colour);
-        if (id === 'sound-label') { map.setPaintProperty(id, 'text-color', colour); map.setPaintProperty(id, 'text-halo-color', theme === 'white' ? '#f3f3f1' : '#000'); }
-      } } },
+      setTheme(t) { theme = t === 'white' ? 'white' : 'black'; recolour(); },
+      setPalette(p) { palette = p === 'mono' ? 'mono' : 'colour'; recolour(); },
+      setView(v) { view = v === 'above' ? 'above' : 'street'; applyView(); },
+      get view() { return view; }, get palette() { return palette; }, light,
       setVolume(v) { out.gain.setTargetAtTime(v, ctx.currentTime, .05); },
       nextSound() { const n = nearestUnfound(); if (n) glideTo(n.s.x + 4, n.s.z + 10); return n; },
       nearestUnfound,

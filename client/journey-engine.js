@@ -186,8 +186,11 @@
       const rate = roll < .14 ? .5 : roll < .22 ? .75 : roll > .93 ? 1.5 : 1;
       ev({ type: 'detail', id: src(rec), t, dur: len / rate, offset: between(r, 0, Math.max(0, rec.duration - len - .2)), rate, gain: -3 + trim + between(r, -2, 2), echo: r() < .4 ? .3 : 0, section: sec });
     };
-    for (let t = .15 * D; t < .37 * D; t += between(r, 13, 24)) detail('gathering', t);
-    for (let t = .62 * D; t < .76 * D; t += between(r, 16, 26)) detail('drift', t);
+    // Dawn is quiet but never a single sound for a minute: two soft details surface early.
+    for (let t = .03 * D; t < .095 * D; t += between(r, 18, 28)) detail('dawn', t, -4);
+    for (let t = .15 * D; t < .37 * D; t += between(r, 9, 17)) detail('gathering', t);
+    for (let t = .42 * D; t < .58 * D; t += between(r, 16, 26)) detail('pulse', t, -3);
+    for (let t = .62 * D; t < .76 * D; t += between(r, 14, 22)) detail('drift', t, -2);   // drift settles: the pulse stays the peak
     for (let t = .79 * D; t < .9 * D; t += between(r, 20, 32)) detail('night', t, -5);
 
     // The voice motif: one phrase repeated with micro-variation, then recalled.
