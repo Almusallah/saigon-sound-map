@@ -1,4 +1,4 @@
-/* Saigon_Miền Tây Sound Map — Phòng nghe / listening room engine (v12)
+/* Saigon_Miền Tây Sound Map — Phòng nghe / listening room engine (v14)
    A generative Web Audio conductor over the live archive.
    - corpus = /api/recordings (live, grows with every upload) + listen-features.json (offline analysis)
    - Six audio-clock movements shape places, voices, pulse, space and returning memories.
@@ -6,12 +6,14 @@
 'use strict';
 
 const BPM = 72, BEAT = 60 / BPM;
-const swingT = () => state.swing * 0.12 * BEAT;
+// The former Dream dial, fixed at its default when the dial was removed:
+// it only ever scaled the optional synth and echo layers below.
+const DREAM = .28;
 const HCMC = { latMin: 10.62, latMax: 10.98, lngMin: 106.52, lngMax: 106.98 };
 const IS_DEV = ['localhost', '127.0.0.1', '[::1]'].includes(location.hostname) && location.port === '8342';
 const DEFAULTS = Object.freeze({
-  dream: .28, percDensity: .28, bright: .8, echo: .12, space: .18, reso: .08, effectsOn: false, bassLevel: .18, ambienceLevel: .55, voiceSolo: false,
-  sub: .5, swing: .5, pitch: 0, synthOn: false, synthLevel: .5,
+  percDensity: .28, bright: .8, echo: .12, space: .18, reso: .08, effectsOn: false, bassLevel: .18, ambienceLevel: .55, voiceSolo: false,
+  sub: .5, pitch: 0, synthOn: false, synthLevel: .5,
   synthWave: .35, synthTone: .45, synthShape: .3, synthDetune: .25,
 });
 const pendingBuffers = new Map(), failedBuffers = new Map();
@@ -37,8 +39,8 @@ const state = {
   recs: [], buffers: new Map(),
   listener: { lat: 10.79, lng: 106.70 },
   hour: null,                 // null = live Saigon time
-  dream: .28, percDensity: .28, bright: .8,   // percDensity null = follow the day
-  echo: .12, space: .18, reso: .08, effectsOn: false, bassLevel: .18, ambienceLevel: .55, voiceSolo: false, sub: 0.5, swing: 0.5, pitch: 0,
+  percDensity: .28, bright: .8,   // percDensity null = follow the day
+  echo: .12, space: .18, reso: .08, effectsOn: false, bassLevel: .18, ambienceLevel: .55, voiceSolo: false, sub: 0.5, pitch: 0,
   synthOn: false, synthLevel: 0.5, synthWave: 0.35, synthTone: 0.45, synthShape: 0.3, synthDetune: 0.25,
   lastTouch: 0,
   anchorHeld: false, anchorChangedAt: 0, anchorPeriod: 260,
@@ -158,7 +160,6 @@ function grooveAmt() {
 const rnd = (a, b) => a + Math.random() * (b - a);
 const choice = arr => arr[Math.floor(Math.random() * arr.length)];
 const kmDist = (a, b) => Math.hypot((a.lng - b.lng) * 102, (a.lat - b.lat) * 111);
-const gainForLufs = (lufs, t = -28) => Math.min(3.2, Math.max(0.05, Math.pow(10, (t - lufs) / 20)));
 
 /* ---------- graph ---------- */
 let sceneGates = {};
@@ -265,7 +266,6 @@ async function renewAnchor(force = false) {
     warmth.type='lowpass'; warmth.frequency.value=2600; warmth.Q.value=.45;
     breath.gain.value=.94; g.gain.value=0;
     const panner=c.createStereoPanner ? c.createStereoPanner() : c.createGain();
-    const dSend=c.createGain(), rSend=c.createGain(); dSend.gain.value=.10; rSend.gain.value=.45;
     src.connect(warmth); warmth.connect(breath); breath.connect(g); g.connect(panner);
     panner.connect(voiceBus);
     const modulators=[];
@@ -285,7 +285,7 @@ async function renewAnchor(force = false) {
     state.slots.anchor=layer; state.anchorChangedAt=c.currentTime;
     state.nowPlaying.set('anchor',rec); state.onNowPlaying();
     src.onended=()=>{
-      [src,g,warmth,breath,panner,dSend,rSend].forEach(n=>n.disconnect());
+      [src,g,warmth,breath,panner].forEach(n=>n.disconnect());
       modulators.forEach(([osc,depth])=>{osc.stop();osc.disconnect();depth.disconnect();});
       if(state.slots.anchor===layer) { delete state.slots.anchor;state.nowPlaying.delete('anchor');state.onNowPlaying(); }
     };
@@ -361,7 +361,6 @@ async function startLayer(slotName, rec, { fadeIn = 22, level = 1, detail = null
   src.loop = !!detail || looping;
   src.playbackRate.value = Math.pow(2, state.pitch / 12);
   const g = c.createGain(); g.gain.value = 0;
-  const dSend = c.createGain(), rSend = c.createGain();
   const spatial = c.createGain(), attention = c.createGain();
   const panner = c.createStereoPanner ? c.createStereoPanner() : null;
   src.connect(g); g.connect(spatial);
@@ -369,11 +368,10 @@ async function startLayer(slotName, rec, { fadeIn = 22, level = 1, detail = null
   if (panner) spatial.connect(panner);
   positioned.connect(attention); attention.connect(fieldBus);
   g.gain.linearRampToValueAtTime(measuredGain(src.buffer, .055) * level, c.currentTime + fadeIn);
-  updateSendMix(dSend, rSend, rec.role);
   src.start(0, 0);
   const old = state.slots[slotName];
   if (old) stopLayer(old, fadeIn);
-  const layer = { src, g, spatial, attention, panner, dSend, rSend, rec, detail };
+  const layer = { src, g, spatial, attention, panner, rec, detail };
   updatePosition(layer);
   state.slots[slotName] = layer;
   // Keep one small, exact excerpt independently of the evictable full-file cache.
@@ -390,7 +388,7 @@ async function startLayer(slotName, rec, { fadeIn = 22, level = 1, detail = null
   // Audio-clock lifetimes freeze with pause; short voices clean up on their natural end.
   layer.endsAt = c.currentTime + (rec.role === 'voice' ? Math.min(buf.duration + fadeIn, 70) : rnd(110, 170));
   src.onended = () => {
-    src.disconnect(); g.disconnect(); spatial.disconnect(); attention.disconnect(); panner?.disconnect(); dSend.disconnect(); rSend.disconnect();
+    src.disconnect(); g.disconnect(); spatial.disconnect(); attention.disconnect(); panner?.disconnect();
     if (state.slots[slotName] === layer) {
       delete state.slots[slotName]; applyAttention(); syncVoiceScore();
       state.nowPlaying.delete(slotName); state.onNowPlaying();
@@ -419,14 +417,8 @@ function stopLayer(layer, fade = 22) {
     layer.src.stop(c.currentTime + fade + 0.1);
   } catch (e) {}
 }
-function updateSendMix(dSend, rSend, role) {
-  const wet = 0.06 + state.dream * 0.55;
-  dSend.gain.value = role === 'bed' ? wet * 0.3 : wet * 0.8;
-  rSend.gain.value = role === 'bed' ? wet : wet * 0.6;
-}
 
-/* ---------- found percussion: two voices, swung ---------- */
-let percGainA = 1, percGainB = 1;
+/* ---------- found percussion: two voices ---------- */
 let percBufA = null, percBufB = null, percOffA = [], percOffB = [];
 function stableOffsets(buf, n) {
   // fixed hit-points per buffer: the SAME transients return every bar — that
@@ -451,7 +443,6 @@ async function loadPercBuffers() {
   percBufA = bufferA; percBufB = bufferB;
   percOffA = bufferA ? stableOffsets(bufferA, 4) : [];
   percOffB = bufferB ? stableOffsets(bufferB, 3) : [];
-  percGainA = gainForLufs(a.lufs, -28); percGainB = gainForLufs(b.lufs, -28);
   if (state.started) startPercussionLoop();
 }
 /* Looped accompaniment runs on the audio clock, including when JS timers sleep. */
@@ -514,27 +505,6 @@ function startPercussionLoop() {
   percussionLoop=loopSource(buffer,percBus,percussionLoop);
 }
 
-function grain(buf, t, vel, rate, offset, dur) {
-  vel *= buf === percBufA ? percGainA : percGainB;
-  const c = state.ctx, src = c.createBufferSource();
-  src.buffer = buf; src.playbackRate.value = rate;
-  const g = c.createGain();
-  g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(vel, t + 0.004);
-  g.gain.exponentialRampToValueAtTime(0.001, t + dur);
-  src.connect(g); g.connect(percBus); g.connect(delaySend);
-  src.onended = () => { src.disconnect(); g.disconnect(); };
-  src.start(t, offset, dur + 0.05);
-}
-function schedulePercStep(t, step) {
-  const density=grooveAmt(); if(density<.15) return;
-  const position=step%32, cycle=Math.floor(step/32);
-  const ts=t+(position%2?swingT():0);
-  // The same two-bar pattern returns. Only one quiet accent changes every eight cycles.
-  if(percBufA && percOffA.length && [0,12,16,28].includes(position))
-    grain(percBufA,ts,.09*density,1,percOffA[position===0?0:1],.18);
-  if(percBufB && percOffB.length && (position===6 || (position===23 && Math.floor(cycle/8)%2)))
-    grain(percBufB,ts,.045*density,1,percOffB[0],.12);
-}
 
 /* ---------- minimal synth layer (recedes behind the city) ---------- */
 const CHORD_SETS = {
@@ -809,15 +779,14 @@ window.Room = {
     const ambience = accompaniment * state.ambienceLevel;
     fieldBus.gain.setTargetAtTime(ambience,state.ctx.currentTime,.08);
     cityDelayGate.gain.value=.12;cityReverbGate.gain.value=.25;
-    const synthG = state.synthOn && !state.voiceSolo ? (0.06 + state.synthLevel * 0.65) * (0.55 + state.dream * 0.7) : 0;
+    const synthG = state.synthOn && !state.voiceSolo ? (0.06 + state.synthLevel * 0.65) * (0.55 + DREAM * 0.7) : 0;
     synthBus.gain.setTargetAtTime(synthG, state.ctx.currentTime, 0.4);
     synthWet.gain.setTargetAtTime(synthG * .35, state.ctx.currentTime, .4);
     delaySend.gain.setTargetAtTime(state.effectsOn && !state.voiceSolo ? state.echo * .35 : 0, state.ctx.currentTime, 0.3);
-    delayFb.gain.setTargetAtTime(state.effectsOn && !state.voiceSolo && state.echo > 0 ? Math.min(.55, state.echo * .5 + state.dream * .08) : 0, state.ctx.currentTime, .3);
+    delayFb.gain.setTargetAtTime(state.effectsOn && !state.voiceSolo && state.echo > 0 ? Math.min(.55, state.echo * .5 + DREAM * .08) : 0, state.ctx.currentTime, .3);
     reverbSend.gain.setTargetAtTime(state.effectsOn && !state.voiceSolo ? state.space * .3 : 0, state.ctx.currentTime, 0.3);
     const rate = Math.pow(2, state.pitch / 12);
     for (const l of Object.values(state.slots)) if (l) { try { l.src.playbackRate.setTargetAtTime(rate, state.ctx.currentTime, 0.5); } catch (e) {} }
-    for (const l of Object.values(state.slots)) if (l && !l.anchor) updateSendMix(l.dSend, l.rSend, l.rec.role);
     // Lift the sparse accompaniment relative to the voice: percussion +6 dB, bass +9.5 dB.
     percBus.gain.setTargetAtTime(accompaniment * grooveAmt() * 1.1, state.ctx.currentTime, .8);
     bassBus.gain.setTargetAtTime(accompaniment * state.bassLevel * 1.95, state.ctx.currentTime, .8);

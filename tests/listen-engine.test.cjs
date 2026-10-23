@@ -71,7 +71,7 @@ test('expired surroundings stay audible until a replacement is ready; resume kee
  const h=harness();await h.Room.start();const layer=h.Room.state.slots.bedA;await h.Room.pause();h.Room.state.ctx.currentTime=layer.endsAt+1;h.run('tick()');assert.equal(h.Room.state.slots.bedA,layer);await h.Room.resume();h.run('tick()');assert.equal(h.Room.state.slots.bedA,layer);assert.equal(layer.src.stopTime,undefined);assert.equal(h.intervals.size,5);
 });
 test('natural source completion removes only its own layer and disconnects all layer nodes',async()=>{
- const h=harness();await h.Room.start();const layer=h.Room.state.slots.bedA;layer.src.onended();assert.equal(h.Room.state.slots.bedA,undefined);assert.equal(h.Room.state.nowPlaying.has('bedA'),false);for(const n of [layer.src,layer.g,layer.spatial,layer.panner,layer.dSend,layer.rSend])assert.equal(n.disconnected,true);
+ const h=harness();await h.Room.start();const layer=h.Room.state.slots.bedA;layer.src.onended();assert.equal(h.Room.state.slots.bedA,undefined);assert.equal(h.Room.state.nowPlaying.has('bedA'),false);for(const n of [layer.src,layer.g,layer.spatial,layer.panner])assert.equal(n.disconnected,true);
 });
 test('a delayed background scheduler skips missed beats',async()=>{
  const h=harness();await h.Room.start();h.Room.state.ctx.currentTime=3600;h.run('tick()');assert.ok(h.run('stepCount')<3);assert.ok(h.run('nextStepTime')>3600);

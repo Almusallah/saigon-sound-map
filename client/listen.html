@@ -72,7 +72,7 @@
 </div>
 
 <script src="voice-loop.js?v=11"></script>
-<script src="listen-engine.js?v=13"></script>
+<script src="listen-engine.js?v=14"></script>
 <script>
 'use strict';
 const $ = id => document.getElementById(id);
@@ -250,7 +250,6 @@ window.addEventListener('room-drift', drawMap);
 
 /* ---------- tactile sound controls: drag up/down or use the keyboard ---------- */
 const KNOBS = [
-  { key: 'dream', label: 'Dream', cap: 'var(--capA)', min: 0, max: 1, get: () => Room.state.dream, fmt: v => Math.round(v * 100) + '%' },
   { key: 'percDensity', label: 'Groove', cap: 'var(--capA)', min: 0, max: 1,
     get: () => Room.state.percDensity === null ? Room.grooveAmt() : Room.state.percDensity,
     fmt: v => (Room.state.percDensity === null ? 'Auto · ' : '') + Math.round(v * 100) + '%' },
@@ -259,10 +258,9 @@ const KNOBS = [
   { key: 'reso', label: 'Resonance', cap: 'var(--capB)', min: 0, max: 1, get: () => Room.state.reso, fmt: v => Math.round(v * 100) + '%' },
   { key: 'echo', label: 'Echo', cap: 'var(--capC)', min: 0, max: 1, get: () => Room.state.echo, fmt: v => Math.round(v * 100) + '%' },
   { key: 'space', label: 'Space', cap: 'var(--capC)', min: 0, max: 1, get: () => Room.state.space, fmt: v => Math.round(v * 100) + '%' },
-  { key: 'swing', label: 'Swing', cap: 'var(--capD)', min: 0, max: 1, get: () => Room.state.swing, fmt: v => Math.round(v * 100) + '%' },
   { key: 'pitch', label: 'Pitch', cap: 'var(--capD)', min: -3, max: 3, get: () => Room.state.pitch, fmt: v => (v > 0 ? '+' : '') + v.toFixed(1) + ' st' },
 ];
-const hints = { dream:'Blur into ambience', percDensity:'Found-sound rhythm', sub:'Synth bass weight', bright:'Dark to bright', reso:'Filter emphasis', echo:'Repeating reflections', space:'Reverb depth', swing:'Rhythmic looseness', pitch:'Recording pitch', synthLevel:'Tone volume', synthWave:'Oscillator character', synthTone:'Tone brightness', synthShape:'Attack and release', synthDetune:'Chorus width' };
+const hints = { percDensity:'Found-sound rhythm', sub:'Synth bass weight', bright:'Dark to bright', reso:'Filter emphasis', echo:'Repeating reflections', space:'Reverb depth', pitch:'Recording pitch', synthLevel:'Tone volume', synthWave:'Oscillator character', synthTone:'Tone brightness', synthShape:'Attack and release', synthDetune:'Chorus width' };
 function markCustom() { document.querySelectorAll('[data-preset]').forEach(b => b.setAttribute('aria-pressed','false')); }
 function buildKnobs() { buildKnobSet(KNOBS, $('knobs')); }
 function buildKnobSet(list, host) {
@@ -338,9 +336,9 @@ $('reroll').onclick = async () => {
   try { await Room.reroll(); } finally { rerollBusy = false; $('reroll').textContent = 'New sounds'; syncTransport(); }
 };
 const presets = {
-  close: { dream:.08, percDensity:0, bassLevel:0, echo:0, space:.08, synthOn:false, bright:1 },
+  close: { percDensity:0, bassLevel:0, echo:0, space:.08, synthOn:false, bright:1 },
   drift: {},
-  night: { dream:.35, percDensity:.4, bassLevel:.25, echo:.25, space:.5, synthOn:false, synthLevel:.2, bright:.7 },
+  night: { percDensity:.4, bassLevel:.25, echo:.25, space:.5, synthOn:false, synthLevel:.2, bright:.7 },
 };
 document.querySelectorAll('[data-preset]').forEach(button => {
   button.onclick = () => {
