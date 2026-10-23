@@ -30,8 +30,18 @@
   .door .sub { opacity: .5; margin: 0 0 34px; }
   .door p { text-transform: none; letter-spacing: .02em; font-size: 12px; line-height: 1.75; opacity: .72; margin: 0 0 34px; }
   #go { background: none; border: 1px solid color-mix(in srgb, var(--ink) 55%, transparent); padding: 14px 26px; cursor: pointer; }
-  #go:hover, #go:focus-visible { background: var(--ink); color: var(--bg); outline: none; }
-  #go:disabled { opacity: .35; cursor: wait; }
+  #go, #go-streets { background: none; border: 1px solid color-mix(in srgb, var(--ink) 55%, transparent); padding: 14px 26px; cursor: pointer; }
+  #go:hover, #go:focus-visible, #go-streets:hover, #go-streets:focus-visible { background: var(--ink); color: var(--bg); outline: none; }
+  #go:disabled, #go-streets:disabled { opacity: .35; cursor: wait; }
+  /* Phones: the controls take their own row under the title instead of
+     running into it (they overlapped by ~105 px at 375 px wide). */
+  @media (max-width: 640px) {
+    .bar.right { top: calc(max(14px, env(safe-area-inset-top)) + 34px); right: 6px; max-width: calc(100% - 12px); justify-content: flex-end; flex-wrap: wrap; }
+    .bar button, .bar a, .bar .mark { padding: 8px 7px; }
+  }
+  /* Over the city in colour the bars need a ground to stay legible. */
+  body.in-streets .bar, body.in-streets .hud { background: color-mix(in srgb, var(--bg) 72%, transparent); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); border-radius: 4px; }
+  body.in-streets .hud { padding: 6px 10px; }
   .door .how { opacity: .38; margin-top: 30px; line-height: 2; }
   #status { min-height: 1.6em; margin-top: 18px; opacity: .55; }
   #streets-view { position: fixed; inset: 0; z-index: 1; background: var(--bg); touch-action: none; }
@@ -98,7 +108,7 @@
   $('theme').textContent = theme === 'white' ? 'Black' : 'White';
 
   const view = RoomView.create($('room'), {
-    theme, bounds: Journey.BOUNDS, listener: { x: 0, z: 18, yaw: 0 }, labelTop: 78,
+    theme, bounds: Journey.BOUNDS, listener: { x: 0, z: 18, yaw: 0 }, labelTop: innerWidth <= 640 ? 116 : 78,   // below the second row on phones
     onMove: l => { if (perf) perf.setListener(l.x, l.z, l.yaw); },
   });
   view.setCaption('');
@@ -227,7 +237,7 @@
     else if (e.type === 'error') $('live').textContent = 'Map: ' + e.message;
   }
   async function toStreets() {
-    mode = 'streets';
+    mode = 'streets'; document.body.classList.add('in-streets');
     if (perf) { perf.stop(1.5); perf = null; }
     $('room').hidden = true; $('streets-view').hidden = false; $('hud').hidden = false;
     $('again').hidden = true; $('nextsound').hidden = false; $('viewbtn').hidden = false; $('palette').hidden = false;
@@ -239,7 +249,7 @@
     $('streets-view').focus();
   }
   function toRoom() {
-    mode = 'room';
+    mode = 'room'; document.body.classList.remove('in-streets');
     if (street) street.exit();
     $('streets-view').hidden = true; $('hud').hidden = true; $('room').hidden = false;
     $('again').hidden = false; $('nextsound').hidden = true; $('viewbtn').hidden = true; $('palette').hidden = true; $('theme').hidden = false;
