@@ -271,11 +271,19 @@ test('30 sources: frame cost stays small (Node, stub context)', () => {
   const lv = {}; list.forEach((s, i) => { lv[s.id] = (i % 10) / 10; });
   v.setLevels(lv);
   frames(v, 1);
-  const t0 = process.hrtime.bigint();
-  for (let i = 0; i < 300; i++) { v.setLevels(lv); v._debug.frame(1 / 60); }
-  const ms = Number(process.hrtime.bigint() - t0) / 1e6 / 300;
+  // A regression guard, not a benchmark: the stub context is far slower than
+  // a real canvas (Chrome measured ~0.45 ms/frame), and machine load swings a
+  // single timing by +-20%. The median of five batches against a loose
+  // ceiling still catches what matters, e.g. a quadratic blow-up.
+  const batches = [];
+  for (let b = 0; b < 5; b++) {
+    const t0 = process.hrtime.bigint();
+    for (let i = 0; i < 60; i++) { v.setLevels(lv); v._debug.frame(1 / 60); }
+    batches.push(Number(process.hrtime.bigint() - t0) / 1e6 / 60);
+  }
+  const ms = batches.sort((x, y) => x - y)[2];
   console.log('       ~' + ms.toFixed(3) + ' ms/frame of JS work, ' + v._debug.stats.segments + ' segments, ' + v._debug.stats.sources + ' pillars');
-  assert.ok(ms < 8, ms + ' ms/frame');
+  assert.ok(ms < 20, ms + ' ms/frame (median of 5 batches)');
   v.destroy();
 });
 

@@ -4,459 +4,279 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Phòng nghe — Saigon_Miền Tây Sound Map</title>
+<meta name="description" content="A journey composed live from the Saigon_Miền Tây Sound Map: a day of the city in eleven minutes. Every sound is a place in the room. Walk through it.">
+<meta name="theme-color" content="#000000">
 <meta property="og:title" content="Phòng nghe · The Listening Room">
-<meta property="og:description" content="An evolving composition made from the sounds of the city — live from the Saigon_Miền Tây Sound Map. Play it.">
-<meta name="theme-color" content="#10110e">
-<meta name="description" content="Enter Phòng nghe: an evolving composition of field recordings from Saigon and the Mekong Delta. Listen, explore, or shape the sound.">
-<link rel="stylesheet" href="listen-room.css?v=1">
-<link rel="stylesheet" href="listen-minimal.css?v=2">
+<meta property="og:description" content="A journey composed live from the Saigon_Miền Tây Sound Map — a day of the city in eleven minutes. Walk through it, or walk the real streets of Saigon and find the sounds where they were recorded.">
+<meta property="og:type" content="website">
+<style>
+  :root { --bg: #000; --ink: #fff; }
+  :root[data-theme="white"] { --bg: #f3f3f1; --ink: #121212; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); overflow: hidden; transition: background-color .6s ease, color .6s ease; }
+  body { font: 500 10px/1.6 ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace; letter-spacing: .12em; text-transform: uppercase; -webkit-font-smoothing: antialiased; }
+  #room { position: fixed; inset: 0; width: 100%; height: 100%; height: 100dvh; display: block; outline: none; }
+  #room:focus-visible { outline: 1px solid color-mix(in srgb, var(--ink) 16%, transparent); outline-offset: -8px; }
+  button, a { font: inherit; letter-spacing: inherit; text-transform: inherit; color: inherit; }
+  .bar { position: fixed; top: max(14px, env(safe-area-inset-top)); display: flex; align-items: center; gap: 2px; z-index: 2; }
+  .bar.left { left: 10px; } .bar.right { right: 10px; }
+  .bar button, .bar a { background: none; border: 0; padding: 10px; opacity: .5; cursor: pointer; text-decoration: none; }
+  .bar button:hover, .bar a:hover, .bar button:focus-visible, .bar a:focus-visible { opacity: .95; outline: none; }
+  .bar .mark { opacity: .8; cursor: default; padding: 10px; }
+  /* the threshold */
+  #enter { position: fixed; inset: 0; z-index: 3; display: grid; place-items: center; background: var(--bg); transition: opacity 1.4s ease; }
+  #enter.gone { opacity: 0; pointer-events: none; }
+  .door { max-width: 30em; padding: 0 28px; text-align: left; }
+  .door h1 { font-size: 12px; font-weight: 500; margin: 0 0 6px; letter-spacing: .2em; }
+  .door .sub { opacity: .5; margin: 0 0 34px; }
+  .door p { text-transform: none; letter-spacing: .02em; font-size: 12px; line-height: 1.75; opacity: .72; margin: 0 0 34px; }
+  #go { background: none; border: 1px solid color-mix(in srgb, var(--ink) 55%, transparent); padding: 14px 26px; cursor: pointer; }
+  #go:hover, #go:focus-visible { background: var(--ink); color: var(--bg); outline: none; }
+  #go:disabled { opacity: .35; cursor: wait; }
+  .door .how { opacity: .38; margin-top: 30px; line-height: 2; }
+  #status { min-height: 1.6em; margin-top: 18px; opacity: .55; }
+  #streets-view { position: fixed; inset: 0; z-index: 1; background: var(--bg); touch-action: none; }
+  #streets-view .mapboxgl-ctrl-logo, #streets-view .mapboxgl-ctrl-attrib { opacity: .45; }
+  .hud { position: fixed; left: 20px; bottom: max(18px, env(safe-area-inset-bottom)); z-index: 2; pointer-events: none; line-height: 2; }
+  .hud .count { opacity: .8; }
+  .hud .near { opacity: .55; display: flex; align-items: center; gap: 10px; max-width: 70vw; }
+  .hud .arrow { display: inline-block; width: 12px; text-align: center; transition: transform .2s linear; }
+  .hud .near span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #toast { position: fixed; left: 50%; bottom: 22%; transform: translateX(-50%); z-index: 2; pointer-events: none; opacity: 0; transition: opacity .8s ease; text-align: center; letter-spacing: .16em; }
+  #toast.on { opacity: .9; }
+  #toast small { display: block; opacity: .55; letter-spacing: .12em; margin-top: 6px; }
+  .doors { display: flex; gap: 12px; flex-wrap: wrap; }
+  .door button.alt { border-style: dashed; }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+</style>
 </head>
 <body>
-<a class="skip" href="#room">Skip to the listening room</a>
-<div class="shell">
-  <nav class="topbar" aria-label="Sound Map"><a class="wordmark" href="/">SAIGON_MIỀN TÂY SOUND MAP</a><a class="back" href="/">Back to the map</a></nav>
-  <header>
-    <div><p class="eyebrow">An Officine Gặp listening space</p><h1><span lang="vi" style="font:inherit;color:inherit;margin:0">Phòng nghe</span><span>The Listening Room</span></h1>
-    <p class="intro">Listen to a place. Follow a detail. Notice what changes when it returns.</p></div>
-    <div class="citytime"><p class="eyebrow">Saigon time</p><time id="cityClock">—</time><small>UTC +07:00</small></div>
-  </header>
-  <nav class="roomnav" aria-label="Choose a listening room"><a id="cityRoom" href="/listen">Whole city</a><a id="thanhDaRoom" href="/listen?walk=thanh-da">Thanh Đa</a></nav>
-  <div class="entry" id="entry"><div><strong>Take a moment. Stay a while.</strong><p>A nine-minute composition of field recordings. Best heard with headphones.</p></div><button class="primary" id="start">Enter</button></div>
-  <p id="notice" role="status" aria-live="polite"></p>
-  <main class="room" id="room" tabindex="-1">
-    <section class="foundation" aria-labelledby="movementTitle">
-      <div class="journey-heading"><p class="eyebrow" id="movementLabel">MOVEMENT 01 / 06</p><h2 id="movementTitle">Arrival</h2><p id="movementDetail">Settle into a place. Listen beneath the surface.</p><button class="pill" id="nextMovement" disabled>Next movement</button></div>
-      <div class="wavefield">
-        <div class="wavehead"><span>THE LISTENING FIELD</span><span id="waveState">WAITING FOR SOUND</span><button id="freezeWaves" class="pill" aria-pressed="false">Freeze visual</button></div>
-        <div class="signal-stage">
-          <svg id="waves" role="img" aria-label="Live amplitude traces of voice, surrounding recordings, percussion and bass" preserveAspectRatio="none"><path data-wave="voice"/><path data-wave="city"/><path data-wave="percussion"/><path data-wave="bass"/></svg>
-          <div class="signal-labels" aria-hidden="true"><span><b>01</b> Voice</span><span><b>02</b> Place</span><span><b>03</b> Pulse</span><span><b>04</b> Bass</span></div>
-        </div>
-        <p class="wavecaption">Four layers, one listening space.<span>Traces follow the sound.</span></p>
-      </div>
-      <div class="movement-trail" aria-label="Journey movements"><span>Arrival</span><span>Encounter</span><span>Pulse</span><span>Open space</span><span>Afterimage</span><span>Return</span></div>
-      <details class="mix-tools"><summary>Listening balance <span>Voice, place, rhythm</span></summary><div class="mix-body"><div class="motif-info"><p class="eyebrow" id="foundationHeading">Voice motif</p><h3><a id="anchorTitle">A voice will enter the journey</a></h3><p id="anchorDetail">One motif among many. Voices enter and leave as the composition unfolds.</p></div>      <div class="foundation-actions"><button class="pill" id="holdVoice" aria-pressed="false" disabled>Stay with this voice</button><button class="pill" id="nextVoice" disabled>Let another voice in</button></div>
-      <div class="accompaniment"><label for="rhythmAmount">Percussion <output id="rhythmValue">28%</output><input id="rhythmAmount" type="range" min="0" max="70" value="28"></label><label for="bassAmount">Bass <output id="bassValue">18%</output><input id="bassAmount" type="range" min="0" max="70" value="18"></label><label for="ambienceAmount">Places <output id="ambienceValue">55%</output><input id="ambienceAmount" type="range" min="0" max="70" value="55"></label><button id="voiceSolo" class="pill" aria-pressed="false">Solo voice</button><span>Set the balance; the journey shapes its presence. Zero is silent. Solo voice isolates the vocal motif.</span></div>
-<div class="mix-extras"><button class="pill" id="effects" aria-pressed="false">Effects off</button><button class="pill" id="reroll" disabled>Change surroundings</button></div></div></details>
-    </section>
-    <details class="atlas" id="atlas"><summary><span>Sound atlas</span><span>Recordings &amp; their origins</span></summary><div class="stage">
-      <section class="maparea" aria-label="Spatial listening field">
-        <div class="sectionhead"><h2 id="roomTitle">Sài Gòn · spatial score</h2><span class="badge" id="corpusCount">Field recordings</span></div>
-        <canvas id="map" tabindex="0" role="group" aria-label="Spatial score. Use arrow keys to move your listening position." aria-describedby="mapHelp">Use the arrow keys to move the listener through the spatial field.</canvas>
-        <div class="score-legend" aria-label="Score symbols"><span><i class="attention-symbol" aria-hidden="true"></i>Your attention</span><span><i class="sounding-symbol" aria-hidden="true"></i>Active sources</span><span><i class="archive-symbol" aria-hidden="true"></i>Archive</span></div>
-        <p class="maplabel" id="mapHelp">Drag the ring, or use arrow keys, to shift the mix. Curves evoke the river’s flow; points follow the archive. A score for listening.</p>
-        <div class="maptools"><span id="journeyStatus">A slow journey through the archive</span><button class="pill" id="tour" aria-pressed="true">Auto journey on</button></div>
-      </section>
-      <aside id="now" aria-label="Current recordings"><div class="sectionhead"><h2>Places in the composition</h2><span class="badge" id="activeCount">0 layers</span></div><ul id="nowlist"><li class="empty">Your first sounds will appear here when you enter the room.</li></ul><p class="source-note">Real voices and places, transformed into a composition. Open a title to hear its original recording on the map.</p></aside>
-    </div>
-    </details>
-    <div class="transport" role="region" aria-label="Playback controls">
-      <button class="primary" id="playback" title="Play or pause (Space)" disabled>Pause</button>
-      <div class="playstate"><span id="playStatus">Ready when you are</span><span id="phase">Following the time of the city</span></div>
-      <button class="pill" id="mute" aria-pressed="false">Mute</button>
-      <div class="volume"><label for="volume">Volume</label><input type="range" id="volume" min="0" max="100" step="1" value="70"><output id="volumeValue" for="volume">70%</output></div>
+<canvas id="room" tabindex="0" role="application" aria-label="The listening room. Arrow keys or W A S D to walk and turn; drag to move; click or tap the floor to go there."></canvas>
 
-    </div>
-    <details class="panel" id="instrument">
-      <summary><span><strong>Sound settings</strong><small>Shape the room, or leave it to unfold.</small></span></summary>
-      <div class="panelbody">
-        <div class="presets" aria-label="Sound presets"><span>Start somewhere</span><button class="pill" data-preset="close" aria-pressed="false">Close listening</button><button class="pill" data-preset="drift" aria-pressed="true">Slow return</button><button class="pill" data-preset="night" aria-pressed="false">Soft pulse</button><button class="pill" id="reset">Reset sound</button></div>
-        <div class="knobs" id="knobs"></div>
-        <p class="tip">Drag a dial up or down, or focus it and use the arrow keys. Home / End set its limits. Double-click to reset one dial.</p>
-        <div class="fader"><label><span>Optional synthesizer</span><b id="synthState">off</b></label><div class="row synthrow"><button class="pill" id="synthBtn" aria-pressed="false">Enable synth</button><div class="knobs" id="synthKnobs"></div></div><p class="tip">Adds generated tones beneath the recordings. Turn it on to audition these controls. Echo and Space are heard only with Effects on.</p></div>
-        <div class="fader"><label for="hour"><span>Time of the composition</span><b id="hourLabel">Live</b></label><div class="row"><input type="range" id="hour" aria-label="Time of the composition" min="0" max="23.75" step="0.25" value="12"><button class="pill on" id="liveBtn" aria-pressed="true">Follow live</button></div><div class="time-labels"><span>00:00</span><span>06:00</span><span>12:00</span><span>18:00</span><span>24:00</span></div><p class="tip">Different movements bring different sounds forward. Moving this slider changes the composition, not the recording date.</p></div>
-      </div>
-    </details>
-  </main>
-  <footer class="credit"><p>A community archive curated by <strong>Officine Gặp</strong>.<br>Recordings by the people of the city. Every contribution adds another perspective.</p><p><a href="/">Explore the map or contribute a sound</a></p></footer>
+<div class="bar left">
+  <span class="mark">Phòng nghe</span>
+  <a href="/" id="tomap">← Map</a>
+</div>
+<div class="bar right">
+  <button id="streets" type="button" aria-pressed="false" title="Walk the real streets of Saigon">Streets</button>
+  <button id="sound" type="button" aria-pressed="true">Sound on</button>
+  <button id="theme" type="button">White</button>
+  <button id="again" type="button">New journey</button>
+  <button id="nextsound" type="button" hidden>Next sound</button>
 </div>
 
-<script src="voice-loop.js?v=11"></script>
-<script src="listen-engine.js?v=14"></script>
+<div id="enter">
+  <div class="door">
+    <h1>Phòng nghe</h1>
+    <div class="sub">The listening room</div>
+    <p>A journey composed live by the machine from the recordings of the Saigon_Miền Tây Sound Map: a day of the city in eleven minutes, from dawn to night. Every sound is a place in this room. Walk through it, and what you hear changes with where you stand.</p>
+    <div class="doors"><button id="go" type="button" disabled>Loading the archive…</button><button id="go-streets" class="alt" type="button" disabled>Enter the streets</button></div>
+    <div id="status" role="status"></div>
+    <div class="how">Headphones · arrows or drag to move · shift to run<br>Tap the floor to go there · in the streets, walk up to a sound to find it</div>
+  </div>
+</div>
+<div id="streets-view" hidden role="application" aria-label="The streets of Saigon. Arrow keys or W A S D to walk and turn, shift to run; drag to move; tap the street to go there. Walk up to a pillar of light to find its sound."></div>
+<div class="hud" id="hud" hidden><div class="count" id="hud-count"></div><div class="near"><span class="arrow" id="hud-arrow">↑</span><span id="hud-near"></span></div></div>
+<div id="toast" aria-hidden="true"></div>
+<div class="sr" aria-live="polite" id="live"></div>
+
+<script src="room-view.js?v=2"></script>
+<script src="journey-engine.js?v=3"></script>
+<script src="street-mode.js?v=1"></script>
 <script>
-'use strict';
-const $ = id => document.getElementById(id);
-let HB = { latMin: 10.62, latMax: 10.98, lngMin: 106.52, lngMax: 106.98 };
-let pts = [];
-let rerollBusy = false;
+(function () {
+  'use strict';
+  const $ = id => document.getElementById(id);
+  const LOCAL = ['localhost', '127.0.0.1'].includes(location.hostname);
+  const API = LOCAL ? 'https://saigon-soundscape.onrender.com/api' : '/api';
+  const store = { get: k => { try { return localStorage.getItem(k); } catch { return null; } }, set: (k, v) => { try { localStorage.setItem(k, v); } catch {} } };
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)');
 
-const clockFormat = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Ho_Chi_Minh', hour: '2-digit', minute: '2-digit', hour12: false });
-const formatHour = h => `${String(Math.floor(h) % 24).padStart(2,'0')}:${String(Math.round(h % 1 * 60)).padStart(2,'0')}`;
-const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
-// Reduced motion freezes the visual only; it does not disable the musical journey.
-$('start').onclick = async () => {
-  $('start').disabled = true; $('start').textContent = 'Opening the room…';
-  try {
-    await Room.start();
-    document.body.classList.add('listening');
-    $('entry').hidden = true; $('entry').style.display = 'none';
-    syncCorpus(); renderNow(); syncTransport();
-    $('playback').focus({preventScroll:true});
-  } catch (error) {
-    $('start').textContent = 'Try again'; $('start').disabled = false;
-    $('notice').textContent = error.message || 'Could not open the room. Please try again.';
-  }
-};
-function syncCorpus() {
-  HB = Room.state.roomFilter?.bounds || { latMin: 10.62, latMax: 10.98, lngMin: 106.52, lngMax: 106.98 };
-  $('roomTitle').textContent = (Room.state.roomFilter?.label || 'Sài Gòn') + ' · spatial score';
-  pts = Room.state.recs.filter(r => r.lat >= HB.latMin && r.lat <= HB.latMax && r.lng >= HB.lngMin && r.lng <= HB.lngMax);
-  $('corpusCount').textContent = `${pts.length} recordings`;
-  sizeMap(); drawMap();
-}
-function phase() {
-  $('cityClock').textContent = clockFormat.format(new Date());
-  $('cityClock').dateTime = new Date().toISOString();
-  $('phase').textContent = Room.state.movement ? Room.state.movement.name+' · '+(Room.state.touring?'journey':'staying here') : 'A journey through listening';
-  const live = Room.state.hour === null, hour = Room.curHour();
-  $('hourLabel').textContent = `${live ? 'Live · ' : 'Manual · '}${formatHour(hour)}`;
-  if (live) $('hour').value = String(Math.min(23.75, Math.floor(hour * 4) / 4));
-  $('hour').setAttribute('aria-valuetext', `${formatHour(hour)}, ${live ? 'live Saigon time' : 'manual composition time'}`);
-  $('liveBtn').classList.toggle('on', live); $('liveBtn').setAttribute('aria-pressed', String(live));
-  KNOBS.forEach(k => k._draw?.());
-  const manual = Date.now() - Room.state.lastTouch < 30000;
-  $('journeyStatus').textContent = !Room.state.started ? 'A slow journey through the archive' : Room.state.paused ? 'Journey paused with playback' : !Room.state.touring ? 'Staying here · move to explore' : manual ? 'Your position · journey resumes in 30s' : Room.state.movement?.detail || 'Moving through the archive';
-}
-function syncTransport() {
-  const st = Room.state;
-  $('notice').textContent = st.message;
-  $('playback').disabled = !st.started;
-  $('playback').textContent = st.paused ? 'Resume' : 'Pause';
-  if ('mediaSession' in navigator) navigator.mediaSession.playbackState = !st.started ? 'none' : st.paused ? 'paused' : 'playing';
-  $('playStatus').textContent = !st.started ? 'Ready when you are' : st.paused ? 'Paused' : st.muted || st.volume === 0 ? 'Sound muted' : st.nowPlaying.size ? 'Listening to the city' : 'Waiting for recordings';
-  $('reroll').disabled = !st.started || st.paused || rerollBusy;
-  $('mute').textContent = st.muted ? 'Unmute' : 'Mute'; $('mute').setAttribute('aria-pressed', String(st.muted));
-  $('volumeValue').textContent = `${Math.round(st.volume*100)}%`;
-  $('volume').setAttribute('aria-valuetext', `${Math.round(st.volume*100)} percent${st.muted ? ', muted' : ''}`);
-  $('tour').textContent = st.touring ? 'Auto journey on' : 'Auto journey off'; $('tour').setAttribute('aria-pressed', String(st.touring));
-  phase();
-}
-window.addEventListener('room-status', syncTransport);
-window.addEventListener('room-corpus', syncCorpus);
-$('playback').onclick = async () => {
-  $('playback').disabled = true;
-  try { await (Room.state.paused ? Room.resume() : Room.pause()); }
-  catch { Room.state.message = 'Playback was interrupted. Please try Resume again.'; }
-  finally { syncTransport(); }
-};
-$('volume').oninput = e => Room.setVolume(Number(e.target.value)/100);
-$('mute').onclick = () => Room.toggleMute();
-$('tour').onclick = () => Room.setTour(!Room.state.touring);
-reducedMotion.addEventListener('change', e => {
-  visualFrozen = e.matches;
-  $('freezeWaves').setAttribute('aria-pressed', String(visualFrozen));
-  $('freezeWaves').textContent = visualFrozen ? 'Resume visual' : 'Freeze visual';
-});
-if ('mediaSession' in navigator) {
-  if ('MediaMetadata' in window) navigator.mediaSession.metadata = new MediaMetadata({ title:'Phòng nghe · The Listening Room', artist:'Saigon_Miền Tây Sound Map', album:'Field recordings · Officine Gặp' });
-  for (const action of ['play','pause']) {
-    try { navigator.mediaSession.setActionHandler(action, () => {
-      (action === 'play' ? Room.resume() : Room.pause()).catch(() => { Room.state.message = 'Tap Resume to continue listening.'; syncTransport(); });
-    }); } catch { /* Not every browser exposes every media action. */ }
-  }
-}
-document.addEventListener('keydown', e => {
-  if (e.code !== 'Space' || !Room.state.started || e.repeat || e.altKey || e.ctrlKey || e.metaKey || e.target.isContentEditable || e.target.closest('button,input,a,summary,[role="slider"]')) return;
-  e.preventDefault(); $('playback').click();
-});
-const roomPath = location.port === '8342' ? 'listen.html' : '/listen';
-if (location.port === '8342') document.querySelectorAll('a[href="/"]').forEach(a => a.href = 'https://saigon-soundscape.onrender.com/');
-$('cityRoom').href = roomPath; $('thanhDaRoom').href = roomPath + '?walk=thanh-da';
-const query = new URLSearchParams(location.search);
-if ((query.get('walk') || '').toLowerCase() === 'thanh-da') $('thanhDaRoom').setAttribute('aria-current','page');
-else if (![...query.keys()].some(k => ['near','walk','date','cat','hours'].includes(k))) $('cityRoom').setAttribute('aria-current','page');
+  let theme = store.get('room-theme') === 'white' ? 'white' : 'black';
+  document.documentElement.dataset.theme = theme;
+  $('theme').textContent = theme === 'white' ? 'Black' : 'White';
 
-/* ---------- map ---------- */
-function sizeMap() {
-  const c = $('map'), dpr = Math.min(2, window.devicePixelRatio || 1);
-  c.width = c.clientWidth * dpr; c.height = c.clientHeight * dpr;
-}
-window.addEventListener('resize', () => { sizeMap(); drawMap(); });
-function xy(r) {
-  const c = $('map');
-  return [(r.lng ?? r[1]) === undefined ? 0 : ((r.lng ?? r[1]) - HB.lngMin) / (HB.lngMax - HB.lngMin) * c.width,
-          (1 - ((r.lat ?? r[0]) - HB.latMin) / (HB.latMax - HB.latMin)) * c.height];
-}
-function drawMap() {
-  const c=$('map'),g=c.getContext('2d'),scale=Math.min(2,window.devicePixelRatio||1),w=c.width,h=c.height;
-  if(!w||!h)return;
-  g.clearRect(0,0,w,h);
-  // Abstract river gestures are score lines, not surveyed riverbanks or streets.
-  // Their normalized positions never alter archive coordinates or audio proximity.
-  g.save(); g.scale(w,h); g.lineWidth=.8*scale/w; g.lineCap='round';
-  for(const shift of [-.024,0,.024]) {
-    g.beginPath(); g.moveTo(.68+shift,-.05);
-    g.bezierCurveTo(.42+shift,.16,.89+shift,.22,.65+shift,.41);
-    g.bezierCurveTo(.42+shift,.56,.81+shift,.60,.57+shift,.78);
-    g.bezierCurveTo(.46+shift,.87,.54+shift,.94,.70+shift,1.05);
-    g.strokeStyle=shift===0?'#8eaa9970':'#8eaa9930'; g.stroke();
-  }
-  for(const bend of [.30,.66]) {
-    g.beginPath();g.moveTo(-.05,bend);
-    g.bezierCurveTo(.16,bend-.09,.20,bend+.11,.36,bend+.05);
-    g.bezierCurveTo(.47,bend,.49,bend+.06,.59,bend+.09);
-    g.strokeStyle='#aab79b28';g.stroke();
-  }
-  g.restore();
-  const [lx,ly]=xy(Room.state.listener);
-  const active=new Set([...Room.state.nowPlaying.values()].map(r=>r.id));
-  const sounding=[];
-  // Quiet archive points remain underneath the sounding layer.
-  for(const r of pts) {
-    const [x,y]=xy(r);if(x<0||y<0||x>w||y>h)continue;
-    if(active.has(r.id)){sounding.push([x,y]);continue;}
-    g.beginPath();g.arc(x,y,1.8*scale,0,Math.PI*2);g.fillStyle='#aeb7a56b';g.fill();
-  }
-  for(const [x,y] of sounding) {
-    // These curves connect current attention to actual playing sources.
-    g.beginPath();g.moveTo(lx,ly);
-    g.quadraticCurveTo((lx+x)/2+(ly-y)*.12,(ly+y)/2+(x-lx)*.12,x,y);
-    g.strokeStyle='#96bfff8c';g.lineWidth=1.2*scale;g.stroke();
-    g.beginPath();g.arc(x,y,10*scale,0,Math.PI*2);g.fillStyle='#8bb7ff1f';g.fill();
-    g.beginPath();g.arc(x,y,4*scale,0,Math.PI*2);g.fillStyle='#a9caff';g.fill();
-    g.strokeStyle='#172219';g.lineWidth=1.5*scale;g.stroke();
-  }
-  g.beginPath();g.arc(lx,ly,12*scale,0,Math.PI*2);g.strokeStyle='#f0f1e8';g.lineWidth=2*scale;g.stroke();
-  g.beginPath();g.arc(lx,ly,3*scale,0,Math.PI*2);g.fillStyle='#f0f1e8';g.fill();
-}
-$('atlas').addEventListener('toggle',()=>{sizeMap();drawMap();});
-const offset = ([x, y], dx, dy) => [x + dx, y + dy];
-function mapEvent(e) {
-  if (!Room.state.started) return;
-  const c = $('map'), b = c.getBoundingClientRect();
-  const px = (e.touches ? e.touches[0].clientX : e.clientX) - b.left;
-  const py = (e.touches ? e.touches[0].clientY : e.clientY) - b.top;
-  Room.moveListener(HB.latMin + (1 - py / b.height) * (HB.latMax - HB.latMin),
-                    HB.lngMin + px / b.width * (HB.lngMax - HB.lngMin));
-  drawMap();
-}
-let dragging = false;
-$('map').addEventListener('pointerdown', e => { if (!Room.state.started) return; dragging = true; $('map').setPointerCapture(e.pointerId); mapEvent(e); });
-window.addEventListener('pointermove', e => dragging && mapEvent(e));
-function finishMove() { if (dragging) { dragging = false; void Room.refresh(); } }
-$('map').addEventListener('pointerup', finishMove);
-$('map').addEventListener('pointercancel', finishMove);
-$('map').addEventListener('lostpointercapture', finishMove);
-let moveTimer;
-$('map').addEventListener('keydown', e => {
-  if (!Room.state.started || !['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.key)) return;
-  e.preventDefault();
-  const step = e.shiftKey ? .05 : .015, l = Room.state.listener;
-  Room.moveListener(l.lat + (e.key === 'ArrowUp' ? step : e.key === 'ArrowDown' ? -step : 0) * (HB.latMax-HB.latMin),
-    l.lng + (e.key === 'ArrowRight' ? step : e.key === 'ArrowLeft' ? -step : 0) * (HB.lngMax-HB.lngMin));
-  drawMap(); clearTimeout(moveTimer); moveTimer = setTimeout(() => Room.refresh(), 250);
-});
-window.addEventListener('room-drift', drawMap);
-
-/* ---------- tactile sound controls: drag up/down or use the keyboard ---------- */
-const KNOBS = [
-  { key: 'percDensity', label: 'Groove', cap: 'var(--capA)', min: 0, max: 1,
-    get: () => Room.state.percDensity === null ? Room.grooveAmt() : Room.state.percDensity,
-    fmt: v => (Room.state.percDensity === null ? 'Auto · ' : '') + Math.round(v * 100) + '%' },
-  { key: 'sub', label: 'Sub', cap: 'var(--capA)', min: 0, max: 1, get: () => Room.state.sub, fmt: v => Math.round(v * 100) + '%' },
-  { key: 'bright', label: 'Cutoff', cap: 'var(--capB)', min: 0, max: 1, get: () => Room.state.bright, fmt: v => v > .66 ? 'bright' : v > .33 ? 'warm' : 'dark' },
-  { key: 'reso', label: 'Resonance', cap: 'var(--capB)', min: 0, max: 1, get: () => Room.state.reso, fmt: v => Math.round(v * 100) + '%' },
-  { key: 'echo', label: 'Echo', cap: 'var(--capC)', min: 0, max: 1, get: () => Room.state.echo, fmt: v => Math.round(v * 100) + '%' },
-  { key: 'space', label: 'Space', cap: 'var(--capC)', min: 0, max: 1, get: () => Room.state.space, fmt: v => Math.round(v * 100) + '%' },
-  { key: 'pitch', label: 'Pitch', cap: 'var(--capD)', min: -3, max: 3, get: () => Room.state.pitch, fmt: v => (v > 0 ? '+' : '') + v.toFixed(1) + ' st' },
-];
-const hints = { percDensity:'Found-sound rhythm', sub:'Synth bass weight', bright:'Dark to bright', reso:'Filter emphasis', echo:'Repeating reflections', space:'Reverb depth', pitch:'Recording pitch', synthLevel:'Tone volume', synthWave:'Oscillator character', synthTone:'Tone brightness', synthShape:'Attack and release', synthDetune:'Chorus width' };
-function markCustom() { document.querySelectorAll('[data-preset]').forEach(b => b.setAttribute('aria-pressed','false')); }
-function buildKnobs() { buildKnobSet(KNOBS, $('knobs')); }
-function buildKnobSet(list, host) {
-  for (const k of list) {
-    const el = document.createElement('div'); el.className = 'kn';
-    el.innerHTML = `<div class="dial" tabindex="0" role="slider" aria-orientation="vertical" aria-label="${k.label}" aria-describedby="hint-${k.key}" aria-valuemin="${k.min}" aria-valuemax="${k.max}" style="--cap:${k.cap}"><div class="ptr" aria-hidden="true"></div></div><label>${k.label}</label><div class="val"></div><span class="hint" id="hint-${k.key}">${hints[k.key]}</span>`;
-    host.appendChild(el);
-    const dial = el.querySelector('.dial'), ptr = el.querySelector('.ptr'), val = el.querySelector('.val');
-    const draw = () => {
-      const v = k.get();
-      const t = (v - k.min) / (k.max - k.min);
-      ptr.style.transform = `rotate(${-135 + t * 270}deg)`;
-      val.textContent = k.fmt(v);
-      dial.setAttribute('aria-valuenow', String(Number(v.toFixed(2)))); dial.setAttribute('aria-valuetext', k.fmt(v));
-    };
-    draw();
-    let startY = null, startV = null;
-    dial.addEventListener('pointerdown', e => {
-      dial.focus({preventScroll:true}); dial.setPointerCapture(e.pointerId);
-      startY = e.clientY; startV = k.get();
-      e.preventDefault();
-    });
-    dial.addEventListener('pointermove', e => {
-      if (startY === null) return;
-      const range = k.max - k.min;
-      let v = startV + (startY - e.clientY) / 150 * range;
-      v = Math.max(k.min, Math.min(k.max, v));
-      Room.set(k.key, v); markCustom(); draw(); phase();
-    });
-    const end = () => { startY = null; };
-    dial.addEventListener('pointerup', end); dial.addEventListener('pointercancel', end);
-    dial.addEventListener('wheel', e => {
-      if (document.activeElement !== dial) return;
-      e.preventDefault();
-      const range = k.max - k.min;
-      let v = k.get() + (e.deltaY < 0 ? 1 : -1) * range * 0.04;
-      v = Math.max(k.min, Math.min(k.max, v));
-      Room.set(k.key, v); markCustom(); draw(); phase();
-    }, { passive: false });
-    dial.addEventListener('keydown', e => {
-      if (!['ArrowUp','ArrowRight','ArrowDown','ArrowLeft','Home','End','PageUp','PageDown'].includes(e.key)) return;
-      e.preventDefault();
-      const step = (k.max-k.min) * (e.key.startsWith('Page') ? .1 : .01);
-      const v = e.key === 'Home' ? k.min : e.key === 'End' ? k.max : k.get() + (['ArrowUp','ArrowRight','PageUp'].includes(e.key) ? step : -step);
-      Room.set(k.key, Math.max(k.min,Math.min(k.max,v))); markCustom(); draw(); phase();
-    });
-    dial.addEventListener('dblclick', () => { Room.set(k.key,Room.defaults[k.key]); markCustom(); draw(); phase(); });
-    k._draw = draw;
-  }
-}
-buildKnobs();
-
-/* ---------- synth section ---------- */
-const SYNTH_KNOBS = [
-  { key: 'synthLevel', label: 'Level', cap: 'var(--lime)', min: 0, max: 1, get: () => Room.state.synthLevel, fmt: v => Math.round(v * 100) + '%' },
-  { key: 'synthWave', label: 'Wave', cap: 'var(--lime)', min: 0, max: 1, get: () => Room.state.synthWave, fmt: v => v < .33 ? 'triangle' : v < .66 ? 'sawtooth' : 'square' },
-  { key: 'synthTone', label: 'Tone', cap: 'var(--lime)', min: 0, max: 1, get: () => Room.state.synthTone, fmt: v => Math.round(400 * Math.pow(2, v * 3.9)) + ' Hz' },
-  { key: 'synthShape', label: 'Shape', cap: 'var(--lime)', min: 0, max: 1, get: () => Room.state.synthShape, fmt: v => v < .33 ? 'stab' : v < .7 ? 'pluck' : 'pad' },
-  { key: 'synthDetune', label: 'Detune', cap: 'var(--lime)', min: 0, max: 1, get: () => Room.state.synthDetune, fmt: v => Math.round(v * 25) + ' ct' },
-];
-buildKnobSet(SYNTH_KNOBS, document.getElementById('synthKnobs'));
-function syncSound() {
-  const on = Room.state.synthOn;
-  $('synthBtn').classList.toggle('on', on); $('synthBtn').setAttribute('aria-pressed',String(on));
-  $('synthBtn').textContent = on ? 'Disable synth' : 'Enable synth'; $('synthState').textContent = on ? 'on' : 'off';
-  [...KNOBS,...SYNTH_KNOBS].forEach(k => k._draw()); phase();
-}
-$('synthBtn').onclick = () => { Room.set('synthOn',!Room.state.synthOn); markCustom(); syncSound(); };
-$('hour').oninput = e => { Room.setHour(Number(e.target.value)); phase(); };
-$('liveBtn').onclick = () => { Room.setLive(); phase(); };
-$('reroll').onclick = async () => {
-  rerollBusy = true; $('reroll').disabled = true; $('reroll').textContent = 'Finding…';
-  try { await Room.reroll(); } finally { rerollBusy = false; $('reroll').textContent = 'New sounds'; syncTransport(); }
-};
-const presets = {
-  close: { percDensity:0, bassLevel:0, echo:0, space:.08, synthOn:false, bright:1 },
-  drift: {},
-  night: { percDensity:.4, bassLevel:.25, echo:.25, space:.5, synthOn:false, synthLevel:.2, bright:.7 },
-};
-document.querySelectorAll('[data-preset]').forEach(button => {
-  button.onclick = () => {
-    const hour = Room.state.hour; Room.reset(); if (hour !== null) Room.setHour(hour); Object.entries(presets[button.dataset.preset]).forEach(([key,value]) => Room.set(key,value));
-    markCustom(); button.setAttribute('aria-pressed','true'); syncSound();
-  };
-});
-$('reset').onclick = () => { Room.reset(); markCustom(); document.querySelector('[data-preset="drift"]').setAttribute('aria-pressed','true'); syncSound(); };
-
-function renderNow() {
-  const el = $('nowlist'); el.replaceChildren();
-  for (const [slot,r] of Room.state.nowPlaying.entries()) {
-    if (slot === 'anchor') continue;
-    const li = document.createElement('li');
-    const title = document.createElement(r.id.length > 8 ? 'a' : 'span');
-    title.className = 'record-title'; title.textContent = r.title;
-    if (title.tagName === 'A') {
-      title.href = '/?rec=' + encodeURIComponent(r.id); title.target = '_blank'; title.rel = 'noopener';
-      title.setAttribute('aria-label',`${r.title} — view recording on the map (opens a new tab)`);
-    }
-    const meta = document.createElement('span'); meta.className = 'cat';
-    const duration = Math.round(r.duration); meta.textContent = `${r.category} · ${Math.floor(duration/60)}:${String(duration%60).padStart(2,'0')}`;
-    const detail=Room.state.slots[slot]?.detail;
-    if(detail)meta.textContent+=` · ${detail.buffer.duration.toFixed(1)}s loop from ${detail.offset.toFixed(1)}s · softened seam`;
-    li.append(title,meta); el.append(li);
-  }
-  if (!el.childElementCount) { const li = document.createElement('li'); li.className = 'empty'; li.textContent = 'Space for the city to enter. Surrounding recordings arrive gradually.'; el.append(li); }
-  const surroundingCount=Room.state.nowPlaying.size-(Room.state.slots.anchor?1:0);
-  $('activeCount').textContent = `${surroundingCount} ${surroundingCount === 1 ? 'layer' : 'layers'}`;
-  syncFoundation(); drawMap(); syncTransport();
-}
-Room.state.onNowPlaying = renderNow;
-const waveTracks=[['voice','VOICE','#292c29'],['city','CITY','#555e4d'],['percussion','PERC','#70614d'],['bass','BASS','#404947']];
-const waveHistory=Object.fromEntries(waveTracks.map(([key])=>[key,new Float32Array(180)]));
-const waveSamples=new Float32Array(1024);let visualFrozen=reducedMotion.matches,lastWaveAt=0;
-function sizeWaves(){const c=$('waves');c.setAttribute('viewBox',`0 0 ${Math.max(1,c.clientWidth)} ${Math.max(1,c.clientHeight)}`);}
-function drawWaves(timestamp=0){
-  requestAnimationFrame(drawWaves);
-  if(timestamp-lastWaveAt<65 || document.hidden)return;lastWaveAt=timestamp;
-  const c=$('waves'),scale=1,w=c.clientWidth,h=c.clientHeight;
-  const playing=Room.state.started&&!Room.state.paused&&!Room.state.muted;
-  $('waveState').textContent=Room.state.paused?'PAUSED':Room.state.muted?'MUTED':visualFrozen&&Room.state.started?'VISUAL FROZEN':playing?'LIVE / 72 BPM':'WAITING FOR SOUND';
-  if(visualFrozen && Room.state.started)return;
-  waveTracks.forEach(([key,label,color],track)=>{
-    const history=waveHistory[key],analyser=Room.state.meters?.[key];let level=0;
-    if(playing&&analyser){analyser.getFloatTimeDomainData(waveSamples);for(const v of waveSamples)level+=v*v;level=Math.sqrt(level/waveSamples.length)*Room.state.volume;}
-    history.copyWithin(0,1);history[history.length-1]=Number.isFinite(level)?Math.min(1,level*13):0;
-    // Each ribbon follows measured amplitude history. No invented audio activity.
-    const placement=[.64,.125+track*.25,.62];
-    const center=h*placement[1],amplitude=h*.075,left=w*(placement[0]-placement[2]/2),right=w*(placement[0]+placement[2]/2);
-    const points=Array.from(history,(v,i)=>({x:left+(right-left)*i/(history.length-1),a:v*amplitude}));
-    function edge(sign,reverse){
-      const list=reverse?[...points].reverse():points;
-      let d='';
-      list.forEach((p,i)=>{const y=center+sign*p.a;if(i===0)d+=`${reverse?'L':'M'}${p.x},${y}`;else {const prev=list[i-1];d+=` Q${prev.x},${center+sign*prev.a} ${(prev.x+p.x)/2},${(center+sign*prev.a+y)/2}`;}});
-      const last=list[list.length-1];return d+` L${last.x},${center+sign*last.a}`;
-    }
-    const path=c.querySelector(`[data-wave="${key}"]`);
-    path.setAttribute('d',edge(-1,false)+edge(1,true)+' Z');
-    path.setAttribute('fill',color+'24');path.setAttribute('stroke',color);path.setAttribute('stroke-width','1.1');
-
-
+  const view = RoomView.create($('room'), {
+    theme, bounds: Journey.BOUNDS, listener: { x: 0, z: 18, yaw: 0 }, labelTop: 78,
+    onMove: l => { if (perf) perf.setListener(l.x, l.z, l.yaw); },
   });
-}
-$('freezeWaves').onclick=()=>{visualFrozen=!visualFrozen;$('freezeWaves').setAttribute('aria-pressed',String(visualFrozen));$('freezeWaves').textContent=visualFrozen?'Resume visual':'Freeze visual';};
-if(visualFrozen){$('freezeWaves').textContent='Resume visual';$('freezeWaves').setAttribute('aria-pressed','true');}
-window.addEventListener('resize',sizeWaves);
-new ResizeObserver(sizeWaves).observe($('waves'));
-sizeWaves();requestAnimationFrame(drawWaves);
+  view.setCaption('');
 
-$('effects').onclick=()=>Room.toggleEffects();
-$('rhythmAmount').oninput=e=>{Room.set('percDensity',Number(e.target.value)/100);syncFoundation();syncSound();};
-$('bassAmount').oninput=e=>{Room.set('bassLevel',Number(e.target.value)/100);syncFoundation();};
-$('ambienceAmount').oninput=e=>{Room.set('ambienceLevel',Number(e.target.value)/100);syncFoundation();};
-$('voiceSolo').onclick=()=>{Room.set('voiceSolo',!Room.state.voiceSolo);syncFoundation();};
-$('nextMovement').onclick=()=>Room.nextMovement();
-function syncFoundation() {
-  const movement=Room.state.movement;
-  $('nextMovement').disabled=!Room.state.started||Room.state.paused;
-  if(movement){
-    $('movementLabel').textContent=`MOVEMENT ${String(movement.index+1).padStart(2,'0')} / 06`;
-    $('movementTitle').textContent=movement.name;
-    document.querySelectorAll('.movement-trail span').forEach((el,i)=>{if(i===movement.index)el.setAttribute('aria-current','step');else el.removeAttribute('aria-current');});
-    $('movementDetail').textContent=movement.detail;
-    const detail=Room.state.slots.bedA?.detail;
-    if(detail && ['Encounter','Return'].includes(movement.name)){
-      $('movementDetail').textContent+=` ${movement.name==='Return'?'The same excerpt returns':'A detail comes forward'}: ${Room.state.slots.bedA.rec.title}.`;
+  /* ---------- corpus: the live archive, with Codex's analysis where it exists ---------- */
+  const ROLE_BY_CAT = {
+    'Conversations': 'voice', 'Street Vendors': 'voice', 'Announcements & Signals': 'tonal', 'Ritual & Ceremony': 'tonal',
+    'Nature': 'bed', 'Background': 'bed', 'Waterways': 'bed', 'Repairing': 'rhythm', 'Music': 'rhythm',
+  };
+  const saigonHour = iso => { const h = new Date(iso).toLocaleString('en-GB', { hour: '2-digit', hour12: false, timeZone: 'Asia/Ho_Chi_Minh' }); return Number.parseInt(h, 10); };
+  let corpus = null;
+  async function loadCorpus() {
+    const [features, data] = await Promise.all([
+      fetch('listen-features.json').then(r => r.ok ? r.json() : []).catch(() => []),
+      fetch(API + '/recordings').then(r => { if (!r.ok) throw new Error('archive ' + r.status); return r.json(); }),
+    ]);
+    const byId = new Map(features.map(f => [f.id, f]));
+    return (data.recordings || []).filter(r => r && r.id && r.audioUrl && Number.isFinite(r.latitude)).map(r => {
+      const f = byId.get(r.id.slice(0, 8)) || {};
+      return {
+        id: r.id.slice(0, 8), title: r.title || f.title || '', category: r.category || f.category,
+        duration: r.duration || f.duration || 0, lat: r.latitude, lng: r.longitude,
+        hour: Number.isFinite(f.hour) ? f.hour : saigonHour(r.createdAt),
+        lufs: f.lufs, role: f.role || ROLE_BY_CAT[r.category] || 'texture', onset: f.onset, harm: f.harm,
+        audioUrl: r.audioUrl, file: f.file,
+      };
+    });
+  }
+
+  /* ---------- audio ---------- */
+  let ctx = null, perf = null, journeys = 0, lastSection = '', muted = false, wake = null;
+  async function getBuffer(s) {
+    const url = LOCAL && s.file ? 'audio/' + encodeURIComponent(s.file) : s.audioUrl;
+    const ac = new AbortController(), timer = setTimeout(() => ac.abort(), 30000);
+    try {
+      const res = await fetch(url, { signal: ac.signal });
+      if (!res.ok) throw new Error('audio ' + res.status);
+      return await ctx.decodeAudioData(await res.arrayBuffer());
+    } finally { clearTimeout(timer); }
+  }
+  function begin() {
+    const score = Journey.compose(corpus, { duration: 660 });
+    const l = view.getListener();
+    perf = Journey.createPerformer(ctx, score, { getBuffer, volume: muted ? 0 : .85, listener: l, startAt: ctx.currentTime + .6 });
+    perf.start();
+    journeys++; lastSection = '';
+  }
+  function next(fade = 3) {
+    if (perf) perf.stop(fade);
+    perf = null;
+    setTimeout(begin, fade * 1000);   // the next day begins after the last one has gone
+  }
+
+  async function startAudio() {
+      // iOS mutes Web Audio on the silent switch unless the session is "playback".
+      try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch {}
+      ctx = new (window.AudioContext || window.webkitAudioContext)({ latencyHint: 'playback' });
+      await ctx.resume();
+      if ('mediaSession' in navigator && 'MediaMetadata' in window) {
+        navigator.mediaSession.metadata = new MediaMetadata({ title: 'Phòng nghe · The Listening Room', artist: 'Saigon_Miền Tây Sound Map', album: 'Officine Gặp' });
+        try { navigator.mediaSession.setActionHandler('pause', () => ctx.suspend()); navigator.mediaSession.setActionHandler('play', () => ctx.resume()); } catch {}
+      }
+  }
+  async function enterThrough(streets) {
+    $('go').disabled = $('go-streets').disabled = true;
+    try {
+      // iOS mutes Web Audio on the silent switch unless the session is "playback".
+      try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch {}
+      await startAudio();
+      if (streets) await toStreets(); else { begin(); $('room').focus(); }
+      $('enter').classList.add('gone');
+      keepAwake();
+    } catch (err) {
+      $('status').textContent = 'Could not start: ' + err.message;
+      $('go').disabled = $('go-streets').disabled = false;
     }
   }
-  $('ambienceAmount').value=Math.round(Room.state.ambienceLevel*100);$('ambienceValue').textContent=$('ambienceAmount').value+'%';
-  $('voiceSolo').setAttribute('aria-pressed',String(Room.state.voiceSolo));
-  $('voiceSolo').textContent=Room.state.voiceSolo?'Return to mix':'Solo voice';
-  $('rhythmAmount').value=Math.round(Room.grooveAmt()*100);$('rhythmValue').textContent=$('rhythmAmount').value+'%';
-  $('bassAmount').value=Math.round(Room.state.bassLevel*100);$('bassValue').textContent=$('bassAmount').value+'%';
-  $('effects').textContent=Room.state.effectsOn?'Effects on':'Effects off';
-  $('effects').setAttribute('aria-pressed',String(Room.state.effectsOn));
-  const layer=Room.state.slots.anchor;
-  $('holdVoice').disabled=$('nextVoice').disabled=!Room.state.started;
-  $('holdVoice').setAttribute('aria-pressed',String(Room.state.anchorHeld));
-  $('holdVoice').textContent=Room.state.anchorHeld?'Staying with this voice':'Stay with this voice';
-  if(layer) {
-    $('anchorTitle').textContent=layer.rec.title;
-    $('anchorTitle').href='/?rec='+encodeURIComponent(layer.rec.id);
-    $('anchorTitle').target='_blank'; $('anchorTitle').rel='noopener';
-    $('anchorTitle').setAttribute('aria-label',layer.rec.title+' — original recording on the map (opens a new tab)');
-    $('foundationHeading').textContent=layer.rec.role==='voice'?'Voice motif':'Texture motif';
-    $('anchorDetail').textContent=`${layer.loopSeconds.toFixed(1)}-second phrase · ${Room.state.anchorHeld?'motif retained': 'enters and recedes with the movements'}`;
+  $('go').onclick = () => enterThrough(false);
+  $('go-streets').onclick = () => enterThrough(true);
 
-
+  /* ---------- the streets: real Saigon in 3D, the archive where it was recorded ---------- */
+  const MAPBOX = 'https://api.mapbox.com/mapbox-gl-js/v3.24.0/mapbox-gl';
+  const MAPBOX_TOKEN = 'pk.eyJ1Ijoic2lkZXdhbGtjaXR5IiwiYSI6ImNtb3kyZjBlbjA4Y3cydHNqdmp2djNqamwifQ.1FjkXIrL_BEWjzcY542lIw';
+  let mode = 'room', street = null, mapboxLoading = null, toastTimer = 0;
+  function loadMapbox() {
+    return mapboxLoading ||= new Promise((resolve, reject) => {
+      const css = document.createElement('link'); css.rel = 'stylesheet'; css.href = MAPBOX + '.css'; document.head.appendChild(css);
+      const js = document.createElement('script'); js.src = MAPBOX + '.js'; js.onload = () => resolve(window.mapboxgl); js.onerror = () => reject(new Error('the 3D map could not load')); document.head.appendChild(js);
+    });
   }
-}
-$('holdVoice').onclick=()=>Room.holdAnchor(!Room.state.anchorHeld);
-$('nextVoice').onclick=async()=>{
-  $('nextVoice').disabled=true; $('nextVoice').textContent='Listening for another voice…';
-  try { await Room.nextAnchor(); } finally { $('nextVoice').textContent='Let another voice in'; syncFoundation(); }
-};
-window.addEventListener('room-status',syncFoundation);
-sizeMap(); drawMap(); syncTransport(); setInterval(()=>{phase();syncFoundation();},1000);
+  function onStreetStatus(e) {
+    if (e.type === 'hud') {
+      $('hud-count').textContent = `Found ${e.count} / ${e.total}`;
+      if (e.nearest) {
+        $('hud-arrow').style.transform = `rotate(${Math.round(e.nearest.relBearing)}deg)`;
+        $('hud-near').textContent = `${Math.round(e.nearest.distance)} m · ${e.nearest.title}`;
+      } else $('hud-near').textContent = 'Every sound found';
+    } else if (e.type === 'found') {
+      $('toast').innerHTML = ''; const a = document.createElement('div'); a.textContent = 'Found'; const b = document.createElement('small'); b.textContent = e.title;
+      $('toast').append(a, b); $('toast').classList.add('on'); clearTimeout(toastTimer); toastTimer = setTimeout(() => $('toast').classList.remove('on'), 3200);
+      $('live').textContent = `Found ${e.title}. ${e.count} of ${e.total}.`;
+    } else if (e.type === 'error') $('live').textContent = 'Map: ' + e.message;
+  }
+  async function toStreets() {
+    mode = 'streets';
+    if (perf) { perf.stop(1.5); perf = null; }
+    $('room').hidden = true; $('streets-view').hidden = false; $('hud').hidden = false;
+    $('again').hidden = true; $('nextsound').hidden = false;
+    $('streets').textContent = 'Room'; $('streets').setAttribute('aria-pressed', 'true');
+    const mapboxgl = await loadMapbox();
+    street ||= StreetMode.create({ container: $('streets-view'), ctx, corpus, getBuffer, theme, mapboxgl, token: MAPBOX_TOKEN, volume: muted ? 0 : .85, onStatus: onStreetStatus });
+    await street.enter();
+    $('streets-view').focus();
+  }
+  function toRoom() {
+    mode = 'room';
+    if (street) street.exit();
+    $('streets-view').hidden = true; $('hud').hidden = true; $('room').hidden = false;
+    $('again').hidden = false; $('nextsound').hidden = true;
+    $('streets').textContent = 'Streets'; $('streets').setAttribute('aria-pressed', 'false');
+    begin(); $('room').focus();
+  }
+  $('streets').onclick = () => { if (!ctx) return enterThrough(true); (mode === 'room' ? toStreets() : Promise.resolve(toRoom())).catch(err => { $('live').textContent = err.message; toRoom(); }); };
+  $('nextsound').onclick = () => { if (street) street.nextSound(); };
+  $('again').onclick = () => { if (perf || ctx) next(2.5); };
+  $('sound').onclick = () => {
+    muted = !muted;
+    if (perf) perf.setVolume(muted ? 0 : .85);
+    if (street && mode === 'streets') street.setVolume(muted ? 0 : .85);
+    $('sound').textContent = muted ? 'Sound off' : 'Sound on';
+    $('sound').setAttribute('aria-pressed', String(!muted));
+  };
+  $('theme').onclick = () => {
+    theme = theme === 'black' ? 'white' : 'black';
+    document.documentElement.dataset.theme = theme; view.setTheme(theme); store.set('room-theme', theme);
+    if (street) street.setTheme(theme);
+    $('theme').textContent = theme === 'white' ? 'Black' : 'White';
+    document.querySelector('meta[name="theme-color"]').content = theme === 'white' ? '#f3f3f1' : '#000000';
+  };
+
+  async function keepAwake() {
+    if (!('wakeLock' in navigator) || wake || document.visibilityState !== 'visible' || (!perf && mode !== 'streets')) return;
+    try { wake = await navigator.wakeLock.request('screen'); wake.addEventListener('release', () => { wake = null; }); } catch {}
+  }
+  document.addEventListener('visibilitychange', keepAwake);
+
+  /* ---------- the room follows the score ---------- */
+  setInterval(() => { if (perf) view.setLevels(perf.levels()); }, 60);
+  setInterval(() => {
+    if (!perf) return;
+    view.setSources(perf.presentSources().map(s => ({ id: s.id, x: s.x, z: s.z, label: s.title, radius: 10 })));
+    const sec = perf.section(), i = perf.score.sections.indexOf(sec) + 1;
+    view.setCaption(`${sec.label} · ${String(i).padStart(2, '0')} / 06`);
+    if (sec.key !== lastSection) { lastSection = sec.key; $('live').textContent = `${sec.label.toLowerCase()}, part ${i} of 6`; }
+    if (perf.position() >= perf.score.duration - .5) next(1);
+  }, 1000);
+
+  // Left alone, the listener drifts slowly toward what is sounding — the
+  // room keeps performing as an installation. Any touch hands control back.
+  let lastInput = performance.now();
+  for (const type of ['pointerdown', 'keydown', 'wheel']) $('room').addEventListener(type, () => { lastInput = performance.now(); }, { passive: true });
+  setInterval(() => {
+    if (!perf || reduced.matches || performance.now() - lastInput < 40000) return;
+    const lv = perf.levels(), l = view.getListener();
+    let x = 0, z = 0, w = 0;
+    for (const s of perf.presentSources()) { const k = lv[s.id] || 0; x += s.x * k; z += s.z * k; w += k; }
+    if (!w) return;
+    x /= w; z /= w;
+    const dx = x - l.x, dz = z - l.z, d = Math.hypot(dx, dz);
+    if (d < 5) return;
+    const step = Math.min(d - 4, 6);
+    view.setListener({ x: l.x + dx / d * step, z: l.z + dz / d * step, yaw: Math.atan2(dx, -dz) }, { glide: true });
+  }, 8000);
+
+  if (LOCAL) window.__room = { get perf() { return perf; }, get ctx() { return ctx; }, get street() { return street; }, get mode() { return mode; }, view };   // debugging on localhost only
+  loadCorpus().then(c => {
+    corpus = c;
+    $('go').disabled = $('go-streets').disabled = false; $('go').textContent = 'Enter the room';
+  }, err => { $('status').textContent = 'The archive could not be reached. ' + err.message; $('go').textContent = 'Unavailable'; });
+})();
 </script>
 </body>
 </html>

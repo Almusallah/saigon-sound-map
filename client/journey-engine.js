@@ -50,6 +50,17 @@
     return d;
   }
 
+  // What each part of the day leans toward. Hour of recording decides first;
+  // this weighs about as much as one hour of difference.
+  const PREFER = {
+    dawn: ['Nature', 'Waterways', 'Ritual & Ceremony', 'Home', 'Background'],
+    gathering: ['Street Vendors', 'Markets', 'Sidewalks', 'Food & Drink', 'Home', 'Work'],
+    pulse: ['Vehicles', 'Markets', 'Sidewalks', 'Work', 'Infrastructure & Utilities', 'Play & Leisure', 'Street Vendors'],
+    drift: ['Waterways', 'Conversations', 'Food & Drink', 'Shops', 'Play & Leisure', 'Background'],
+    night: ['Nature', 'Ritual & Ceremony', 'Waterways', 'Background', 'Home', 'Conversations'],
+    dissolve: ['Nature', 'Waterways', 'Background'],
+  };
+
   /* ---------- the room: the map becomes the floor ---------- */
   const BOUNDS = 40;
   const SAIGON = { lat: 10.80, lng: 106.72, spanLat: .19, spanLng: .25 };
@@ -100,7 +111,7 @@
       // The archive's own day is lopsided (most recordings come from walks at
       // 11h and 16h), so pick among the few best hour fits, not a broad top
       // slice: dawn then really uses the rare early-morning recordings.
-      const scored = list.map(x => ({ x, s: hourMiss(x.hour, hours) + r() * .8 }));
+      const scored = list.map(x => ({ x, s: hourMiss(x.hour, hours) + r() * .8 - (opts.prefer && opts.prefer.includes(x.category) ? 1.2 : 0) }));
       scored.sort((a, b) => a.s - b.s);
       const top = scored.slice(0, Math.max(4, Math.ceil(scored.length * .1)));
       const pickd = pick(r, top).x;
@@ -110,12 +121,14 @@
   }
 
   /* ---------- compose ---------- */
-  function compose(corpus, opts = {}) {
+  function compose(corpus, opts = {}) {   // corpus is filtered locally by opts.exclude
     const seed = (opts.seed ?? Math.floor(Math.random() * 2 ** 31)) >>> 0;
     const r = rng(hash('journey:' + seed));   // hashed so nearby seeds give unrelated pieces
     const D = opts.duration || 660;
     const used = new Set();
     const choose = chooser(r, used);
+    // Curation: id prefixes Yuri never wants in a journey.
+    if (opts.exclude && opts.exclude.length) corpus = corpus.filter(x => !opts.exclude.some(p => String(x.id).startsWith(p)));
     const beds = poolOf(corpus, isBed), details = poolOf(corpus, isDetail), voices = poolOf(corpus, isVoice);
     const kits = poolOf(corpus, isKit), tonal = poolOf(corpus, isTonal);
     if (beds.length < 3) throw new Error('Not enough ambience recordings to compose');
@@ -124,6 +137,7 @@
     const root = pick(r, [45, 47, 48, 50, 52]), mode = pick(r, ['aeolian', 'dorian']);
     const prog = pick(r, PROGRESSIONS);
     const S = Object.fromEntries(ARC.map(a => [a.key, { ...a, t0: a.from * D, t1: a.to * D }]));
+    const pickFor = (pool, sec, o = {}) => choose(pool, S[sec].hours, { ...o, prefer: PREFER[sec] });
     const events = [], sources = new Map();
     const src = rec => {
       if (!rec) return null;
@@ -134,7 +148,7 @@
 
     // Beds: long ambience, crossfaded, filter opening at dawn, closing at the end.
     const bed = (sec, t, dur, extra = {}) => {
-      const rec = choose(beds, S[sec].hours, { minDur: 20 });
+      const rec = pickFor(beds, sec, { minDur: 20 });
       if (!rec) return null;
       ev({ type: 'bed', id: src(rec), t, dur, gain: -6, fadeIn: 18, fadeOut: 20, section: sec, ...extra });
       return rec;
@@ -150,11 +164,11 @@
     // stretched and tuned into a halo.
     const texture = (rec, t, dur, extra = {}) => rec && ev({ type: 'texture', id: src(rec), t, dur, gain: -2, fadeIn: 20, fadeOut: 24, rates: [.5, .75], grain: [.35, .9], density: 6, seed: Math.floor(r() * 1e9), ...extra });
     texture(bedA, 9, .19 * D, { gain: -6 });
-    texture(choose(tonal.length ? tonal : beds, S.drift.hours), .58 * D, .2 * D, { rates: [.5, 1, 1.5], density: 7, gain: -7 });
-    texture(choose(tonal.length ? tonal : beds, S.night.hours), .8 * D, .12 * D, { rates: [.25, .5], grain: [.6, 1.4], density: 4, gain: -8 });
+    texture(pickFor(tonal.length ? tonal : beds, 'drift'), .58 * D, .2 * D, { rates: [.5, 1, 1.5], density: 7, gain: -7 });
+    texture(pickFor(tonal.length ? tonal : beds, 'night'), .8 * D, .12 * D, { rates: [.25, .5], grain: [.6, 1.4], density: 4, gain: -8 });
 
     // The memory: one detail at dawn, returning unchanged at night.
-    const memRec = choose(details, S.dawn.hours, { minDur: 4 });
+    const memRec = pickFor(details, 'dawn', { minDur: 4 });
     let memory = null;
     if (memRec) {
       const len = between(r, 2.6, 4.5), offset = between(r, 0, Math.max(0, memRec.duration - len - .2));
@@ -165,7 +179,7 @@
 
     // Details: short events that surface out of the ambience.
     const detail = (sec, t, trim = 0) => {
-      const rec = choose(details, S[sec].hours, { minDur: 3 });
+      const rec = pickFor(details, sec, { minDur: 3 });
       if (!rec) return;
       const len = between(r, 2, Math.min(7, rec.duration - .3));
       const roll = r();
@@ -177,7 +191,7 @@
     for (let t = .79 * D; t < .9 * D; t += between(r, 20, 32)) detail('night', t, -5);
 
     // The voice motif: one phrase repeated with micro-variation, then recalled.
-    const vRec = choose(voices.length ? voices : details, S.gathering.hours, { minDur: 5 });
+    const vRec = pickFor(voices.length ? voices : details, 'gathering', { minDur: 5 });
     if (vRec) {
       const len = between(r, 3, 5.5), offset = between(r, 0, Math.max(0, vRec.duration - len - .2)), id = src(vRec);
       const n = 4 + Math.floor(r() * 3);
@@ -202,7 +216,7 @@
 
     // Pulse: found percussion, bass and a soft arpeggio, built up and broken down.
     const p0 = Math.round(S.pulse.t0 / bar) * bar, bars = Math.floor((.615 * D - p0) / bar);
-    const kitRecs = [choose(kits, S.pulse.hours), choose(kits, S.pulse.hours)].filter(Boolean);
+    const kitRecs = [pickFor(kits, 'pulse'), pickFor(kits, 'pulse')].filter(Boolean);
     const kit = kitRecs.map(src);
     const hits = [], bass = [], arp = [];
     const swing = .08 * beat;
@@ -242,7 +256,7 @@
 
     // Stutter: a phrase chopped onto the beat — the machine composing.
     for (let k = 0; k < 2; k++) {
-      const rec = choose(voices.length ? voices : details, S.pulse.hours, { minDur: 2 });
+      const rec = pickFor(voices.length ? voices : details, 'pulse', { minDur: 2 });
       if (!rec) continue;
       const tb = p0 + Math.floor(bars * (.35 + .3 * k)) * bar, off = between(r, 0, Math.max(0, rec.duration - 1.2));
       for (let i = 0; i < 6; i++) ev({ type: 'detail', id: src(rec), t: tb + i * beat / 2, dur: beat * (i === 5 ? 1.2 : .42), offset: off, gain: -4 + i * .5, echo: i === 5 ? .4 : 0, section: 'pulse' });
