@@ -22,6 +22,9 @@
   const RELEASE = 340;      // ...and lets go of its audio beyond this
   const FOUND = 20;         // walk this close to find it
   const MAX_VOICES = 10;
+  const MAX_LOADS = 3;      // downloads at once — nearest first; a dense block must not starve itself
+  const PRELOAD = 14;       // only the closest recordings are fetched at all
+  const RETRY = 30000;      // a failed recording is tried again after this (ms)
   const WALK = 7, RUN = 26; // m/s — a brisk walk, and a scooter
   const STORE_KEY = 'phongnghe-found';
 
@@ -77,10 +80,11 @@
     }
 
     const voices = new Map();   // n -> voice
-    const buffers = new Map(), loading = new Map(), failed = new Set();
+    const buffers = new Map(), loading = new Map(), failed = new Map();   // n -> time of failure
     function load(s) {
-      if (buffers.has(s.n) || failed.has(s.n)) return;
-      if (!loading.has(s.n)) loading.set(s.n, getBuffer(s).then(b => { buffers.set(s.n, b); loading.delete(s.n); }, () => { failed.add(s.n); loading.delete(s.n); }));
+      if (buffers.has(s.n) || loading.has(s.n) || loading.size >= MAX_LOADS) return;
+      if (failed.has(s.n) && performance.now() - failed.get(s.n) < RETRY) return;
+      loading.set(s.n, getBuffer(s).then(b => { buffers.set(s.n, b); failed.delete(s.n); loading.delete(s.n); }, () => { failed.set(s.n, performance.now()); loading.delete(s.n); }));
     }
     function peakOf(buf) { let pk = 1e-4; const d = buf.getChannelData(0); for (let i = 0; i < d.length; i += 8) pk = Math.max(pk, Math.abs(d[i])); return pk; }
 
@@ -124,7 +128,7 @@
     // Every half second: who is near, load ahead, play the closest, release the far.
     function audioTick() {
       const near = sounds.map(s => ({ s, d: Math.hypot(s.x - player.x, s.z - player.z) })).filter(o => o.d < RELEASE).sort((a, b) => a.d - b.d);
-      for (const { s, d } of near) if (d < LOAD) load(s);
+      for (const { s, d } of near.slice(0, PRELOAD)) if (d < LOAD) load(s);   // sorted: the nearest claim the free slots
       const want = new Set(near.filter(o => o.d < AUDIBLE && buffers.has(o.s.n)).slice(0, MAX_VOICES).map(o => o.s.n));
       for (const n of [...voices.keys()]) if (!want.has(n)) stopVoice(n);
       for (const n of want) if (!voices.has(n)) startVoice(byN.get(n));
