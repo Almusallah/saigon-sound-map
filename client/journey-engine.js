@@ -139,17 +139,17 @@
       ev({ type: 'bed', id: src(rec), t, dur, gain: -6, fadeIn: 18, fadeOut: 20, section: sec, ...extra });
       return rec;
     };
-    const bedA = bed('dawn', 0, .23 * D, { fadeIn: 26, open: [220, 9000, 70] });
+    const bedA = bed('dawn', 0, .23 * D, { gain: -11, fadeIn: 26, open: [220, 9000, 70] });
     bed('gathering', .13 * D, .19 * D);
     bed('gathering', .27 * D, .17 * D);
     bed('pulse', .40 * D, .23 * D, { gain: -10, lowpass: 2400 });
     bed('drift', .60 * D, .2 * D, { gain: -8 });
-    bed('night', .76 * D, D * .24 - 7, { gain: -9, fadeOut: 26, close: [9000, 260, 40] });
+    bed('night', .76 * D, D * .24 - 7, { gain: -12, fadeOut: 26, close: [9000, 260, 40] });
 
     // Textures: granular clouds pulled out of a recording — the city slowed,
     // stretched and tuned into a halo.
     const texture = (rec, t, dur, extra = {}) => rec && ev({ type: 'texture', id: src(rec), t, dur, gain: -2, fadeIn: 20, fadeOut: 24, rates: [.5, .75], grain: [.35, .9], density: 6, seed: Math.floor(r() * 1e9), ...extra });
-    texture(bedA, 9, .19 * D);
+    texture(bedA, 9, .19 * D, { gain: -6 });
     texture(choose(tonal.length ? tonal : beds, S.drift.hours), .58 * D, .2 * D, { rates: [.5, 1, 1.5], density: 7, gain: -7 });
     texture(choose(tonal.length ? tonal : beds, S.night.hours), .8 * D, .12 * D, { rates: [.25, .5], grain: [.6, 1.4], density: 4, gain: -8 });
 
@@ -174,7 +174,7 @@
     };
     for (let t = .15 * D; t < .37 * D; t += between(r, 13, 24)) detail('gathering', t);
     for (let t = .62 * D; t < .76 * D; t += between(r, 16, 26)) detail('drift', t);
-    for (let t = .79 * D; t < .9 * D; t += between(r, 20, 32)) detail('night', t, -3);
+    for (let t = .79 * D; t < .9 * D; t += between(r, 20, 32)) detail('night', t, -5);
 
     // The voice motif: one phrase repeated with micro-variation, then recalled.
     const vRec = choose(voices.length ? voices : details, S.gathering.hours, { minDur: 5 });
@@ -237,7 +237,7 @@
     }
     hits.sort((a, b) => a.t - b.t);
     if (kit.length && hits.length) ev({ type: 'perc', ids: kit, id: kit[0], t: p0 - bar * 2, dur: hits[hits.length - 1].t + 1 - (p0 - bar * 2), hits, gain: 2 });   // found slices lose most energy to the kit filters
-    ev({ type: 'bass', t: p0, dur: bars * bar, notes: bass, gain: -31 });
+    ev({ type: 'bass', t: p0, dur: bars * bar, notes: bass, gain: -29 });
     ev({ type: 'arp', t: p0, dur: bars * bar, notes: arp, gain: -25 });
 
     // Stutter: a phrase chopped onto the beat — the machine composing.
@@ -279,7 +279,7 @@
       const x = i / 1024 - 1, a = Math.abs(x);
       curve[i] = a < .8 ? x : Math.sign(x) * (.8 + .13 * Math.tanh((a - .8) / .13));   // ceiling 0.93: true peak stays under 0 dBTP
     }
-    safety.curve = curve; safety.oversample = '2x';
+    safety.curve = curve; safety.oversample = 'none';   // oversampling's reconstruction filter rang past the ceiling
     lim.connect(out); out.connect(safety); safety.connect(io.destination || ctx.destination);
 
     // the room's acoustics: one long, soft reverb everything shares
@@ -326,6 +326,16 @@
       return node;
     }
     const norm = id => db(clamp(-24 - (srcById.get(id)?.lufs ?? -30), -12, 14));   // loudness-match recordings
+    // ...but never past the recording's own loudest moment: a quiet file with
+    // a few hammer blows is matched up by its average and the blows spike.
+    const peaks = new WeakMap();
+    function bufferPeak(buf) {
+      if (peaks.has(buf)) return peaks.get(buf);
+      let pk = 1e-4;
+      for (let c = 0; c < buf.numberOfChannels; c++) { const d = buf.getChannelData(c); for (let i = 0; i < d.length; i += 8) { const v = Math.abs(d[i]); if (v > pk) pk = v; } }
+      peaks.set(buf, pk); return pk;
+    }
+    const longGain = (id, buf, trim) => Math.min(norm(id) * db(trim), .35 / bufferPeak(buf));   // peaks ≤ -9 dBFS
 
     function getBuf(id) {
       if (bufs.has(id)) return Promise.resolve(bufs.get(id));
@@ -349,7 +359,7 @@
     // A bed longer than its file is laid as overlapping segments, crossfaded,
     // so it never loops audibly or clicks at a seam.
     function playBed(e, buf, at) {
-      const place = placeNode(e.id, 10), k = norm(e.id) * db(e.gain);
+      const place = placeNode(e.id, 10), k = longGain(e.id, buf, e.gain);
       const out = ctx.createGain(); envelope(out.gain, at, e.dur, k, e.fadeIn, e.fadeOut);
       let chain = out;
       if (e.open || e.close || e.lowpass) {
@@ -377,7 +387,7 @@
     function playTexture(e, buf, at, until) {
       const place = placeNode(e.id, 8);
       if (!e._bus) {
-        e._bus = ctx.createGain(); envelope(e._bus.gain, at, e.dur, norm(e.id) * db(e.gain), e.fadeIn, e.fadeOut);
+        e._bus = ctx.createGain(); envelope(e._bus.gain, at, e.dur, longGain(e.id, buf, e.gain), e.fadeIn, e.fadeOut);
         e._bus.connect(place.input); e._r = rng(e.seed); e._t = at; e._at = at;
       }
       at = e._at;   // fixed at the first chunk: later calls pass "now", which would push the end out forever
@@ -399,17 +409,25 @@
       return e._t >= at + e.dur;
     }
 
+    // A short excerpt is levelled on itself: whole-file loudness turns one
+    // bang in a quiet recording into a spike (+14 dB of matching on a transient).
+    function excerptGain(buf, off, len) {
+      const d = buf.getChannelData(0), sr = buf.sampleRate, a = Math.floor(off * sr), b = Math.min(d.length, a + Math.floor(len * sr));
+      let sum = 0, pk = 1e-6, n = 0;
+      for (let i = a; i < b; i += 4) { const v = d[i]; sum += v * v; n++; if (Math.abs(v) > pk) pk = Math.abs(v); }
+      const rms = Math.sqrt(sum / Math.max(1, n)) + 1e-6;
+      return clamp(Math.min(.063 / rms, .5 / pk), .05, 16);   // RMS -24 dBFS, peak never above -6 dBFS
+    }
     function playDetail(e, buf, at) {
       const place = placeNode(e.id, 3.5), rate = e.rate || 1;
       const s = ctx.createBufferSource(), g = ctx.createGain(); s.buffer = buf; s.playbackRate.value = rate;
-      const fade = Math.min(.25, e.dur / 4);
-      envelope(g.gain, at, e.dur, norm(e.id) * db(e.gain), fade, Math.min(.6, e.dur / 3));
+      const fade = Math.min(.25, e.dur / 4), off = clamp(e.offset || 0, 0, Math.max(0, buf.duration - .1));
+      envelope(g.gain, at, e.dur, excerptGain(buf, off, e.dur * rate) * db(e.gain), fade, Math.min(.6, e.dur / 3));
       let chain = s;
       if (e.cutoff) { const f = ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = e.cutoff; s.connect(f); chain = f; }
       chain.connect(g); g.connect(place.input);
       let send = null;
       if (e.echo) { send = ctx.createGain(); send.gain.value = e.echo; g.connect(send); send.connect(place.echo); }
-      const off = clamp(e.offset || 0, 0, Math.max(0, buf.duration - .1));
       s.start(at, off, e.dur * rate + .05); track(s, at + e.dur);
       s.onended = () => unplug(s, chain === s ? null : chain, g, send);
     }
@@ -437,7 +455,7 @@
         if (h.k === 'k') { f.type = 'lowpass'; f.frequency.value = 220; s.playbackRate.value = .72; }
         else if (h.k === 's') { f.type = 'bandpass'; f.frequency.value = 1900; f.Q.value = .8; s.playbackRate.value = 1.05; }
         else { f.type = 'highpass'; f.frequency.value = 6500; s.playbackRate.value = 1.6; }
-        g.gain.setValueAtTime(h.v * k * (h.k === 'h' ? .8 : 1.4), t); g.gain.exponentialRampToValueAtTime(.001, t + len);
+        g.gain.setValueAtTime(h.v * k * (h.k === 'h' ? .8 : 1.1), t); g.gain.exponentialRampToValueAtTime(.001, t + len);
         s.connect(f); f.connect(g); g.connect(e._bus);
         s.start(t, off, len * 2); track(s, t + len);
         s.onended = () => unplug(s, f, g);
