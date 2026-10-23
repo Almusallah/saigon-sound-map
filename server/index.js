@@ -228,7 +228,7 @@ app.post('/api/upload', uploadLimiter, upload.fields([
 
     const key = req.body.uploadKey;
     if (key && (typeof key !== 'string' || !/^[a-zA-Z0-9-]{16,80}$/.test(key))) {
-      return res.status(400).json({ message: 'Invalid upload key' });
+      return res.status(400).json({ success: false, message: 'Invalid upload key' });
     }
     const metadata = {
       title:            req.body.title,
@@ -341,7 +341,8 @@ app.get('/api/migrate-geojson', requireAdmin, async (req, res) => {
 //     "deleteByMatch":  ["FUJIRO"]   // matches title or audioUrl, case-insensitive
 //   }
 // idPrefix is matched against the START of the recording's UUID.
-// description is set to '' on every update (clears the auto-discovered text).
+// description is kept unless the update sends one ("" clears it). The
+// placeholder that /api/resync gives imported files is always cleared.
 app.post('/api/admin/bulk-update', requireAdmin, async (req, res) => {
   const { dryRun = false, updates = [], deleteByPrefix = [], deleteByMatch = [], alsoDeleteB2 = false } = req.body;
   const result = { dryRun, updated: [], deleted: [], notFound: [], ambiguous: [], errors: [] };
@@ -367,7 +368,8 @@ app.post('/api/admin/bulk-update', requireAdmin, async (req, res) => {
       const existing = matches[0];
       const before = { title: existing.title, category: existing.category, description: existing.description };
       const after = { title: u.title, category: u.category,
-        description: Object.prototype.hasOwnProperty.call(u, 'description') ? u.description : existing.description };
+        description: Object.prototype.hasOwnProperty.call(u, 'description') ? u.description
+          : existing.description === 'Auto-discovered recording' ? '' : existing.description };
       if (dryRun) {
         result.updated.push({ idPrefix: u.idPrefix, fullId: existing.id, before, after });
       } else {

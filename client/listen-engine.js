@@ -93,7 +93,8 @@ const WALKS = {
 function applyRoomFilter() {
   const q = new URLSearchParams(location.search);
   let pool = state.recs, labels = [];
-  const walk = q.get('walk') && WALKS[q.get('walk').toLowerCase()];
+  const walkKey = (q.get('walk') || '').toLowerCase();
+  const walk = Object.hasOwn(WALKS, walkKey) ? WALKS[walkKey] : null; // ?walk=constructor must not resolve
   const near = walk ? walk.near.join(',') : q.get('near');
   if (near) {
     const [la, ln, m] = near.split(',').map(Number);
@@ -308,12 +309,15 @@ async function getBuffer(rec) {
       const bytes = await request(audioSrc(rec), false);
       const buf = await context.decodeAudioData(bytes);
       const size = buf.length * buf.numberOfChannels * 4;
-      while (state.buffers.size && (state.bufferBytes + size > CACHE_BYTES || state.buffers.size >= 16)) {
-        const oldest = state.buffers.keys().next().value, old = state.buffers.get(oldest);
-        state.bufferBytes -= old.length * old.numberOfChannels * 4;
-        state.buffers.delete(oldest);
+      // A buffer too big to cache must not evict the others on its way out.
+      if (size <= CACHE_BYTES) {
+        while (state.buffers.size && (state.bufferBytes + size > CACHE_BYTES || state.buffers.size >= 16)) {
+          const oldest = state.buffers.keys().next().value, old = state.buffers.get(oldest);
+          state.bufferBytes -= old.length * old.numberOfChannels * 4;
+          state.buffers.delete(oldest);
+        }
+        state.buffers.set(rec.id, buf); state.bufferBytes += size;
       }
-      if (size <= CACHE_BYTES) { state.buffers.set(rec.id, buf); state.bufferBytes += size; }
       failedBuffers.delete(rec.id);
       return buf;
     } catch (error) {
@@ -737,6 +741,9 @@ window.Room = {
     if (startPromise) return startPromise;
     startPromise = (async () => {
       try {
+        // iOS mutes Web Audio when the ring/silent switch is on silent
+        // (<audio> elements are exempt), so the room would open in silence.
+        try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch {}
         state.ctx = new (window.AudioContext || window.webkitAudioContext)();
         // Resume inside the user's click, before any network work.
         await state.ctx.resume();

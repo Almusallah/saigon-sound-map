@@ -1,11 +1,11 @@
 const test=require('node:test'),assert=require('node:assert/strict'),vm=require('node:vm'),fs=require('node:fs'),path=require('node:path');
 const {uploadId}=require('../server/utils/upload-id');
 const source=fs.readFileSync(path.join(__dirname,'../server/index.js'),'utf8');
-function routeHarness(){
+function routeHarness(existingDescription='Keep these field notes'){
  let handler,calls=0;const stored=new Map(),changes=[];
  const sandbox={console,refreshCache:async()=>{},uploadId,pendingUploads:new Map(),cache:[],cacheTime:0,uploadLimiter:{},requireAdmin:{},upload:{fields:()=>({})},
  app:{post(...args){handler=args.at(-1);}},
- Recording:{find(){return {limit(){return {lean:async()=>[{id:'abc',title:'Before',category:'Nature',description:'Keep these field notes'}]};}};},updateOne:async(q,u)=>changes.push(u.$set)},
+ Recording:{find(){return {limit(){return {lean:async()=>[{id:'abc',title:'Before',category:'Nature',description:existingDescription}]};}};},updateOne:async(q,u)=>changes.push(u.$set)},
  uploadRecording:async(bytes,type,meta)=>{calls++;await new Promise(r=>setTimeout(r,5));if(stored.has(meta.id))return stored.get(meta.id);const doc={id:meta.id,...meta,toObject(){return {id:this.id};}};stored.set(meta.id,doc);return doc;}};
  const context=vm.createContext(sandbox);
  function bind(start,end){vm.runInContext(source.slice(source.indexOf(start),source.indexOf(end,source.indexOf(start))),context);return handler;}
@@ -27,7 +27,7 @@ test('concurrent upload retries share one job and return the same recording',asy
 test('invalid draft keys return a client error before uploading',async()=>{
  const h=routeHarness(),fn=h.bind("app.post('/api/upload'","app.delete('/api/recordings/:id'");const res=h.response();
  await fn({files:{audioFile:[{buffer:Buffer.from('a')}]},body:{uploadKey:{bad:true},latitude:10,longitude:106}},res);
- assert.equal(res.statusCode,400);assert.equal(h.calls,0);
+ assert.equal(res.statusCode,400);assert.equal(res.body.success,false);assert.equal(h.calls,0);
 });
 test('curation preserves omitted descriptions and permits explicit edits or clearing',async()=>{
  const h=routeHarness(),fn=h.bind("app.post('/api/admin/bulk-update'","app.post('/api/admin/transcode-legacy'");
@@ -36,4 +36,9 @@ test('curation preserves omitted descriptions and permits explicit edits or clea
   const res=h.response(); await fn({body:{updates:[entry]}},res); assert.equal(res.statusCode,200);
  }
  assert.deepEqual(h.changes.map(c=>c.description),['Keep these field notes','Updated notes','']);
+});
+test('curation clears the resync placeholder when no description is sent',async()=>{
+ const h=routeHarness('Auto-discovered recording'),fn=h.bind("app.post('/api/admin/bulk-update'","app.post('/api/admin/transcode-legacy'");
+ const res=h.response(); await fn({body:{updates:[{idPrefix:'abc',title:'After',category:'Nature'}]}},res);
+ assert.equal(res.statusCode,200); assert.deepEqual(h.changes.map(c=>c.description),['']);
 });

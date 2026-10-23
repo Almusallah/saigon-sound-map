@@ -72,7 +72,7 @@
 </div>
 
 <script src="voice-loop.js?v=11"></script>
-<script src="listen-engine.js?v=12"></script>
+<script src="listen-engine.js?v=13"></script>
 <script>
 'use strict';
 const $ = id => document.getElementById(id);
@@ -142,7 +142,11 @@ $('playback').onclick = async () => {
 $('volume').oninput = e => Room.setVolume(Number(e.target.value)/100);
 $('mute').onclick = () => Room.toggleMute();
 $('tour').onclick = () => Room.setTour(!Room.state.touring);
-reducedMotion.addEventListener('change', e => { if (e.matches) Room.setTour(false); });
+reducedMotion.addEventListener('change', e => {
+  visualFrozen = e.matches;
+  $('freezeWaves').setAttribute('aria-pressed', String(visualFrozen));
+  $('freezeWaves').textContent = visualFrozen ? 'Resume visual' : 'Freeze visual';
+});
 if ('mediaSession' in navigator) {
   if ('MediaMetadata' in window) navigator.mediaSession.metadata = new MediaMetadata({ title:'Phòng nghe · The Listening Room', artist:'Saigon_Miền Tây Sound Map', album:'Field recordings · Officine Gặp' });
   for (const action of ['play','pause']) {
@@ -159,7 +163,7 @@ const roomPath = location.port === '8342' ? 'listen.html' : '/listen';
 if (location.port === '8342') document.querySelectorAll('a[href="/"]').forEach(a => a.href = 'https://saigon-soundscape.onrender.com/');
 $('cityRoom').href = roomPath; $('thanhDaRoom').href = roomPath + '?walk=thanh-da';
 const query = new URLSearchParams(location.search);
-if (query.get('walk') === 'thanh-da') $('thanhDaRoom').setAttribute('aria-current','page');
+if ((query.get('walk') || '').toLowerCase() === 'thanh-da') $('thanhDaRoom').setAttribute('aria-current','page');
 else if (![...query.keys()].some(k => ['near','walk','date','cat','hours'].includes(k))) $('cityRoom').setAttribute('aria-current','page');
 
 /* ---------- map ---------- */

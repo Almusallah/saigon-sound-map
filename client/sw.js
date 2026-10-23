@@ -57,7 +57,10 @@ self.addEventListener('fetch', (e) => {
     e.respondWith(
       fetch(e.request)
         .then((res) => {
-          if (res.ok && (e.request.mode === 'navigate' || url.pathname.startsWith('/icons/'))) {
+          // The page's own helper scripts too: without them the map throws
+          // at boot, so an offline launch of the installed app was blank.
+          if (res.ok && (e.request.mode === 'navigate' || url.pathname.startsWith('/icons/') ||
+              /^\/(draft-store|archive-locations)\.js$/.test(url.pathname))) {
             const copy = res.clone();
             caches.open(SHELL).then((c) => c.put(e.request, copy));
           }
