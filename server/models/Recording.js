@@ -18,15 +18,39 @@ const LEGACY_CATEGORIES = [
 
 const CATEGORIES = [...NEW_CATEGORIES, ...LEGACY_CATEGORIES];
 
+// What leads a contribution. The archive began as sounds only; drawings,
+// sketches, photos and writing (stories, poems) share the same map, form
+// and categories. Documents saved before this field have audio — read
+// them as 'sound'.
+const KINDS = ['sound', 'image', 'text'];
+
+const imageSchema = new mongoose.Schema({
+  url:      { type: String, required: true },
+  thumbUrl: { type: String, default: '' },
+  width:    { type: Number, default: 0 },
+  height:   { type: Number, default: 0 },
+}, { _id: false });
+
 const recordingSchema = new mongoose.Schema({
   id:          { type: String, required: true, unique: true, index: true },
+  kind:        { type: String, enum: KINDS, default: 'sound' },
   title:       { type: String, required: true, trim: true },
   description: { type: String, default: '', trim: true },
   category:    { type: String, enum: CATEGORIES, default: 'Background' },
-  audioUrl:    { type: String, required: true },
-  // Optional photo attached to the recording — normalised WebP in B2
-  // under images/ (see utils/image.js). Empty string when none.
+  // Only sounds have audio. Image and text entries keep '' so every
+  // consumer can test `audioUrl` the way the listening room always has.
+  audioUrl:    { type: String, default: '', required: function () { return (this.kind || 'sound') === 'sound'; } },
+  // Cover image: images[0].url, or the single photo of an older
+  // recording. Kept for og:image, the export and older clients.
   imageUrl:    { type: String, default: '' },
+  // Every image of the contribution, in order — normalised JPEG plus a
+  // small thumbnail in B2 under images/ (see utils/image.js).
+  images:      { type: [imageSchema], default: undefined },
+  // The text of a story or poem. Line breaks and indentation are part
+  // of the work, so it is never trimmed or collapsed beyond its ends.
+  body:        { type: String, default: '', maxlength: 20000 },
+  // Optional credit: the architect, poet or recordist.
+  author:      { type: String, default: '', trim: true, maxlength: 80 },
   latitude:    { type: Number, required: true },
   longitude:   { type: Number, required: true },
   // GeoJSON Point for proximity queries via 2dsphere index.
@@ -59,5 +83,6 @@ recordingSchema.index({ title: 'text', description: 'text' });
 
 module.exports = mongoose.model('Recording', recordingSchema);
 module.exports.CATEGORIES = CATEGORIES;
+module.exports.KINDS = KINDS;
 module.exports.NEW_CATEGORIES = NEW_CATEGORIES;
 module.exports.LEGACY_CATEGORIES = LEGACY_CATEGORIES;

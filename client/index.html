@@ -696,7 +696,7 @@
       box-shadow: var(--shadow-lg);
     }
     .welcome-card h2 {
-      font-size: 19px; font-weight: 700; margin-bottom: 14px;
+      font-size: 19px; font-weight: 700; margin-bottom: 14px; padding-right: 36px; /* clear of the × */
       color: var(--primary); letter-spacing: 0.3px;
     }
     /* Title stays lime; body copy in white for higher readability. */
@@ -875,6 +875,118 @@
     .archive-home strong { font-size: 24px; font-weight: 500; letter-spacing: .06em; }
     .archive-home:focus-visible { outline-color: #121212; }
     .rec-btn, .loc-btn, .archive-more, .apc, #archive-panel input, #archive-panel select, .fg input, .fg select, .fg textarea { border-radius: 4px; }
+
+    /* ── Living archive (4 Nov 2026): sounds, images, texts ──────────────
+       The marker's shape says what a contribution is, its colour still says
+       the category: circle = sound, square = image (drawings, sketches,
+       photos), diamond = text (stories, poems). Colours arrive as --c / --cf.
+       Mapbox positions markers with an inline transform, so the diamond is
+       rotated on a pseudo-element, never on the marker itself. */
+    .marker.k-image { border-radius: 2px; }
+    .marker.k-text { background: none !important; border: 0 !important; box-shadow: none; }
+    .marker.k-text::before {
+      content: ''; position: absolute; inset: 2px; transform: rotate(45deg);
+      background: var(--cf); border: 1.5px solid var(--c);
+      box-shadow: 0 1px 4px rgba(0,0,0,.25);
+    }
+    .marker.k-text:hover::before, .marker.k-text:focus-visible::before { box-shadow: 0 0 0 4px rgba(18,18,18,.25); }
+    .kind-glyph { display: inline-block; width: 8px; height: 8px; margin-right: 7px; background: currentColor; border-radius: 50%; vertical-align: 1px; }
+    .kind-glyph.k-image { border-radius: 1px; }
+    .kind-glyph.k-text { border-radius: 0; transform: rotate(45deg) scale(.85); }
+    .filter-chip.kind-chip { background: transparent; border: 1px solid rgba(18,18,18,.25); }
+    .filter-chip.kind-chip[aria-pressed="true"] { background: var(--primary); color: var(--header-bg); border-color: var(--primary); }
+    .filter-sep { flex: 0 0 1px; align-self: stretch; margin: 2px 2px; background: rgba(18,18,18,.18); }
+
+    /* Popups and archive cards */
+    .popup-cover { display: block; position: relative; width: 100%; padding: 0; border: 0; background: none; cursor: zoom-in; }
+    .popup-photo.contain, .rec-item-photo.contain { object-fit: contain; background: #e9e8e3; }
+    .photo-count {
+      position: absolute; right: 8px; bottom: 8px; padding: 3px 7px; border-radius: 2px;
+      background: rgba(18,18,18,.78); color: #f3f3f1; font-size: 9px; letter-spacing: .12em;
+    }
+    .entry-author { font-size: 10px !important; letter-spacing: .12em; text-transform: uppercase; color: var(--text) !important; margin: -2px 0 10px !important; }
+    .rec-item .entry-author { margin: 0 0 6px !important; }
+    .entry-excerpt {
+      white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.65 !important;
+      display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 7; overflow: hidden;
+      color: var(--text) !important;
+    }
+    .rec-item .entry-excerpt { -webkit-line-clamp: 5; margin-top: 6px; }
+    /* A popup keeps the opening short so "Read" stays in view. */
+    .popup-inner .entry-excerpt { -webkit-line-clamp: 4; }
+    .kind-tag { display: inline-block; margin: 0 0 12px 6px; padding: 3px 8px; border: 1px solid rgba(18,18,18,.35); border-radius: 2px; font-size: 9px; font-weight: 500; letter-spacing: .12em; text-transform: uppercase; vertical-align: top; }
+    .rec-item .kind-tag { margin: 6px 0 0 6px; padding: 2px 8px; }
+    .entry-open {
+      display: block; width: 100%; margin-top: 10px; padding: 11px 12px; min-height: 40px;
+      border: 1px solid var(--primary); border-radius: 4px; background: transparent; color: var(--primary);
+      font: inherit; font-size: 10px; font-weight: 500; letter-spacing: .14em; text-transform: uppercase; cursor: pointer;
+    }
+    .entry-open:hover { background: var(--primary); color: var(--header-bg); }
+    .rec-photo-link { display: block; position: relative; width: 100%; padding: 0; border: 0; background: none; cursor: zoom-in; }
+
+    /* Viewer: a contribution opened on its own sheet of paper. */
+    .viewer {
+      position: fixed; inset: 0; z-index: 1700; display: flex; flex-direction: column;
+      height: 100vh; height: 100dvh; background: var(--bg); color: var(--primary);
+    }
+    .viewer[hidden], .viewer [hidden] { display: none !important; }  /* the flex rules below would otherwise beat [hidden] */
+    .viewer-bar {
+      display: flex; align-items: center; gap: 12px; flex: 0 0 auto;
+      padding: calc(12px + env(safe-area-inset-top, 0px)) 16px 12px; border-bottom: 1px solid rgba(18,18,18,.12);
+    }
+    .viewer-kind { flex: 1; font-size: 10px; letter-spacing: .2em; text-transform: uppercase; opacity: .7; }
+    .viewer-close { width: 40px; height: 40px; border: 1px solid rgba(18,18,18,.35); border-radius: 50%; background: transparent; color: var(--primary); font-size: 20px; line-height: 1; cursor: pointer; }
+    .viewer-close:hover { background: var(--primary); color: var(--header-bg); }
+    .viewer-scroll { flex: 1 1 auto; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
+    /* A story or poem is read first; its illustrations follow (openViewer
+       moves the text ahead of the gallery). */
+    .viewer[data-kind="text"] .viewer-text { padding-bottom: 16px; }
+    .viewer[data-kind="text"] .viewer-gallery { height: min(60vh, 640px); height: min(60dvh, 640px); }
+    .viewer-gallery {
+      display: flex; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none;
+      background: #e9e8e3; height: min(68vh, 760px); height: min(68dvh, 760px);
+    }
+    .viewer-gallery::-webkit-scrollbar { display: none; }
+    .viewer-gallery figure { flex: 0 0 100%; margin: 0; scroll-snap-align: center; display: flex; align-items: center; justify-content: center; padding: 16px; }
+    .viewer-gallery img { max-width: 100%; max-height: 100%; object-fit: contain; box-shadow: 0 8px 30px rgba(0,0,0,.12); background: #fff; }
+    .viewer-nav { display: flex; align-items: center; justify-content: center; gap: 14px; padding: 10px 16px; font-size: 10px; letter-spacing: .14em; text-transform: uppercase; }
+    .viewer-nav button, .viewer-nav a {
+      min-width: 44px; min-height: 36px; padding: 0 12px; border: 1px solid rgba(18,18,18,.3); border-radius: 4px;
+      background: transparent; color: var(--primary); font: inherit; cursor: pointer; text-decoration: none;
+      display: inline-flex; align-items: center; justify-content: center;
+    }
+    .viewer-nav button:disabled { opacity: .3; cursor: default; }
+    .viewer-text { width: 100%; max-width: 40em; margin: 0 auto; padding: 28px 20px calc(48px + env(safe-area-inset-bottom, 0px)); }
+    .viewer-text h2 { font-size: 15px; font-weight: 500; letter-spacing: .08em; line-height: 1.4; margin-bottom: 8px; }
+    .viewer-meta { font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--text-light); margin-bottom: 22px; line-height: 1.8; }
+    .viewer-meta .share-btn { margin-left: 4px; }
+    .viewer-desc { font-size: 13px; line-height: 1.7; color: var(--text-light); white-space: pre-wrap; margin-bottom: 22px; }
+    .viewer-body { font-size: 15px; line-height: 1.85; white-space: pre-wrap; overflow-wrap: anywhere; }
+    .viewer-desc:empty, .viewer-body:empty { display: none; }
+    @media (max-width: 600px) { .viewer-body { font-size: 14px; } .viewer-gallery figure { padding: 8px; } }
+
+    /* Upload form: what are you adding? */
+    .kind-pick { display: flex; gap: 0; margin: 0 0 18px; border: 1px solid var(--primary); border-radius: 4px; overflow: hidden; }
+    .kind-pick button {
+      flex: 1; min-height: 44px; padding: 10px 6px; border: 0; background: transparent; color: var(--primary);
+      font: inherit; font-size: 11px; font-weight: 500; letter-spacing: .12em; text-transform: uppercase; cursor: pointer;
+    }
+    .kind-pick button + button { border-left: 1px solid var(--primary); }
+    .kind-pick button[aria-checked="true"] { background: var(--primary); color: var(--header-bg); }
+    .form-card:not([data-kind="sound"]) .only-sound,
+    .form-card:not([data-kind="text"]) .only-text,
+    .form-card[data-kind="text"] .not-text { display: none; }
+    .photo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(76px, 1fr)); gap: 8px; margin-top: 10px; }
+    .photo-grid:empty { display: none; }
+    .photo-grid figure { position: relative; margin: 0; aspect-ratio: 1; border: 1px solid rgba(18,18,18,.25); border-radius: 4px; overflow: hidden; background: #e9e8e3; }
+    .photo-grid img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .photo-grid button {
+      position: absolute; top: 4px; right: 4px; width: 28px; height: 28px; border: 0; border-radius: 50%;
+      background: rgba(18,18,18,.78); color: #f3f3f1; font-size: 15px; line-height: 1; cursor: pointer;
+    }
+    .photo-note { font-size: 11px; color: var(--text-light); margin-top: 6px; }
+    #f-body { min-height: 220px; line-height: 1.7; }
+    .rights-note { font-size: 11px; line-height: 1.6; color: #6b6b66; margin-top: 4px; }
 </style>
 </head>
 <body>
@@ -908,20 +1020,28 @@
     <button class="filter-chip active" data-cat="">All</button>
   </div>
 
-  <!-- Record FAB -->
+  <!-- Contribute FAB: a sound, an image or a text -->
   <button class="fab" id="upload-btn">
-    New recording
+    Contribute
   </button>
 </div>
 
 <!-- Upload form overlay -->
 <div class="overlay" id="form-overlay">
-  <div class="form-card">
+  <div class="form-card" id="form-card" data-kind="sound">
     <button class="form-close" id="form-close">&times;</button>
-    <h2>New Recording</h2>
-    <p class="form-subtitle">Capture a sound at the selected location</p>
+    <h2>Add to the archive</h2>
+    <p class="form-subtitle">A sound, an image or a text, placed where it belongs</p>
 
-    <div class="recorder">
+    <!-- What leads this contribution. Values live in data attributes:
+         auto-translate rewrites button text, never attributes. -->
+    <div class="kind-pick" id="kind-pick" role="radiogroup" aria-label="What are you adding?">
+      <button type="button" role="radio" data-kind="sound" aria-checked="true">Sound</button>
+      <button type="button" role="radio" data-kind="image" aria-checked="false">Image</button>
+      <button type="button" role="radio" data-kind="text" aria-checked="false">Text</button>
+    </div>
+
+    <div class="recorder only-sound">
       <div class="recorder-label">Record audio</div>
       <div class="rec-controls">
         <button class="rec-btn record" id="rec-start">⏺ Record</button>
@@ -933,30 +1053,38 @@
 
     <p id="draft-status" role="status" aria-live="polite"></p>
     <form id="upload-form">
-      <div class="fg">
+      <div class="fg only-sound">
         <label for="audio-file">Or choose an audio file</label>
         <input type="file" id="audio-file" accept="audio/*,.webm,.mp3,.m4a,.mp4,.ogg,.wav">
       </div>
       <div class="fg">
-        <label>Add a photo (optional)</label>
+        <label id="photo-label">Add photos (optional)</label>
         <div class="loc-row">
           <button type="button" class="loc-btn" id="photo-camera-btn">Take a photo</button>
-          <button type="button" class="loc-btn" id="photo-gallery-btn">From gallery</button>
-          <button type="button" class="loc-btn photo-remove" id="photo-remove-btn">✕ Remove</button>
+          <button type="button" class="loc-btn" id="photo-gallery-btn">Choose images</button>
         </div>
         <!-- Two inputs on purpose: `capture` forces the camera app on
              phones; the plain one opens the gallery/file picker. -->
         <input type="file" id="image-camera" accept="image/*" capture="environment" hidden>
-        <input type="file" id="image-gallery" accept="image/*" hidden>
-        <img class="photo-preview" id="photo-preview" alt="Photo preview">
+        <input type="file" id="image-gallery" accept="image/*" multiple hidden>
+        <div class="photo-grid" id="photo-grid"></div>
+        <p class="photo-note" id="photo-note"></p>
       </div>
       <div class="fg">
         <label for="f-title">Title *</label>
-        <input type="text" id="f-title" required placeholder="e.g. Morning market sounds">
+        <input type="text" id="f-title" required maxlength="140" placeholder="e.g. Morning market sounds">
+      </div>
+      <div class="fg only-text">
+        <label for="f-body">Your text *</label>
+        <textarea id="f-body" maxlength="20000" placeholder="A story, a poem, a memory of this place…"></textarea>
+      </div>
+      <div class="fg not-text">
+        <label for="f-desc">Description</label>
+        <textarea id="f-desc" maxlength="4000" placeholder="What can be heard in this recording?"></textarea>
       </div>
       <div class="fg">
-        <label for="f-desc">Description</label>
-        <textarea id="f-desc" placeholder="What can be heard in this recording?"></textarea>
+        <label for="f-author">Your name or credit (optional)</label>
+        <input type="text" id="f-author" maxlength="80" autocomplete="name" placeholder="e.g. a studio, a poet, a recordist">
       </div>
       <div class="fg">
         <label for="f-category">Category *</label>
@@ -976,10 +1104,11 @@
       <input type="hidden" id="f-lat">
       <input type="hidden" id="f-lng">
       <p class="draft-help">Your unfinished contribution stays on this device. Upload when you are ready.</p>
+      <p class="rights-note">Share only what you made, or have permission to share. Everything here is public.</p>
       <div class="form-actions">
         <button type="button" class="btn btn-cancel" id="form-cancel">Keep for later</button>
         <button type="button" class="btn btn-cancel" id="draft-discard">Discard draft</button>
-        <button type="submit" class="btn btn-primary" id="form-submit">Upload Recording</button>
+        <button type="submit" class="btn btn-primary" id="form-submit">Upload sound</button>
       </div>
     </form>
   </div>
@@ -993,6 +1122,7 @@
     <h2>Welcome to the Saigon_Miền&nbsp;Tây Sound Map</h2>
     <p>This project explores everyday urban life through its acoustic environment.</p>
     <p>The map invites slow listening and attention to the changing sonic environments of the region.</p>
+    <p>It is also a living archive of what people make of these places: drawings and sketches, a project's first lines, a photograph, a story, a poem — each placed where it belongs.</p>
     <p>This is an open and evolving archive — listen and contribute respectfully. When recording in public or semi-public environments, please be mindful of the surrounding context, environments, and forms of life connected to these spaces and sounds.</p>
     <p class="welcome-hint">Tap anywhere outside to begin</p>
   </div>
@@ -1006,6 +1136,7 @@
     <p>The Saigon_Miền Tây Sound Map is a collaborative project initiated by <a href="https://officinegap.com" target="_blank">Officine Gặp</a>, an interdisciplinary creative studio based in Ho Chi Minh City, Vietnam.</p>
     <p>The project invites the community to record and share the everyday sounds of Ho Chi Minh City and the southern provinces — from street vendors and motorbike traffic to everyday rituals and ceremonies, market chatter, and monsoon rains.</p>
     <p>Together, these recordings form a growing, living sound repository: a resource for artists, researchers, and anyone interested in listening more closely to the rhythms and textures of life in southern Vietnam.</p>
+    <p>Alongside the sounds, the map now holds drawings, sketches and photographs — an architect's studies for a project, a walk drawn from memory — and writing: stories and poems tied to a street, a river, a house.</p>
     <p class="about-divider"></p>
     <p>This map is evolving — feedback, ideas, and suggestions are always welcome.</p>
     <p>Contact us <a href="mailto:info@officinegap.com">info[at]officinegap.com</a></p>
@@ -1025,22 +1156,30 @@
 <!-- Archive panel -->
 <div class="archive" id="archive-panel">
   <div class="archive-head">
-    <h2>Sound Archive</h2>
+    <h2>Archive</h2>
     <button class="archive-close" id="archive-close" aria-label="Close archive">&times;</button>
   </div>
   <div class="archive-places">
     <button type="button" class="archive-home" id="archive-home" aria-pressed="true">
       <small>Our home collection</small><strong>SAIGON</strong>
-      <span id="archive-home-count">Loading recordings…</span>
+      <span id="archive-home-count">Loading the archive…</span>
     </button>
   </div>
   <div class="archive-filter">
     <label for="archive-location">Explore by location</label>
     <select id="archive-location"><option value="Saigon">Saigon</option></select>
-    <p class="archive-location-note">Nearby recordings grouped by location. Miền Tây has its own collection.</p>
+    <p class="archive-location-note">Nearby contributions grouped by location. Miền Tây has its own collection.</p>
   </div>
   <div class="archive-search">
-    <input type="search" id="archive-search-input" aria-label="Search recordings in selected location" placeholder="Search this location...">
+    <input type="search" id="archive-search-input" aria-label="Search the archive in selected location" placeholder="Search this location...">
+  </div>
+  <div class="archive-filter">
+    <select id="kind-filter" aria-label="Filter archive by kind">
+      <option value="">Sounds, images and texts</option>
+      <option value="sound">Sounds</option>
+      <option value="image">Images</option>
+      <option value="text">Texts</option>
+    </select>
   </div>
   <div class="archive-filter">
     <!-- options populated from CATS at runtime via buildCategoryDropdowns() -->
@@ -1048,8 +1187,32 @@
       <option value="">All categories</option>
     </select>
   </div>
-  <div class="rec-count" id="rec-count" role="status" aria-live="polite">Loading recordings…</div>
+  <div class="rec-count" id="rec-count" role="status" aria-live="polite">Loading the archive…</div>
   <ul class="rec-list" id="rec-list"></ul>
+</div>
+
+<!-- Viewer: one contribution on its own sheet — images to swipe through,
+     the full text of a story or poem. -->
+<div class="viewer" id="viewer" role="dialog" aria-modal="true" aria-labelledby="viewer-title" hidden>
+  <div class="viewer-bar">
+    <span class="viewer-kind" id="viewer-kind"></span>
+    <button type="button" class="viewer-close" id="viewer-close" aria-label="Close">&times;</button>
+  </div>
+  <div class="viewer-scroll" id="viewer-scroll">
+    <div class="viewer-gallery" id="viewer-gallery" tabindex="0" aria-label="Images"></div>
+    <div class="viewer-nav" id="viewer-nav">
+      <button type="button" id="viewer-prev" aria-label="Previous image">&larr;</button>
+      <span id="viewer-count" aria-live="polite"></span>
+      <button type="button" id="viewer-next" aria-label="Next image">&rarr;</button>
+      <a id="viewer-full" target="_blank" rel="noopener">Full size</a>
+    </div>
+    <article class="viewer-text">
+      <h2 id="viewer-title"></h2>
+      <p class="viewer-meta" id="viewer-meta"></p>
+      <p class="viewer-desc" id="viewer-desc"></p>
+      <div class="viewer-body" id="viewer-body"></div>
+    </article>
+  </div>
 </div>
 
 <!-- Loading -->
@@ -1171,13 +1334,20 @@
   const NEUTRAL_CONFIG = { theme: 'monochrome', lightPreset: 'day', show3dObjects: false,
     showPointOfInterestLabels: false, showTransitLabels: false };
   let currentStyle = NEUTRAL_STYLE;
-  let activeFilter = '';
+  let activeFilter = '';   // category chip
+  let activeKind = '';     // kind toggle: '', 'sound', 'image' or 'text'
+  const matchesFilters = r => (!activeKind || kindOf(r) === activeKind) &&
+    (!activeFilter || catInfo(r).cat === activeFilter);
   let mediaRecorder, recordedChunks = [], recordedBlob = null;
 
   const $ = id => document.getElementById(id);
 
   // ── Helpers ─────────────────────────────────────────────────────
-  function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+  // Safe in text AND in quoted attributes (alt, aria-label, data-*): a
+  // contributor's title can hold quotes.
+  function esc(s) {
+    return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+  }
 
   function toast(msg) {
     const t = $('toast');
@@ -1202,6 +1372,59 @@
   // its own field) — strip it everywhere we show a title.
   function displayTitle(r) {
     return (r.title || '').replace(/^\[[^\]]*\]\s*/, '').trim() || 'Untitled';
+  }
+
+  // ── Kinds of contribution ───────────────────────────────────────
+  // The archive holds sounds, images (drawings, sketches, photos) and
+  // texts (stories, poems). Documents from before the living archive have
+  // no kind: they are all sounds.
+  const KINDS = {
+    sound: { one: 'Sound', many: 'Sounds' },
+    image: { one: 'Image', many: 'Images' },
+    text:  { one: 'Text',  many: 'Texts' },
+  };
+  function kindOf(r) {
+    if (KINDS[r.kind]) return r.kind;
+    return r.audioUrl ? 'sound' : entryImages(r).length ? 'image' : 'text';
+  }
+  // Every image of an entry, cover first. Older recordings have a single
+  // photo in imageUrl and no thumbnail.
+  function entryImages(r) {
+    const list = Array.isArray(r.images) ? r.images.filter(i => i && i.url) : [];
+    return list.length ? list : (r.imageUrl ? [{ url: r.imageUrl }] : []);
+  }
+  const thumbOf = img => img.thumbUrl || img.url;
+  const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
+  function excerpt(s, n) {
+    s = (s || '').trimEnd(); // not /\s+$/ — quadratic on long space runs
+    return s.length > n ? s.slice(0, n).replace(/\s+\S*$/, '') + '…' : s;
+  }
+  function authorHTML(r) { return r.author ? `<p class="entry-author">${esc(r.author)}</p>` : ''; }
+  function kindTagHTML(r) {
+    const k = kindOf(r);
+    return k === 'sound' ? '' : `<span class="kind-tag">${KINDS[k].one}</span>`;
+  }
+  // The words under a title: a text shows its opening, the others their
+  // description ("No description" stays for sounds, as it always was).
+  function entryTextHTML(r, n) {
+    if (kindOf(r) === 'text') return `<p class="entry-excerpt">${esc(excerpt(r.body, n))}</p>`;
+    const d = r.description || (kindOf(r) === 'sound' ? 'No description' : '');
+    return d ? `<p>${esc(d)}</p>` : '';
+  }
+  // Cover image; a tap opens the viewer. Drawings are contained, never
+  // cropped — a recording's photo keeps filling its frame as before.
+  function coverHTML(r, imgClass, btnClass) {
+    const imgs = entryImages(r);
+    if (!imgs.length) return '';
+    const contain = kindOf(r) === 'sound' ? '' : ' contain';
+    return `<button type="button" class="${btnClass}" data-view="${esc(r.id)}" aria-label="Open the images of ${esc(displayTitle(r))}">` +
+      `<img class="${imgClass}${contain}" src="${esc(thumbOf(imgs[0]))}" alt="" loading="lazy">` +
+      (imgs.length > 1 ? `<span class="photo-count">${imgs.length} images</span>` : '') + `</button>`;
+  }
+  function openBtnHTML(r) {
+    const n = entryImages(r).length;
+    const label = kindOf(r) === 'text' ? 'Read' : n > 1 ? `View ${n} images` : 'View image';
+    return `<button type="button" class="entry-open" data-view="${esc(r.id)}">${label}</button>`;
   }
 
   function audioType(url) {
@@ -1230,7 +1453,8 @@
   // Share button — every recording is addressable as /?rec=<id-prefix>.
   // Native share sheet on mobile, clipboard copy on desktop.
   function shareBtnHTML(r) {
-    return `<button class="share-btn" type="button" data-rec="${r.id.split('-')[0]}" title="Share link to this recording" aria-label="Share">Share</button>`;
+    const what = kindOf(r) === 'sound' ? 'recording' : KINDS[kindOf(r)].one.toLowerCase();
+    return `<button class="share-btn" type="button" data-rec="${r.id.split('-')[0]}" title="Share link to this ${what}" aria-label="Share">Share</button>`;
   }
   // Capture phase so stopPropagation also silences the archive card's
   // own fly-to-pin click handler underneath the button.
@@ -1566,8 +1790,8 @@
       // Don't claim "no recordings yet" while the archive is still loading.
       if (!recordings.length) { toast(name); return; }
       const n = cityCount(name);
-      toast(n ? `${name} — ${n} recording${n === 1 ? '' : 's'} so far`
-              : `${name} — no recordings yet. Be the first!`);
+      toast(n ? `${name} — ${plural(n, 'contribution')} so far`
+              : `${name} — nothing here yet. Be the first!`);
     }
   }
 
@@ -1588,13 +1812,23 @@
   // ── Build filter chips ──────────────────────────────────────────
   function buildFilterChips() {
     const bar = $('filter-bar');
-    bar.innerHTML = '<button class="filter-chip active" data-cat="">All</button>';
-    Object.entries(CATS).forEach(([name, { icon }]) => {
-      bar.innerHTML += `<button class="filter-chip" data-cat="${name}">${name}</button>`;
-    });
-    bar.querySelectorAll('.filter-chip').forEach(chip => {
+    // Kind toggles first — press the lit one again to show every kind —
+    // then the categories, which apply to every kind alike.
+    bar.innerHTML = Object.entries(KINDS).map(([k, { many }]) =>
+        `<button class="filter-chip kind-chip" data-kind="${k}" aria-pressed="false"><span class="kind-glyph k-${k}" aria-hidden="true"></span>${many}</button>`).join('') +
+      '<span class="filter-sep" aria-hidden="true"></span>' +
+      '<button class="filter-chip active" data-cat="">All</button>' +
+      Object.keys(CATS).map(name => `<button class="filter-chip" data-cat="${esc(name)}">${esc(name)}</button>`).join('');
+    bar.querySelectorAll('.kind-chip').forEach(chip => {
       chip.onclick = () => {
-        bar.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
+        activeKind = activeKind === chip.dataset.kind ? '' : chip.dataset.kind;
+        bar.querySelectorAll('.kind-chip').forEach(c => c.setAttribute('aria-pressed', String(c.dataset.kind === activeKind)));
+        renderMarkers();
+      };
+    });
+    bar.querySelectorAll('.filter-chip[data-cat]').forEach(chip => {
+      chip.onclick = () => {
+        bar.querySelectorAll('.filter-chip[data-cat]').forEach(c => c.classList.remove('active'));
         chip.classList.add('active');
         activeFilter = chip.dataset.cat;
         renderMarkers();
@@ -1714,7 +1948,7 @@
       // Canvas-rendered recordings (clusters / lone points) have their own
       // click handlers — don't also drop an upload pin on top of them.
       try {
-        if (map.queryRenderedFeatures(e.point, { layers: ['cluster-circles', 'single-points'] }).length) return;
+        if (map.queryRenderedFeatures(e.point, { layers: ['cluster-circles', 'single-points', 'single-shapes'] }).length) return;
       } catch {} // layers may not exist yet (style still loading)
       const { lng, lat } = e.lngLat;
       setUploadLocation(lat, lng);
@@ -1724,7 +1958,7 @@
         pinMode = false;
         openForm();
       } else {
-        toast('Location set — tap New recording to upload.');
+        toast('Location set — tap Contribute to add something here.');
       }
     });
   }
@@ -1733,7 +1967,10 @@
   let lastPayload = null;
   async function loadRecordings() {
     try {
-      const res = await fetch(`${API}/recordings`);
+      let res = await fetch(`${API}/entries`);
+      // A server from before the living archive has no /entries yet (and
+      // answers unknown paths with the map's HTML, not a 404).
+      if (res.status === 404 || (res.ok && !(res.headers.get('content-type') || '').includes('json'))) res = await fetch(`${API}/recordings`);
       if (!res.ok) throw new Error(res.statusText);
       const text = await res.text();
       // The 2-minute refresh usually returns identical data. Re-rendering
@@ -1741,9 +1978,13 @@
       // so skip the whole pass when nothing changed.
       if (text === lastPayload) return;
       const data = JSON.parse(text);
-      if (!Array.isArray(data.recordings)) return;
+      const list = data.entries || data.recordings;
+      if (!Array.isArray(list)) return;
       lastPayload = text;
-      recordings = data.recordings.filter(r => r && typeof r.latitude === 'number' && typeof r.longitude === 'number' && r.audioUrl).map(r => ({ ...r, category: CAT_ALIASES[r.category] || r.category }));
+      // `recordings` holds every contribution — sounds, images and texts.
+      recordings = list.filter(r => r && typeof r.latitude === 'number' && typeof r.longitude === 'number' &&
+        (r.audioUrl || entryImages(r).length || (r.body || '').trim()))
+        .map(r => ({ ...r, category: CAT_ALIASES[r.category] || r.category }));
       $('count-badge').textContent = recordings.length;
       if (!archiveLocationChosen) {
         const params = new URLSearchParams(location.search);
@@ -1767,6 +2008,31 @@
   // Below this zoom, DOM markers are hidden and Mapbox-native cluster
   // circles take over. Above it, DOM markers re-appear and clusters fade.
   const CLUSTER_MAX_ZOOM = 14;
+
+  // Square (image) and diamond (text) icons for the lone-point layer, the
+  // canvas twins of the DOM markers' CSS shapes.
+  const SHAPE_PX = 18, SHAPE_RATIO = 2;
+  let shapeImagesWired = false;
+  function drawShape(kind, color) {
+    const s = SHAPE_PX * SHAPE_RATIO, lw = 1.5 * SHAPE_RATIO;
+    const c = document.createElement('canvas');
+    c.width = c.height = s;
+    const ctx = c.getContext('2d');
+    ctx.fillStyle = color + 'BF';
+    ctx.strokeStyle = color;
+    ctx.lineWidth = lw;
+    ctx.beginPath();
+    if (kind === 'text') {
+      const m = s / 2, r = m - lw;
+      ctx.moveTo(m, m - r); ctx.lineTo(m + r, m); ctx.lineTo(m, m + r); ctx.lineTo(m - r, m); ctx.closePath();
+    } else {
+      const inset = 2 * SHAPE_RATIO;
+      ctx.rect(inset, inset, s - 2 * inset, s - 2 * inset);
+    }
+    ctx.fill();
+    ctx.stroke();
+    return ctx.getImageData(0, 0, s, s);
+  }
 
   // Set up the GeoJSON source + cluster layers once, on map load.
   function setupClusters() {
@@ -1823,7 +2089,7 @@
       id:      'single-points',
       type:    'circle',
       source:  'recordings-source',
-      filter:  ['!', ['has', 'point_count']],
+      filter:  ['all', ['!', ['has', 'point_count']], ['==', ['get', 'kind'], 'sound']],
       maxzoom: CLUSTER_MAX_ZOOM,
       paint: {
         'circle-color':        ['coalesce', ['get', 'color'], '#8B9195'],
@@ -1831,6 +2097,29 @@
         'circle-radius':       7,
         'circle-stroke-color': ['coalesce', ['get', 'color'], '#8B9195'],
         'circle-stroke-width': 1.5,
+      },
+    });
+    // Lone images and texts keep their shape too — square, diamond — drawn
+    // per category colour the first time the map asks for one.
+    if (!shapeImagesWired) {
+      shapeImagesWired = true;
+      map.on('styleimagemissing', e => {
+        const m = /^shape-(image|text)-(.*)$/.exec(e.id);
+        if (!m || map.hasImage(e.id)) return;
+        const color = /^#[0-9a-f]{6}$/i.test(m[2]) ? m[2] : '#8B9195';
+        map.addImage(e.id, drawShape(m[1], color), { pixelRatio: SHAPE_RATIO });
+      });
+    }
+    map.addLayer({
+      id:      'single-shapes',
+      type:    'symbol',
+      source:  'recordings-source',
+      filter:  ['all', ['!', ['has', 'point_count']], ['!=', ['get', 'kind'], 'sound']],
+      maxzoom: CLUSTER_MAX_ZOOM,
+      layout: {
+        'icon-image':            ['concat', 'shape-', ['get', 'kind'], '-', ['coalesce', ['get', 'color'], '#8B9195']],
+        'icon-allow-overlap':    true,
+        'icon-ignore-placement': true,
       },
     });
 
@@ -1848,7 +2137,7 @@
 
     // Click a lone recording: ease in past the DOM-marker threshold, then
     // open its popup.
-    map.on('click', 'single-points', (e) => {
+    const openLone = (e) => {
       const f = e.features && e.features[0];
       if (!f) return;
       const id = f.properties.id;
@@ -1857,9 +2146,11 @@
         const m = markersById[id];
         if (m && m.getPopup() && !m.getPopup().isOpen()) m.togglePopup();
       });
-    });
+    };
+    map.on('click', 'single-points', openLone);
+    map.on('click', 'single-shapes', openLone);
 
-    ['cluster-circles', 'single-points'].forEach(layer => {
+    ['cluster-circles', 'single-points', 'single-shapes'].forEach(layer => {
       map.on('mouseenter', layer, () => map.getCanvas().style.cursor = 'pointer');
       map.on('mouseleave', layer, () => map.getCanvas().style.cursor = '');
     });
@@ -1876,14 +2167,14 @@
   function updateClusterData() {
     const source = map.getSource('recordings-source');
     if (!source) return;
-    const filtered = activeFilter ? recordings.filter(r => catInfo(r).cat === activeFilter) : recordings;
+    const filtered = recordings.filter(matchesFilters);
     source.setData({
       type: 'FeatureCollection',
       features: filtered.map(r => ({
         type: 'Feature',
         geometry: { type: 'Point', coordinates: [r.longitude, r.latitude] },
         // color drives the single-points circle layer (lone recordings)
-        properties: { id: r.id, title: r.title || '', category: catInfo(r).cat, color: catInfo(r).color },
+        properties: { id: r.id, title: r.title || '', kind: kindOf(r), category: catInfo(r).cat, color: catInfo(r).color },
       })),
     });
   }
@@ -1903,7 +2194,7 @@
     markersById = Object.fromEntries(kept);
     updateClusterData();
 
-    const filtered = activeFilter ? recordings.filter(r => catInfo(r).cat === activeFilter) : recordings;
+    const filtered = recordings.filter(matchesFilters);
 
     // Recordings made without moving — several sounds from one spot, or a
     // group all standing together — land on identical coordinates and draw
@@ -1930,20 +2221,24 @@
     for (const r of filtered) {
       if (kept.has(r.id)) continue;
       try {
-        const { cat, color, icon } = catInfo(r);
+        const { cat, color } = catInfo(r);
+        const kind = kindOf(r);
 
         const el = document.createElement('div');
-        el.className = 'marker';
+        el.className = `marker k-${kind}`;   // shape = kind, colour = category
         el.style.backgroundColor = color + 'BF'; // 75% fill opacity
         el.style.borderColor = color;
+        el.style.setProperty('--c', color);
+        el.style.setProperty('--cf', color + 'BF');
 
         const popup = new mapboxgl.Popup({ offset: 25, maxWidth: '320px' }).setHTML(`
-          ${r.imageUrl ? `<a href="${esc(r.imageUrl)}" target="_blank" rel="noopener"><img class="popup-photo" src="${esc(r.imageUrl)}" alt="" loading="lazy"></a>` : ''}
+          ${coverHTML(r, 'popup-photo', 'popup-cover')}
           <div class="popup-inner">
             <h3>${esc(displayTitle(r))}</h3>
-            <p>${esc(r.description || 'No description')}</p>
-            <span class="popup-tag" style="background:${color}">${esc(cat)}</span>${recDateHTML(r)}${shareBtnHTML(r)}
-            ${audioPlayerHTML(r.audioUrl, audioType(r.audioUrl), r.title, r.id, r.duration)}
+            ${authorHTML(r)}
+            ${entryTextHTML(r, 200)}
+            <span class="popup-tag" style="background:${color}">${esc(cat)}</span>${kindTagHTML(r)}${recDateHTML(r)}${shareBtnHTML(r)}
+            ${kind === 'sound' ? audioPlayerHTML(r.audioUrl, audioType(r.audioUrl), r.title, r.id, r.duration) : openBtnHTML(r)}
           </div>
         `);
         // Attach the custom audio-player JS once the popup is in the DOM.
@@ -1965,7 +2260,7 @@
         // attributes don't overwrite ours.
         el.setAttribute('role', 'button');
         el.tabIndex = 0;
-        el.setAttribute('aria-label', `${displayTitle(r)} — ${cat}`);
+        el.setAttribute('aria-label', `${displayTitle(r)} — ${KINDS[kind].one} — ${cat}`);
         el.addEventListener('keydown', ev => {
           if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); m.togglePopup(); }
         });
@@ -2164,42 +2459,69 @@
   // any 16–80 char [A-Za-z0-9-] key, so 32 random hex digits do as well.
   const newDraftKey = () => crypto.randomUUID?.() ??
     [...crypto.getRandomValues(new Uint8Array(16))].map(b => b.toString(16).padStart(2, '0')).join('');
-  let draftFile = null, draftPhoto = null, draftKey = newDraftKey(), draftReady = false;
-  const draftFields = ['f-title','f-desc','f-category','f-lat','f-lng'];
+  const MAX_IMAGES = 8;
+  let draftFile = null, draftKey = newDraftKey(), draftReady = false;
+  let formKind = 'sound';  // what leads the contribution: sound, image or text
+  let photos = [];         // chosen images (File/Blob), in order
+  const draftFields = ['f-title','f-desc','f-body','f-author','f-category','f-lat','f-lng'];
   function draftSnapshot() {
     return { values: Object.fromEntries(draftFields.map(id => [id, $(id).value])),
-      audio: recordedBlob, file: $('audio-file').files[0] || draftFile,
-      photo: pickedPhoto(), key: draftKey };
+      kind: formKind, audio: recordedBlob, file: $('audio-file').files[0] || draftFile,
+      photos: photos.slice(), key: draftKey };
   }
+  // Drafts saved before multi-image uploads kept a single `photo`.
+  const draftPhotos = d => d.photos || (d.photo ? [d.photo] : []);
   // A location alone is not a draft. Any map tap fills it, so saving it
   // would "recover" an old pin next time and quietly place a new sound there.
-  const draftHasContent = d => !!(d.audio || d.file || d.photo ||
-    (d.values?.['f-title'] || '').trim() || (d.values?.['f-desc'] || '').trim());
+  const draftHasContent = d => !!(d.audio || d.file || draftPhotos(d).length ||
+    ['f-title', 'f-desc', 'f-body'].some(id => (d.values?.[id] || '').trim()));
+  // What a contribution of this kind cannot do without.
+  const draftHasMain = d => ({
+    sound: !!(d.audio || d.file),
+    image: draftPhotos(d).length > 0,
+    text:  !!(d.values?.['f-body'] || '').trim(),
+  })[KINDS[d.kind] ? d.kind : 'sound'];
+  // Saves coalesce: one write at a time, and whatever changed meanwhile is
+  // written once it finishes — never a queue of full copies of every image
+  // and the recording, one per keystroke.
+  let draftWrite = null, draftDirty = false, draftTimer = 0;
   function saveDraft() {
     if (!draftReady) return Promise.resolve();
-    const snapshot = draftSnapshot();
-    if (!draftHasContent(snapshot)) return DraftStore.clear().catch(() => {});
-    $('draft-status').textContent = 'Saving draft…';
-    return DraftStore.save(snapshot).then(() => {
-      $('draft-status').textContent = 'Draft saved on this device';
-    }, () => { $('draft-status').textContent = 'Draft could not be saved. Keep this page open and upload or try again.'; });
+    clearTimeout(draftTimer); draftTimer = 0;
+    draftDirty = true;
+    return draftWrite ||= (async () => {
+      try {
+        while (draftDirty) {
+          draftDirty = false;
+          const snapshot = draftSnapshot();
+          if (!draftHasContent(snapshot)) { await DraftStore.clear().catch(() => {}); continue; }
+          $('draft-status').textContent = 'Saving draft…';
+          await DraftStore.save(snapshot).then(() => {
+            $('draft-status').textContent = 'Draft saved on this device';
+          }, () => { $('draft-status').textContent = 'Draft could not be saved. Keep this page open and upload or try again.'; });
+        }
+      } finally { draftWrite = null; }
+    })();
   }
   const draftLoaded = DraftStore.read().then(d => {
     if (!d) return;
     if (!draftHasContent(d)) return DraftStore.clear().catch(() => {}); // location-only drafts saved before this rule
-    // Restore the location only together with a sound: that is where it was
-    // recorded. Without one, the saved pin was just an old map tap.
-    const hasSound = !!(d.audio || d.file);
+    // Restore the location only together with what it locates — the sound
+    // recorded there, the images, the text. Without one, the saved pin was
+    // just an old map tap.
+    const located = draftHasMain(d);
     draftFields.forEach(id => {
-      if (hasSound || (id !== 'f-lat' && id !== 'f-lng')) $(id).value = d.values?.[id] || '';
+      if (located || (id !== 'f-lat' && id !== 'f-lng')) $(id).value = d.values?.[id] || '';
     });
-    recordedBlob = d.audio || null; draftFile = d.file || null; draftPhoto = d.photo || null;
+    recordedBlob = d.audio || null; draftFile = d.file || null;
+    photos = draftPhotos(d).slice(0, MAX_IMAGES);
     draftKey = d.key || draftKey;
+    setKind(KINDS[d.kind] ? d.kind : 'sound', true);
     if (recordedBlob) { $('rec-play').disabled = false; $('rec-status').textContent = 'Recovered recording'; }
     if (draftFile) $('draft-status').textContent = 'Recovered file: ' + draftFile.name;
     else if (recordedBlob) $('draft-status').textContent = 'Recovered your unfinished recording';
-    else $('draft-status').textContent = 'Recovered your unfinished details';
-    refreshPhotoPreview(); updateLocStatus();
+    else $('draft-status').textContent = 'Recovered your unfinished contribution';
+    renderPhotos(); updateLocStatus();
   }).catch(() => { $('draft-status').textContent = 'Draft storage unavailable. Keep this page open until you upload.'; })
     .finally(() => { draftReady = true; });
   async function openForm() { await draftLoaded; updateLocStatus(); $('form-overlay').classList.add('open'); }
@@ -2207,15 +2529,29 @@
     if (mediaRecorder?.state === 'recording') $('rec-stop').click();
     void saveDraft(); $('form-overlay').classList.remove('open');
   }
-  $('upload-form').addEventListener('input', () => { void saveDraft(); });
+  // Typing saves once it pauses; saveDraft() itself cancels a pending one.
+  $('upload-form').addEventListener('input', () => { clearTimeout(draftTimer); draftTimer = setTimeout(() => { draftTimer = 0; void saveDraft(); }, 400); });
+  // Leaving the page (tab closed, app switched) must not lose the last
+  // 400 ms of typing that the timer was still holding.
+  // The words go first, kept synchronously: the full save carries the
+  // recording and photos and may not land before the page is gone.
+  const flushDraft = () => {
+    // Pending (the typing pause) or still being written with the media.
+    if ((!draftTimer && !draftWrite) || !draftReady) return;
+    const snap = draftSnapshot();
+    if (draftHasContent(snap)) DraftStore.saveText({ values: snap.values, kind: snap.kind, key: snap.key });
+    void saveDraft();
+  };
+  window.addEventListener('pagehide', flushDraft);
+  document.addEventListener('visibilitychange', () => { if (document.hidden) flushDraft(); });
   $('upload-form').addEventListener('change', () => { void saveDraft(); });
   $('draft-discard').onclick = async () => {
-    if (!confirm('Discard this recording and its details?')) return;
+    if (!confirm('Discard this contribution and its details?')) return;
     if (mediaRecorder?.state === 'recording') {
       await new Promise(resolve => { mediaRecorder.addEventListener('stop', resolve, { once: true }); $('rec-stop').click(); });
     }
-    resetRecorder(); draftFile = draftPhoto = null; draftKey = newDraftKey();
-    $('upload-form').reset(); clearPhotoPreview(); updateLocStatus();
+    resetRecorder(); draftFile = null; draftKey = newDraftKey();
+    $('upload-form').reset(); clearPhotos(); updateLocStatus();
     await DraftStore.clear().then(() => { $('draft-status').textContent = 'Draft discarded'; },
       () => { $('draft-status').textContent = 'Could not remove the saved draft. Try Discard again.'; });
   };
@@ -2223,53 +2559,122 @@
     if (mediaRecorder?.state === 'recording') { e.preventDefault(); e.returnValue = ''; }
   });
 
-  // Optional photo: camera or gallery, whichever was used last wins.
-  function pickedPhoto() {
-    return $('image-camera').files[0] || $('image-gallery').files[0] || draftPhoto;
+  // What the form is for. The kind picks the field that cannot be empty
+  // (a recording, images, a text); title, credit, category and place are
+  // shared by all three.
+  const KIND_COPY = {
+    sound: { photo: 'Add photos (optional)', title: 'e.g. Morning market sounds',
+      desc: 'What can be heard in this recording?', submit: 'Upload sound',
+      pin: 'Tap the map where this sound was recorded' },
+    image: { photo: 'Images * — drawings, sketches, photos (up to 8)', title: 'e.g. Sketches for a house on the canal',
+      desc: 'What do these images show? A project, a place, a memory…', submit: 'Upload images',
+      pin: 'Tap the map where these images belong' },
+    text:  { photo: 'Add images (optional)', title: 'e.g. The ferry at night',
+      desc: '', submit: 'Publish text', pin: 'Tap the map where this text belongs' },
+  };
+  function setKind(kind, quiet) {
+    // The recorder hides with the Sound tab — never leave it running unseen.
+    if (kind !== 'sound' && mediaRecorder?.state === 'recording') $('rec-stop').click();
+    formKind = kind;
+    $('form-card').dataset.kind = kind;
+    $('kind-pick').querySelectorAll('[data-kind]').forEach(b => {
+      const on = b.dataset.kind === kind;
+      b.setAttribute('aria-checked', String(on));
+      b.tabIndex = on ? 0 : -1;
+    });
+    const c = KIND_COPY[kind];
+    $('photo-label').textContent = c.photo;
+    $('f-title').placeholder = c.title;
+    $('f-desc').placeholder = c.desc;
+    $('form-submit').textContent = c.submit;
+    if (!quiet) void saveDraft();
   }
-  function refreshPhotoPreview() {
-    const f = pickedPhoto();
-    const prev = $('photo-preview');
-    if (prev.src) { try { URL.revokeObjectURL(prev.src); } catch {} }
-    if (f) { prev.src = URL.createObjectURL(f); prev.classList.add('show'); }
-    else { prev.removeAttribute('src'); prev.classList.remove('show'); }
-    $('photo-remove-btn').classList.toggle('show', !!f);
+  $('kind-pick').onclick = e => {
+    const b = e.target.closest('[data-kind]');
+    if (b) setKind(b.dataset.kind);
+  };
+  // Radio-group keys: arrows move the choice.
+  $('kind-pick').onkeydown = e => {
+    const order = Object.keys(KINDS), step = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[e.key];
+    if (!step) return;
+    e.preventDefault();
+    const from = e.target.closest('[data-kind]')?.dataset.kind || formKind;
+    const next = order[(order.indexOf(from) + step + order.length) % order.length];
+    setKind(next);
+    $('kind-pick').querySelector(`[data-kind="${next}"]`).focus();
+  };
+  setKind(formKind, true); // one Tab stop in the group from the start
+
+  // Images: camera or gallery, several at a time, up to MAX_IMAGES, kept in
+  // the order chosen (the first is the cover).
+  let photoUrls = [];
+  function renderPhotos() {
+    photoUrls.forEach(u => { try { URL.revokeObjectURL(u); } catch {} });
+    photoUrls = photos.map(f => URL.createObjectURL(f));
+    $('photo-grid').innerHTML = photoUrls.map((u, i) =>
+      `<figure><img src="${u}" alt="Image ${i + 1}"><button type="button" data-i="${i}" aria-label="Remove image ${i + 1}">&times;</button></figure>`).join('');
+    $('photo-note').textContent = photos.length ? `${photos.length} / ${MAX_IMAGES}${photos.length > 1 ? ' — the first is the cover' : ''}` : '';
   }
+  function addPhotos(files) {
+    // Some desktop browsers report HEIC with an empty type; trust the name.
+    const picked = [...files].filter(f => /^image\//.test(f.type) || /\.(hei[cf]|jpe?g|png|webp|gif|tiff?|bmp)$/i.test(f.name || ''));
+    const room = MAX_IMAGES - photos.length;
+    if (picked.length > room) toast(`Up to ${MAX_IMAGES} images — ${picked.length - room} left out`);
+    photos.push(...picked.slice(0, Math.max(0, room)));
+    renderPhotos(); void saveDraft();
+  }
+  function clearPhotos() { photos = []; renderPhotos(); }
   $('photo-camera-btn').onclick  = () => $('image-camera').click();
   $('photo-gallery-btn').onclick = () => $('image-gallery').click();
-  $('image-camera').onchange  = () => { if ($('image-camera').files.length)  $('image-gallery').value = ''; refreshPhotoPreview(); void saveDraft(); };
-  $('image-gallery').onchange = () => { if ($('image-gallery').files.length) $('image-camera').value  = ''; refreshPhotoPreview(); };
-  $('photo-remove-btn').onclick = () => { draftPhoto = null; $('image-camera').value = ''; $('image-gallery').value = ''; refreshPhotoPreview(); void saveDraft(); };
-  function clearPhotoPreview() {
-    $('image-camera').value = ''; $('image-gallery').value = '';
-    refreshPhotoPreview();
-  }
+  // Read the files, then empty the input so picking the same file again
+  // still fires a change.
+  $('image-camera').onchange  = () => { addPhotos($('image-camera').files);  $('image-camera').value = ''; };
+  $('image-gallery').onchange = () => { addPhotos($('image-gallery').files); $('image-gallery').value = ''; };
+  $('photo-grid').onclick = e => {
+    const b = e.target.closest('button[data-i]');
+    if (!b) return;
+    photos.splice(+b.dataset.i, 1);
+    renderPhotos(); void saveDraft();
+  };
 
-  // Downscale the chosen photo in the browser (≤1600px JPEG q0.85) so a
-  // 10 MB phone shot uploads as a few hundred KB — kind to 4G and to the
-  // server. Safari decodes HEIC natively here, so the server never sees
-  // exotic formats. Orientation is baked in via imageOrientation; the
-  // server re-encodes to WebP and strips all metadata regardless. Any
-  // failure falls back to sending the original file untouched.
-  async function preparePhoto(file) {
+  // Downscale each image in the browser so a 10 MB phone shot uploads as
+  // a few hundred KB — kind to 4G and to the server. Photos on a sound or
+  // a text: ≤1600px; image contributions (drawings, sketches): ≤2400px,
+  // since fine lines and handwriting need it. Safari decodes HEIC natively
+  // here, so the server never sees exotic formats. Orientation is baked in
+  // via imageOrientation; the server re-encodes to JPEG and strips all
+  // metadata regardless. Any failure falls back to sending the original.
+  async function preparePhoto(file, maxEdge = 1600) {
     try {
       let bmp;
       try { bmp = await createImageBitmap(file, { imageOrientation: 'from-image' }); }
       catch { bmp = await createImageBitmap(file); }
-      const scale = Math.min(1, 1600 / Math.max(bmp.width, bmp.height));
+      const scale = Math.min(1, maxEdge / Math.max(bmp.width, bmp.height));
       const w = Math.max(1, Math.round(bmp.width * scale));
       const h = Math.max(1, Math.round(bmp.height * scale));
       const canvas = document.createElement('canvas');
       canvas.width = w; canvas.height = h;
-      canvas.getContext('2d').drawImage(bmp, 0, 0, w, h);
+      const ctx = canvas.getContext('2d');
+      // JPEG has no transparency: a transparent PNG drawing would turn
+      // black. Lay it on paper white first.
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, w, h);
+      ctx.drawImage(bmp, 0, 0, w, h);
       bmp.close();
-      const blob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', 0.85));
+      const blob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', maxEdge > 1600 ? 0.88 : 0.85));
       if (blob) return blob;
     } catch {}
     // Couldn't process locally (exotic format) — send the original and let
     // the server try, but only if it won't blow the 25 MB request cap or
-    // waste minutes of 4G. Otherwise drop the photo; audio always wins.
-    return file.size <= 15 * 1024 * 1024 ? file : null;
+    // waste minutes of 4G. Otherwise drop the image.
+    if (file.size > 15 * 1024 * 1024) return null;
+    if (/^image\//.test(file.type)) return file;
+    // Untyped or application/octet-stream (HEIC copied off an iPhone, some
+    // Android file pickers): without an image type the server would drop it
+    // unread and report nothing to save.
+    const ext = (/\.(\w+)$/.exec(file.name || '') || [])[1]?.toLowerCase();
+    const type = { jpg: 'jpeg', tif: 'tiff', heif: 'heif' }[ext] || ext || 'jpeg';
+    return new File([file], file.name || 'image', { type: `image/${type}` });
   }
 
   // Location can be set three ways: tapping the map before opening the
@@ -2322,7 +2727,7 @@
     // Hide the overlay WITHOUT closeForm() — that would reset the recorder
     // and silently discard a recording the contributor just made.
     $('form-overlay').classList.remove('open');
-    toast('Tap the map where this sound was recorded');
+    toast(KIND_COPY[formKind].pin);
   };
 
   $('upload-btn').onclick = openForm;
@@ -2334,69 +2739,127 @@
 
   $('upload-form').onsubmit = async e => {
     e.preventDefault();
+    const kind  = formKind;
     const title = $('f-title').value.trim();
     const cat   = $('f-category').value;
+    // Only what the chosen kind shows is sent: a description typed under
+    // Sound does not ride along with a poem.
+    const body  = kind === 'text' ? $('f-body').value.trimEnd() : '';
     if (!title) { toast('Please enter a title'); return; }
+    if (kind === 'text' && !body.trim()) { toast('Write your text first'); return; }
+    if (kind === 'image' && !photos.length) { toast('Add at least one image'); return; }
     if (!cat)   { toast('Please select a category'); return; }
     if (!$('f-lat').value || !$('f-lng').value) {
       toast('Set a location — use the buttons above');
       return;
     }
 
-    let blob;
-    const fileInput = $('audio-file').files[0] || draftFile;
-    if (recordedBlob && fileInput) {
-      blob = confirm('Use your recording instead of the uploaded file?') ? recordedBlob : fileInput;
-    } else blob = recordedBlob || fileInput;
-    if (!blob) { toast('Record or select an audio file'); return; }
+    // What was added under another kind is not sent with this one, and the
+    // form is cleared once it is published — ask before a recording or a
+    // poem disappears that way.
+    const left = [];
+    if (kind !== 'sound' && (recordedBlob || mediaRecorder?.state === 'recording' || $('audio-file').files[0] || draftFile)) left.push('sound');
+    if (kind !== 'text' && $('f-body').value.trim()) left.push('text');
+    if (kind === 'text' && $('f-desc').value.trim()) left.push('description');
+    if (left.length && !confirm(`The ${left.join(' and ')} you added under another kind will not be published with this ${KINDS[kind].one.toLowerCase()}, and will be cleared afterwards. Publish anyway?`)) return;
 
-    const filename = blob.name || `recording.${(blob.type || 'audio/webm').split('/')[1]?.split(';')[0] || 'webm'}`;
+    // A take still recording is what they mean to send: finish it first
+    // (it would otherwise be thrown away when the form clears).
+    if (kind === 'sound' && mediaRecorder?.state === 'recording') {
+      $('form-submit').disabled = true;
+      await new Promise(resolve => { mediaRecorder.addEventListener('stop', resolve, { once: true }); $('rec-stop').click(); });
+      $('form-submit').disabled = false;
+    }
+
+    let blob = null;
+    if (kind === 'sound') {
+      const fileInput = $('audio-file').files[0] || draftFile;
+      if (recordedBlob && fileInput) {
+        blob = confirm('Use your recording instead of the uploaded file?') ? recordedBlob : fileInput;
+      } else blob = recordedBlob || fileInput;
+      if (!blob) { toast('Record or select an audio file'); return; }
+    }
 
     const fd = new FormData();
-    fd.append('audioFile', blob, filename);
+    if (blob) {
+      const filename = blob.name || `recording.${(blob.type || 'audio/webm').split('/')[1]?.split(';')[0] || 'webm'}`;
+      fd.append('audioFile', blob, filename);
+    }
     fd.append('uploadKey', draftKey);
-    // Lock before the first await (the draft save, then photo processing):
+    // Lock before the first await (the draft save, then image processing):
     // a second tap in that window would start a duplicate upload.
     $('form-submit').disabled = true;
+    // Cancel works from here on — while images are prepared too, not only
+    // once the request is in flight.
+    let cancelled = false;
+    $('upload-cancel').onclick = () => { cancelled = true; window._currentXhr?.abort(); };
+    const stopCancelled = () => {
+      $('loading').classList.remove('show'); $('form-submit').disabled = false;
+      toast('Upload cancelled');
+    };
     await saveDraft();
+    fd.append('kind', kind);
     // Title used to carry a "[Category] " prefix for pre-category-field
     // clients; category is its own field now, so store the clean title.
     fd.append('title', title);
-    fd.append('description', $('f-desc').value);
+    fd.append('description', kind === 'text' ? '' : $('f-desc').value);
+    if (body) fd.append('body', body);
+    const author = $('f-author').value.trim();
+    if (author) fd.append('author', author);
     fd.append('category', cat);
     fd.append('latitude', $('f-lat').value);
     fd.append('longitude', $('f-lng').value);
 
-    // Optional photo — downscaled client-side before it travels.
-    const photoFile = pickedPhoto();
-    let photoAppended = false;
-    if (photoFile) {
-      $('loading').querySelector('span').textContent = 'Preparing photo…';
+    // Images — downscaled client-side before they travel, one at a time.
+    let sentImages = 0, droppedImages = 0, droppedTiff = 0, imageBytes = 0;
+    if (photos.length) {
+      const span = $('loading').querySelector('span');
       $('loading').classList.add('show');
-      const pblob = await preparePhoto(photoFile);
-      if (pblob) { fd.append('imageFile', pblob, 'photo.jpg'); photoAppended = true; }
-      else toast('Photo too large to attach — uploading the sound without it');
+      for (const [i, f] of photos.entries()) {
+        span.textContent = photos.length > 1 ? `Preparing images… ${i + 1}/${photos.length}` : 'Preparing image…';
+        const pblob = await preparePhoto(f, kind === 'image' ? 2400 : 1600);
+        if (cancelled) return stopCancelled();
+        if (pblob) { fd.append('imageFile', pblob, `image-${i + 1}.jpg`); sentImages++; imageBytes += pblob.size; }
+        else { droppedImages++; if (/tiff?$/i.test(f.type) || /\.tiff?$/i.test(f.name || '')) droppedTiff++; }
+      }
+      // Only Safari opens TIFF; elsewhere a big scan can't be shrunk here,
+      // and the problem is the format, not the size.
+      const why = droppedTiff === droppedImages ? "this browser can't open TIFF — export as JPEG or PNG" : 'too large to send — try smaller ones';
+      if (kind === 'image' && !sentImages) {
+        toast(`${droppedImages > 1 ? 'These images' : 'This image'}: ${why}`);
+        $('loading').classList.remove('show'); $('form-submit').disabled = false;
+        return;
+      }
+      if (droppedImages) toast(`${plural(droppedImages, 'image')} left out (${why}) — sending the rest`);
     }
 
-    const sizeMB = (blob.size / (1024*1024)).toFixed(2);
-    $('loading').querySelector('span').textContent = `Uploading ${sizeMB} MB… 0%`;
+    if (cancelled) return stopCancelled();
+    const totalBytes = (blob ? blob.size : 0) + imageBytes;
+    // The server refuses one request over 60 MB; say so before sending it.
+    if (totalBytes > 59 * 1024 * 1024) {
+      toast('This upload is too large (over 60 MB). Try fewer or smaller images, or a shorter sound.');
+      $('loading').classList.remove('show'); $('form-submit').disabled = false;
+      return;
+    }
+    const sizeMB = (totalBytes / (1024*1024)).toFixed(2);
+    const sizeLabel = totalBytes > 50 * 1024 ? ` ${sizeMB} MB` : '';
+    $('loading').querySelector('span').textContent = `Uploading${sizeLabel}… 0%`;
     // Warn on slow connections or large files before committing to upload
     try {
       const conn = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
       const slow = conn && (conn.effectiveType === '2g' || conn.effectiveType === 'slow-2g' || conn.saveData);
-      const big = blob.size > 5 * 1024 * 1024;
+      const big = totalBytes > 5 * 1024 * 1024;
       if (slow || big) {
         const reason = slow ? `slow connection (${conn.effectiveType})` : 'large file';
         const ok = confirm(`Heads up: ${reason}. Upload ${sizeMB} MB anyway?`);
         if (!ok) { $('loading').classList.remove('show'); $('form-submit').disabled = false; return; }
       }
     } catch (_) { /* navigator.connection unavailable; proceed */ }
+    if (cancelled) return stopCancelled();
     $('loading').classList.add('show');
     $('form-submit').disabled = true;
 
     // XHR upload with progress, cancel, and retry-on-network-failure
-    let cancelled = false;
-    $('upload-cancel').onclick = () => { cancelled = true; window._currentXhr?.abort(); };
     const uploadOnce = () => new Promise((resolve, reject) => {
       if (cancelled) return reject(new Error('aborted'));
       const xhr = new XMLHttpRequest();
@@ -2407,12 +2870,16 @@
         if (e.lengthComputable) {
           const pct = Math.round((e.loaded / e.total) * 100);
           const span = $('loading').querySelector('span');
-          if (span) span.textContent = `Uploading ${sizeMB} MB… ${pct}%`;
+          if (span) span.textContent = `Uploading${sizeLabel}… ${pct}%`;
         }
       };
       xhr.onload = () => {
-        if (xhr.status >= 200 && xhr.status < 300) resolve(xhr.responseText);
-        else reject(Object.assign(new Error(xhr.responseText || `HTTP ${xhr.status}`), { status: xhr.status }));
+        if (xhr.status >= 200 && xhr.status < 300) return resolve(xhr.responseText);
+        // Say what the server said ("None of the images could be read…"),
+        // not the raw JSON it was wrapped in.
+        let msg = xhr.responseText || `HTTP ${xhr.status}`;
+        try { msg = JSON.parse(xhr.responseText).message || msg; } catch {}
+        reject(Object.assign(new Error(msg), { status: xhr.status }));
       };
       xhr.onerror = () => reject(new Error('network'));
       xhr.ontimeout = () => reject(new Error('timeout'));
@@ -2443,18 +2910,25 @@
         }
       }
       if (lastErr) throw lastErr;
-      // Be honest if the server had to skip a photo we sent (bad decode).
-      let photoSaved = true;
-      if (photoAppended) {
-        try { photoSaved = !!JSON.parse(lastResponse)?.recording?.imageUrl; } catch {}
-      }
-      toast(photoSaved ? '✓ Upload successful!' : '✓ Sound saved — the photo could not be processed');
+      // Be honest if the server had to skip images we sent (bad decode).
+      let savedImages = sentImages;
+      try {
+        const rec = JSON.parse(lastResponse)?.recording;
+        savedImages = rec?.images?.length || (rec?.imageUrl ? 1 : 0);
+      } catch {}
+      const lost = sentImages - savedImages;
+      toast(lost > 0 ? `✓ Saved — ${plural(lost, 'image')} could not be read` : '✓ Added to the map');
       $('form-overlay').classList.remove('open');
-      resetRecorder(); draftFile = draftPhoto = null; draftKey = newDraftKey();
-      await DraftStore.clear().catch(() => { toast('Sound uploaded; saved draft could not be cleared'); });
-      $('draft-status').textContent = '';
+      // Empty the form before anything awaits: a draft save still in flight
+      // (a keystroke during the upload) then snapshots nothing and clears,
+      // instead of storing what was just published under the new key.
+      clearTimeout(draftTimer); draftTimer = 0;
+      resetRecorder(); draftFile = null;
       $('upload-form').reset();
-      clearPhotoPreview();
+      clearPhotos();
+      $('draft-status').textContent = '';
+      draftKey = newDraftKey();
+      await DraftStore.clear().catch(() => { toast('Uploaded; the saved draft could not be cleared'); });
       if (tempMarker) { tempMarker.remove(); tempMarker = null; }
       loadRecordings();
     } catch (err) {
@@ -2489,13 +2963,17 @@
         audioBitsPerSecond: 128000,
       });
       mediaRecorder.ondataavailable = e => { if (e.data.size > 0) recordedChunks.push(e.data); };
+      const rec = mediaRecorder;
       mediaRecorder.onstop = () => {
-        recordedBlob = new Blob(recordedChunks, { type: mediaRecorder.mimeType });
         stream.getTracks().forEach(t => t.stop());
+        clearTimeout(window._recWarnT); clearTimeout(window._recCapT);
+        // Stopped by resetRecorder (published or discarded): keep nothing —
+        // the chunks were cleared, so a blob now would be the last second only.
+        if (rec.discarded) return;
+        recordedBlob = new Blob(recordedChunks, { type: rec.mimeType });
         $('rec-status').textContent = `Recorded (${(recordedBlob.size / 1024).toFixed(0)} KB)`;
         $('rec-dot').classList.remove('active');
         $('rec-play').disabled = false;
-        clearTimeout(window._recWarnT); clearTimeout(window._recCapT);
         void saveDraft();
       };
       // 1s timeslices: emit chunks incrementally so memory stays low on long recordings
@@ -2533,7 +3011,7 @@
   };
 
   function resetRecorder() {
-    if (mediaRecorder?.state === 'recording') mediaRecorder.stop();
+    if (mediaRecorder?.state === 'recording') { mediaRecorder.discarded = true; mediaRecorder.stop(); }
     recordedChunks = []; recordedBlob = null;
     $('rec-start').disabled = false;
     $('rec-stop').disabled = true;
@@ -2548,6 +3026,7 @@
     if (open && ![...$('rec-list').querySelectorAll('audio')].some(a => !a.paused)) requestAnimationFrame(updateArchive);
   };
   $('archive-close').onclick = () => $('archive-panel').classList.remove('open');
+  $('kind-filter').onchange  = updateArchive;
   $('cat-filter').onchange   = updateArchive;
   $('archive-search-input').oninput = updateArchive;
   $('archive-location').onchange = () => {
@@ -2564,7 +3043,7 @@
   function updateArchive() {
     const groups = archiveLocations.group(recordings);
     const homeCount = groups.find(g => g.key === DEFAULT_CITY)?.recordings.length || 0;
-    $('archive-home-count').textContent = `${homeCount} recordings · Ho Chi Minh City`;
+    $('archive-home-count').textContent = `${plural(homeCount, 'contribution')} · Ho Chi Minh City`;
     $('archive-home').setAttribute('aria-pressed', String(archiveLocation === DEFAULT_CITY));
     const options = groups.map(g => ({ key: g.key, label: g.label, count: g.recordings.length }));
     // Keep an explicitly selected empty place visible after filtering/refresh.
@@ -2574,29 +3053,32 @@
     $('archive-location').innerHTML = `<option value="">All locations · ${recordings.length}</option>` +
       options.map(g => `<option value="${esc(g.key)}">${esc(g.label)} · ${g.count}</option>`).join('');
     $('archive-location').value = archiveLocation;
+    const kindFilter = $('kind-filter').value;
     const catFilter = $('cat-filter').value;
     const search = $('archive-search-input').value.toLowerCase().trim();
 
     let filtered = recordings;
     if (archiveLocation) filtered = filtered.filter(r => archiveLocations.locate(r) === archiveLocation);
+    if (kindFilter) filtered = filtered.filter(r => kindOf(r) === kindFilter);
     if (catFilter) filtered = filtered.filter(r => catInfo(r).cat === catFilter);
+    // Search reads everything written: title, description, credit, the text.
     if (search) filtered = filtered.filter(r =>
-      (r.title || '').toLowerCase().includes(search) ||
-      (r.description || '').toLowerCase().includes(search)
-    );
+      [r.title, r.description, r.author, r.body].some(f => (f || '').toLowerCase().includes(search)));
 
-    $('rec-count').textContent = `${filtered.length} recording${filtered.length !== 1 ? 's' : ''} · ${archiveLocation ? archiveLocations.label(archiveLocation) : 'All locations'}`;
+    $('rec-count').textContent = `${plural(filtered.length, 'contribution')} · ${archiveLocation ? archiveLocations.label(archiveLocation) : 'All locations'}`;
 
     const list = $('rec-list');
     const cardHTML = r => {
-      const { cat, color, icon } = catInfo(r);
+      const { cat } = catInfo(r);
+      const sound = kindOf(r) === 'sound';
       return `
         <li class="rec-item" data-lat="${r.latitude}" data-lng="${r.longitude}">
-          ${r.imageUrl ? `<a class="rec-photo-link" href="${esc(r.imageUrl)}" target="_blank" rel="noopener"><img class="rec-item-photo" src="${esc(r.imageUrl)}" alt="" loading="lazy"></a>` : ''}
+          ${coverHTML(r, 'rec-item-photo', 'rec-photo-link')}
           <h3>${esc(displayTitle(r))}</h3>
-          <span class="rec-item-tag">${esc(cat)}</span>${recDateHTML(r)}${shareBtnHTML(r)}
-          <p>${esc(r.description || 'No description')}</p>
-          ${audioPlayerHTML(r.audioUrl, audioType(r.audioUrl), r.title, r.id, r.duration)}
+          ${authorHTML(r)}
+          <span class="rec-item-tag">${esc(cat)}</span>${kindTagHTML(r)}${recDateHTML(r)}${shareBtnHTML(r)}
+          ${entryTextHTML(r, 260)}
+          ${sound ? audioPlayerHTML(r.audioUrl, audioType(r.audioUrl), r.title, r.id, r.duration) : openBtnHTML(r)}
         </li>`;
     };
     const visibleGroups = archiveLocations.group(filtered);
@@ -2610,7 +3092,7 @@
       <li class="archive-group"><h3>${esc(g.label)} · ${g.recordings.length}</h3>
       <ul>${g.recordings.slice(0, pageSize).map(cardHTML).join('')}</ul>
       ${g.recordings.length > pageSize ? `<button type="button" class="archive-more" data-location="${esc(g.key)}">Load more from ${esc(g.label)} (${g.recordings.length - pageSize} remaining)</button>` : ''}</li>`).join('') ||
-      '<li class="archive-empty">No recordings match here. Try another location, category or search.</li>';
+      '<li class="archive-empty">Nothing matches here. Try another location, kind, category or search.</li>';
 
     sounding.forEach(w => {
       const fresh = w.dataset.rec && list.querySelector(`.apc[data-rec="${CSS.escape(w.dataset.rec)}"]`);
@@ -2630,16 +3112,110 @@
         items.insertAdjacentHTML('beforeend', group.recordings.slice(offset, offset + pageSize).map(cardHTML).join(''));
         [...items.children].slice(offset).forEach(item => item.querySelectorAll('.apc').forEach(attachAudioPlayer));
         const remaining = group.recordings.length - items.children.length;
-        more.textContent = remaining ? `Load more from ${group.label} (${remaining} remaining)` : 'All recordings loaded';
+        more.textContent = remaining ? `Load more from ${group.label} (${remaining} remaining)` : 'All loaded';
         more.disabled = !remaining;
         return;
       }
       const el = e.target.closest('.rec-item');
-      if (!el || e.target.closest('.apc, .rec-photo-link, .share-btn')) return;
+      if (!el || e.target.closest('.apc, .rec-photo-link, .share-btn, .entry-open')) return;
       map.flyTo({ center: [parseFloat(el.dataset.lng), parseFloat(el.dataset.lat)], zoom: 15 });
       $('archive-panel').classList.remove('open');
     };
   }
+
+  // ── Viewer ──────────────────────────────────────────────────────
+  // A contribution on its own sheet: the images to swipe through (a native
+  // scroll-snap strip, so touch, trackpad and arrows all work), the full
+  // text of a story or poem. It covers the map, never the sound: a loop
+  // keeps playing underneath while someone looks at the drawings.
+  let viewerImgs = [], viewerReturnFocus = null;
+  function viewerIndex() {
+    const g = $('viewer-gallery');
+    return g.clientWidth ? Math.max(0, Math.min(viewerImgs.length - 1, Math.round(g.scrollLeft / g.clientWidth))) : 0;
+  }
+  function syncViewerNav() {
+    const i = viewerIndex(), n = viewerImgs.length;
+    $('viewer-count').textContent = n > 1 ? `${i + 1} / ${n}` : '';
+    $('viewer-prev').hidden = $('viewer-next').hidden = n < 2;
+    $('viewer-prev').disabled = i <= 0;
+    $('viewer-next').disabled = i >= n - 1;
+    if (viewerImgs[i]) $('viewer-full').href = viewerImgs[i].url;
+  }
+  function stepViewer(d) {
+    const g = $('viewer-gallery');
+    g.scrollTo({ left: (viewerIndex() + d) * g.clientWidth, behavior: 'smooth' });
+  }
+  function openViewer(r, start = 0) {
+    const kind = kindOf(r), title = displayTitle(r);
+    viewerImgs = entryImages(r);
+    $('viewer').dataset.kind = kind;
+    // Text first for a story or poem — in the DOM, not only on screen, so
+    // Tab and screen readers meet the words before the illustrations.
+    const sheet = $('viewer-scroll'), words = sheet.querySelector('.viewer-text');
+    if (kind === 'text') sheet.prepend(words); else sheet.append(words);
+    $('viewer-kind').textContent = `${KINDS[kind].one} · ${catInfo(r).cat}`;
+    $('viewer-title').textContent = title;
+    $('viewer-meta').innerHTML = [r.author, fmtDate(r.createdAt)].filter(Boolean).map(esc).join(' · ') + shareBtnHTML(r);
+    $('viewer-desc').textContent = r.description || '';
+    $('viewer-body').textContent = r.body || '';
+    const g = $('viewer-gallery');
+    g.innerHTML = viewerImgs.map((img, i) =>
+      `<figure><img src="${esc(img.url)}" alt="${esc(title)}${viewerImgs.length > 1 ? ` — ${i + 1} of ${viewerImgs.length}` : ''}"${i ? ' loading="lazy"' : ''}></figure>`).join('');
+    g.hidden = $('viewer-nav').hidden = !viewerImgs.length;
+    viewerReturnFocus = document.activeElement;
+    $('viewer').hidden = false;
+    $('viewer-scroll').scrollTop = 0;
+    g.scrollLeft = g.clientWidth * Math.min(start, Math.max(0, viewerImgs.length - 1));
+    syncViewerNav();
+    $('viewer-close').focus();
+    // Phone back button (and the Android app's) closes the viewer instead
+    // of leaving the map.
+    if (!history.state?.viewer) history.pushState({ viewer: true }, '');
+  }
+  function closeViewer(fromHistory) {
+    if ($('viewer').hidden) return;
+    $('viewer').hidden = true;
+    $('viewer-gallery').innerHTML = '';
+    viewerImgs = [];
+    if (!fromHistory && history.state?.viewer) history.back();
+    try { if (viewerReturnFocus?.isConnected) viewerReturnFocus.focus({ preventScroll: true }); } catch {}
+  }
+  window.addEventListener('popstate', () => closeViewer(true));
+  $('viewer-close').onclick = () => closeViewer();
+  $('viewer-prev').onclick = () => stepViewer(-1);
+  $('viewer-next').onclick = () => stepViewer(1);
+  $('viewer-gallery').addEventListener('scroll', () => requestAnimationFrame(syncViewerNav), { passive: true });
+  document.addEventListener('keydown', e => {
+    if ($('viewer').hidden) return;
+    if (e.key === 'Escape') { e.preventDefault(); closeViewer(); }
+    else if (e.key === 'ArrowLeft' && viewerImgs.length > 1) { e.preventDefault(); stepViewer(-1); }
+    else if (e.key === 'ArrowRight' && viewerImgs.length > 1) { e.preventDefault(); stepViewer(1); }
+    else if (e.key === 'Tab') {
+      // Keep focus inside the sheet while it is open.
+      const f = [...$('viewer').querySelectorAll('button, a[href], [tabindex="0"]')]
+        .filter(el => !el.disabled && el.offsetParent !== null);
+      if (!f.length) return;
+      const first = f[0], last = f[f.length - 1];
+      // After a click on the text itself, focus sits on no control at all.
+      if (!f.includes(document.activeElement)) { e.preventDefault(); (e.shiftKey ? last : first).focus(); }
+      else if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    }
+  });
+  // Covers and "Read" / "View images" buttons, in popups and archive cards.
+  // Capture phase, like Share: the archive card's own fly-to-pin click
+  // underneath must not also fire.
+  document.addEventListener('click', e => {
+    const t = e.target.closest('[data-view]');
+    if (!t) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const r = recordings.find(x => x.id === t.dataset.view);
+    if (!r) return;
+    openViewer(r, +t.dataset.i || 0);
+    // A text's cover opens on its illustrations, below the words.
+    if (kindOf(r) === 'text' && !t.classList.contains('entry-open')) $('viewer-gallery').scrollIntoView({ block: 'start' });
+  }, true);
 
   // ── Init ────────────────────────────────────────────────────────
   // PWA service worker (installability + cached shell). Registered late so

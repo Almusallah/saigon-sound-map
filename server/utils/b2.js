@@ -8,6 +8,13 @@ const { Upload } = require('@aws-sdk/lib-storage');
 const { v4: uuidv4 } = require('uuid');
 const Recording = require('../models/Recording');
 const { transcodeToMp3, isMp3Buffer, probeDuration, detectFakeStereoPan } = require('./transcode');
+const { imageUrlsOf } = require('./entry');
+
+// Image and text entries have no audio (audioUrl ''). Every job below
+// that reads, probes or re-encodes audio must skip them — cleanupOrphans
+// would otherwise take an empty audioUrl for a vanished file and delete
+// every drawing and poem in the archive.
+const HAS_AUDIO = { audioUrl: { $type: 'string', $ne: '' } };
 
 const AUDIO_EXTENSIONS = new Set(['webm', 'mp3', 'mp4', 'm4a', 'ogg', 'wav', 'aac', 'flac']);
 
@@ -130,95 +137,141 @@ async function syncB2ToMongo() {
 
 // ── Upload ───────────────────────────────────────────────────────────────
 
-function buildImageKey(id, lat, lng, ext) {
-  return `images/${id}_${lat}_${lng}.${ext}`;
+// The cover of a single-photo recording keeps the original key shape;
+// further images and every thumbnail get an index / "-t" suffix.
+function buildImageKey(id, lat, lng, ext, index = 0, thumb = false) {
+  const name = index === 0 && !thumb ? id : `${id}-${index}${thumb ? '-t' : ''}`;
+  return `images/${name}_${lat}_${lng}.${ext}`;
 }
 
-async function uploadRecording(fileBuffer, mimeType, { title, description, category, latitude, longitude, originalFilename, imageBuffer, id = uuidv4() }) {
+async function putObject(key, body, contentType) {
+  await new Upload({
+    client: getS3(),
+    params: { Bucket: getBucket(), Key: key, Body: body, ContentType: contentType },
+  }).done();
+  return keyToUrl(key);
+}
+
+// A contribution the client can fix (unreadable images, nothing to save)
+// is a 400 — the client retries 5xx with the whole payload.
+function clientError(message) {
+  return Object.assign(new Error(message), { status: 400 });
+}
+
+// One contribution: a sound (audio, optional photos), an image entry
+// (drawings / sketches / photos) or a text (story, poem; optional
+// images). `fileBuffer` is null when there is no audio.
+async function uploadRecording(fileBuffer, mimeType, {
+  title, description, category, latitude, longitude, originalFilename,
+  kind = 'sound', body = '', author = '', imageBuffers = [], id = uuidv4(),
+}) {
   const existing = await Recording.findOne({ id });
   if (existing) return existing;
 
-  // Normalise everything to MP3 before it reaches B2 — WebM/Opus uploads
-  // (Chrome/Android recordings) are silent for every Safari listener.
-  // Also collapse "fake stereo" (one digitally dead channel — some phone
-  // browsers deliver this) to mono from the live channel, or the file
-  // plays in one earbud only. True stereo passes through untouched.
-  const pan = await detectFakeStereoPan(fileBuffer);
-  if (!isMp3Buffer(fileBuffer) || pan) {
-    const before = fileBuffer.length;
-    fileBuffer = await transcodeToMp3(fileBuffer, pan);
-    console.log(`[upload] transcoded to mp3${pan ? ' +fake-stereo->mono' : ''}: ${before} -> ${fileBuffer.length} bytes`);
-  }
-  const key = buildKey(id, latitude, longitude, 'mp3');
-  const duration = await probeDuration(fileBuffer);
+  const written = []; // every B2 object this upload created, for rollback
+  const rollback = async () => {
+    for (const url of written) { try { await deleteB2Object(url); } catch {} }
+  };
 
-  console.log(`[upload] ${key} (${fileBuffer.length} bytes, ${duration}s)`);
-
-  await new Upload({
-    client: getS3(),
-    params: { Bucket: getBucket(), Key: key, Body: fileBuffer, ContentType: 'audio/mpeg' },
-  }).done();
-
-  // Optional photo. Best-effort: a photo that fails to decode must never
-  // sink the sound itself — the image is simply skipped.
-  let imageUrl = '';
-  if (imageBuffer && imageBuffer.length) {
-    try {
-      const { processImage } = require('./image');
-      const img = await processImage(imageBuffer);
-      const imgKey = buildImageKey(id, latitude, longitude, img.ext);
-      await new Upload({
-        client: getS3(),
-        params: { Bucket: getBucket(), Key: imgKey, Body: img.buffer, ContentType: img.mime },
-      }).done();
-      imageUrl = keyToUrl(imgKey);
-      console.log(`[upload] photo ${imgKey} (${imageBuffer.length} -> ${img.buffer.length} bytes)`);
-    } catch (err) {
-      console.error('[upload] photo skipped:', err.message);
-    }
-  }
-
-  // Unknown category values must never sink an upload. Browser
-  // auto-translate once submitted "Casa" for "Home" — coerce anything
-  // off-list to Background instead of failing enum validation.
-  const safeCategory = Recording.CATEGORIES.includes(category) ? category : 'Background';
-  if (safeCategory !== category && category) {
-    console.log(`[upload] unknown category ${JSON.stringify(category)} -> Background`);
-  }
-
-  const doc = new Recording({
-    id, title: title || 'New Recording', description: description || '',
-    category: safeCategory, audioUrl: keyToUrl(key), imageUrl,
-    latitude: parseFloat(latitude), longitude: parseFloat(longitude),
-    source: 'upload', fileSize: fileBuffer.length, duration,
-  });
+  let audioUrl = '', duration = 0, fileSize = 0;
   try {
-    await doc.save();
-  } catch (err) {
-    // Another worker may have completed the same deterministic upload.
-    if (err.code === 11000) {
-      const completed = await Recording.findOne({ id });
-      if (completed) return completed;
+    if (fileBuffer) {
+      // Normalise everything to MP3 before it reaches B2 — WebM/Opus uploads
+      // (Chrome/Android recordings) are silent for every Safari listener.
+      // Also collapse "fake stereo" (one digitally dead channel — some phone
+      // browsers deliver this) to mono from the live channel, or the file
+      // plays in one earbud only. True stereo passes through untouched.
+      const pan = await detectFakeStereoPan(fileBuffer);
+      if (!isMp3Buffer(fileBuffer) || pan) {
+        const before = fileBuffer.length;
+        fileBuffer = await transcodeToMp3(fileBuffer, pan);
+        console.log(`[upload] transcoded to mp3${pan ? ' +fake-stereo->mono' : ''}: ${before} -> ${fileBuffer.length} bytes`);
+      }
+      const key = buildKey(id, latitude, longitude, 'mp3');
+      duration = await probeDuration(fileBuffer);
+      fileSize = fileBuffer.length;
+      console.log(`[upload] ${key} (${fileBuffer.length} bytes, ${duration}s)`);
+      audioUrl = await putObject(key, fileBuffer, 'audio/mpeg');
+      written.push(audioUrl);
     }
-    // An unsaved recording must leave nothing behind in B2: a leftover
+
+    // Images, one at a time (free-tier RAM). A file that cannot be decoded
+    // is skipped — it never sinks the rest, and an image entry needs only
+    // one that works. A storage failure is different: it fails the whole
+    // upload (rolled back below, a 500 the client retries with the same
+    // key) rather than quietly publishing the entry without its images.
+    const { processImage, PHOTO_EDGE, DRAWING_EDGE } = require('./image');
+    const images = [];
+    let overPixelLimit = 0;
+    for (const [i, buf] of imageBuffers.entries()) {
+      if (!buf || !buf.length) continue;
+      let img;
+      try {
+        img = await processImage(buf, { maxEdge: kind === 'image' ? DRAWING_EDGE : PHOTO_EDGE });
+      } catch (err) {
+        console.error(`[upload] image ${i + 1} skipped:`, err.message);
+        if (/pixel limit/i.test(err.message)) overPixelLimit++;
+        continue;
+      }
+      const n = images.length;
+      const url = await putObject(buildImageKey(id, latitude, longitude, img.ext, n), img.buffer, img.mime);
+      written.push(url);
+      const thumbUrl = await putObject(buildImageKey(id, latitude, longitude, img.ext, n, true), img.thumb, img.mime);
+      written.push(thumbUrl);
+      images.push({ url, thumbUrl, width: img.width, height: img.height });
+      console.log(`[upload] image ${i + 1}/${imageBuffers.length} (${buf.length} -> ${img.buffer.length} bytes)`);
+    }
+    if (kind === 'image' && !images.length) {
+      // A large-format scan (A1 at 300 dpi is ~70 MP) is a JPEG or PNG
+      // already; tell its maker what to change instead.
+      throw clientError(overPixelLimit
+        ? 'This image is over 50 megapixels. Export it smaller (about 2400 px on the long side) and try again.'
+        : 'None of the images could be read. Try a JPEG or PNG.');
+    }
+
+    // Unknown category values must never sink an upload. Browser
+    // auto-translate once submitted "Casa" for "Home" — coerce anything
+    // off-list to Background instead of failing enum validation.
+    const safeCategory = Recording.CATEGORIES.includes(category) ? category : 'Background';
+    if (safeCategory !== category && category) {
+      console.log(`[upload] unknown category ${JSON.stringify(category)} -> Background`);
+    }
+
+    const doc = new Recording({
+      id, kind, title: title || 'Untitled', description: description || '',
+      category: safeCategory, audioUrl, imageUrl: images[0]?.url || '',
+      ...(images.length ? { images } : {}), body, author,
+      latitude: parseFloat(latitude), longitude: parseFloat(longitude),
+      source: 'upload', fileSize, duration,
+    });
+    try {
+      await doc.save();
+    } catch (err) {
+      // Another worker may have completed the same deterministic upload —
+      // its objects have the same keys, so nothing is rolled back.
+      if (err.code === 11000) {
+        const completed = await Recording.findOne({ id });
+        if (completed) return completed;
+      }
+      throw err;
+    }
+    console.log(`[upload] Saved ${kind} ${id}`);
+    return doc;
+  } catch (err) {
+    // An unsaved contribution must leave nothing behind in B2: a leftover
     // audio object gets re-imported by the next sync as an anonymous
     // "Auto-discovered recording" (junk — exactly what the failed "Casa"
-    // uploads produced), and nothing could ever re-link the photo.
-    try { await deleteB2Object(keyToUrl(key)); } catch {}
-    if (imageUrl) {
-      try { await deleteB2Object(imageUrl); } catch {}
-    }
+    // uploads produced), and nothing could ever re-link an image.
+    await rollback();
     throw err;
   }
-  console.log(`[upload] Saved ${id}`);
-  return doc;
 }
 
 // ── Cleanup orphans ──────────────────────────────────────────────────────
 
 async function cleanupOrphans() {
   const s3 = getS3();
-  const all = await Recording.find({}, 'audioUrl imageUrl').lean();
+  const all = await Recording.find(HAS_AUDIO, 'audioUrl imageUrl images').lean();
   const toRemove = [];
 
   for (const rec of all) {
@@ -234,13 +287,9 @@ async function cleanupOrphans() {
   }
 
   if (toRemove.length > 0) {
-    // A removed doc's photo would otherwise strand in B2 with nothing
-    // referencing it — delete images along with the docs.
-    for (const rec of toRemove) {
-      if (rec.imageUrl) {
-        try { await deleteB2Object(rec.imageUrl); } catch {}
-      }
-    }
+    // A removed doc's photos would otherwise strand in B2 with nothing
+    // referencing them — delete images along with the docs.
+    for (const rec of toRemove) await deleteImagesOf(rec);
     await Recording.deleteMany({ _id: { $in: toRemove.map(r => r._id) } });
     console.log(`[cleanup] Removed ${toRemove.length} orphans`);
   }
@@ -258,6 +307,17 @@ async function deleteB2Object(audioUrl) {
   const key = audioUrl.slice(prefix.length);
   await getS3().send(new DeleteObjectCommand({ Bucket: getBucket(), Key: key }));
   return { key };
+}
+
+// Remove every image and thumbnail an entry owns. Best-effort: a
+// missing object is not an error worth keeping a deleted entry for.
+async function deleteImagesOf(rec) {
+  const result = { deleted: 0, errors: [] };
+  for (const url of imageUrlsOf(rec)) {
+    try { await deleteB2Object(url); result.deleted++; }
+    catch (e) { result.errors.push(e.message); }
+  }
+  return result;
 }
 
 // Fetch a B2 object and stream its bytes through `res` as an MP3
@@ -325,7 +385,7 @@ async function transcodeLegacyToMp3({ dryRun = true, limit = 6 } = {}) {
   const s3 = getS3();
   const prefix = `https://${process.env.B2_ENDPOINT}/${getBucket()}/`;
 
-  const all = await Recording.find({}, 'id title audioUrl latitude longitude').lean();
+  const all = await Recording.find(HAS_AUDIO, 'id title audioUrl latitude longitude').lean();
   const pending = [];
   for (const rec of all) {
     const key = rec.audioUrl.slice(prefix.length);
@@ -394,7 +454,7 @@ async function backfillDurations({ limit = 10 } = {}) {
   const prefix = `https://${process.env.B2_ENDPOINT}/${getBucket()}/`;
 
   const pending = await Recording.find(
-    { $or: [{ duration: { $exists: false } }, { duration: 0 }] },
+    { ...HAS_AUDIO, $or: [{ duration: { $exists: false } }, { duration: 0 }] },
     'id title audioUrl'
   ).lean();
 
@@ -420,5 +480,5 @@ async function backfillDurations({ limit = 10 } = {}) {
 
 module.exports = {
   syncB2ToMongo, uploadRecording, cleanupOrphans,
-  deleteB2Object, streamB2ObjectAsMp3, transcodeLegacyToMp3, backfillDurations,
+  deleteB2Object, deleteImagesOf, streamB2ObjectAsMp3, transcodeLegacyToMp3, backfillDurations,
 };
