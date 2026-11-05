@@ -1,6 +1,6 @@
 /*!
  * room-view.js — the visual + navigation layer of the Phòng nghe (listening room).
- * Saigon_Miền Tây Sound Map.
+ * Ghé Lại Saigon_Miền Tây.
  *
  * Vanilla JS, Canvas 2D, own perspective projection. No dependencies.
  *

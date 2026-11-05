@@ -3,9 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Phòng nghe — Saigon_Miền Tây Sound Map</title>
+<title>Phòng nghe — Ghé Lại Saigon_Miền Tây</title>
 <meta property="og:title" content="Phòng nghe · The Listening Room">
-<meta property="og:description" content="An evolving composition made from the sounds of the city — live from the Saigon_Miền Tây Sound Map. Play it.">
+<meta property="og:description" content="An evolving composition made from the sounds of the city — live from Ghé Lại Saigon_Miền Tây. Play it.">
 <meta name="theme-color" content="#10110e">
 <meta name="description" content="Enter Phòng nghe: an evolving composition of field recordings from Saigon and the Mekong Delta. Listen, explore, or shape the sound.">
 <link rel="stylesheet" href="listen-room.css?v=1">
@@ -14,7 +14,7 @@
 <body>
 <a class="skip" href="#room">Skip to the listening room</a>
 <div class="shell">
-  <nav class="topbar" aria-label="Sound Map"><a class="wordmark" href="/">SAIGON_MIỀN TÂY SOUND MAP</a><a class="back" href="/">Back to the map</a></nav>
+  <nav class="topbar" aria-label="Ghé Lại Saigon_Miền Tây"><a class="wordmark" href="/">GHÉ LẠI SAIGON_MIỀN TÂY</a><a class="back" href="/">Back to the map</a></nav>
   <header>
     <div><p class="eyebrow">An Officine Gặp listening space</p><h1><span lang="vi" style="font:inherit;color:inherit;margin:0">Phòng nghe</span><span>The Listening Room</span></h1>
     <p class="intro">Listen to a place. Follow a detail. Notice what changes when it returns.</p></div>
@@ -148,7 +148,7 @@ reducedMotion.addEventListener('change', e => {
   $('freezeWaves').textContent = visualFrozen ? 'Resume visual' : 'Freeze visual';
 });
 if ('mediaSession' in navigator) {
-  if ('MediaMetadata' in window) navigator.mediaSession.metadata = new MediaMetadata({ title:'Phòng nghe · The Listening Room', artist:'Saigon_Miền Tây Sound Map', album:'Field recordings · Officine Gặp' });
+  if ('MediaMetadata' in window) navigator.mediaSession.metadata = new MediaMetadata({ title:'Phòng nghe · The Listening Room', artist:'Ghé Lại Saigon_Miền Tây', album:'Field recordings · Officine Gặp' });
   for (const action of ['play','pause']) {
     try { navigator.mediaSession.setActionHandler(action, () => {
       (action === 'play' ? Room.resume() : Room.pause()).catch(() => { Room.state.message = 'Tap Resume to continue listening.'; syncTransport(); });

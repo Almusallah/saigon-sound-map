@@ -3,13 +3,13 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>Saigon_Miền Tây Sound Map</title>
+  <title>Ghé Lại Saigon_Miền Tây</title>
   <meta name="description" content="Kho lưu trữ sống do cộng đồng cùng xây dựng, ghi lại đời sống thường ngày ở Thành phố Hồ Chí Minh và Đồng bằng sông Cửu Long qua âm thanh, ảnh chụp, bức vẽ và trang viết — mỗi thứ được đặt vào đúng nơi của nó.">
   <!-- OG tags: defaults for the site; the server rewrites title/description/url
        per recording when the page is requested with ?rec=<id> (share links). -->
   <meta property="og:type" content="website">
-  <meta property="og:site_name" content="Saigon_Miền Tây Sound Map">
-  <meta property="og:title" content="Saigon_Miền Tây Sound Map">
+  <meta property="og:site_name" content="Ghé Lại Saigon_Miền Tây">
+  <meta property="og:title" content="Ghé Lại Saigon_Miền Tây">
   <meta property="og:description" content="Kho lưu trữ sống do cộng đồng cùng xây dựng, ghi lại đời sống thường ngày ở Thành phố Hồ Chí Minh và Đồng bằng sông Cửu Long qua âm thanh, ảnh chụp, bức vẽ và trang viết — mỗi thứ được đặt vào đúng nơi của nó.">
   <meta property="og:url" content="https://saigon-soundscape.onrender.com/">
   <!--og:image-->
@@ -22,7 +22,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="apple-mobile-web-app-title" content="Sound Map">
+  <meta name="apple-mobile-web-app-title" content="Ghé Lại">
   <link href="https://api.mapbox.com/mapbox-gl-js/v3.24.0/mapbox-gl.css" rel="stylesheet">
   <style>
     /* ── Variables ──────────────────────────────────────────────────── */
@@ -705,6 +705,9 @@
       color: rgba(18,18,18,.82); margin-bottom: 12px;
     }
     .welcome-card p:last-of-type { margin-bottom: 0; }
+    /* What the name means, for English readers; empty (hidden) in Vietnamese. */
+    .welcome-card .welcome-gloss { margin: -8px 0 14px; font-size: 11px; font-style: italic; color: rgba(18,18,18,.55); }
+    .welcome-gloss:empty { display: none; }
     .welcome-card .welcome-hint {
       margin-top: 18px; padding-top: 12px;
       border-top: 1px solid rgba(18,18,18,.2);
@@ -1004,14 +1007,14 @@
 <!-- Initial loading splash. Visible on first paint; fades out once the map
      fires its 'load' event (handled in initMap). -->
 <div id="initial-loading">
-  <p data-i18n-html="splash">Đang tải Saigon_Miền&nbsp;Tây Sound Map,<br>xin chờ một chút&hellip;</p>
+  <p data-i18n-html="splash">Đang tải bản đồ Ghé&nbsp;Lại Saigon_Miền&nbsp;Tây,<br>xin chờ một chút&hellip;</p>
 </div>
 
 <header>
   <div class="logo">
-    <!-- Non-breaking space inside "MIỀN TÂY" so it never wraps to a new line on narrow
-         mobile screens. Text is swapped per city by setCityTitle(). -->
-    <h1 id="site-title">SAIGON_MIỀN&nbsp;TÂY SOUND MAP</h1>
+    <!-- Non-breaking spaces inside "GHÉ LẠI" and "MIỀN TÂY", so a narrow screen can
+         only break between the two. Text is swapped per city by setCityTitle(). -->
+    <h1 id="site-title">GHÉ&nbsp;LẠI SAIGON_MIỀN&nbsp;TÂY</h1>
   </div>
   <div class="header-actions">
     <!-- options populated from CITIES at runtime via buildCitySelect() -->
@@ -1135,7 +1138,8 @@
       <button type="button" class="header-btn" data-lang="vi" lang="vi" aria-pressed="true" title="Tiếng Việt" aria-label="Tiếng Việt">VI</button>
       <button type="button" class="header-btn" data-lang="en" lang="en" aria-pressed="false" title="English" aria-label="English">EN</button>
     </div>
-    <h2 data-i18n-html="welcome.title">Chào mừng bạn đến với Saigon_Miền&nbsp;Tây Sound Map</h2>
+    <h2 data-i18n-html="welcome.title">Ghé&nbsp;Lại Saigon_Miền&nbsp;Tây</h2>
+    <p class="welcome-gloss" data-i18n="welcome.gloss"></p>
     <p data-i18n="welcome.p1">Dự án này khám phá đời sống đô thị thường ngày qua môi trường của thành phố: một môi trường vừa được xây nên, vừa được cảm nhận bằng các giác quan, vừa được lắng nghe qua âm thanh.</p>
     <p data-i18n="welcome.p2">Tấm bản đồ mời bạn chậm lại và để ý đến bầu không khí của một nơi chốn: âm thanh và ánh sáng, nhà cửa và chất liệu, cả những người đang cùng bạn ở đó. Cùng một nơi, nhưng mỗi lúc có thể mang một cảm giác khác, và mỗi người lại cảm nhận theo cách riêng của mình.</p>
     <p data-i18n="welcome.p3">Ai cũng có thể đóng góp những gì mình mang về từ một nơi chốn: một bản ghi âm, một tấm ảnh, một bức vẽ hay bản phác thảo, một câu chuyện, một bài thơ — mỗi thứ được đặt vào đúng nơi của nó.</p>
@@ -1152,8 +1156,8 @@
       <button type="button" class="header-btn" data-lang="vi" lang="vi" aria-pressed="true" title="Tiếng Việt" aria-label="Tiếng Việt">VI</button>
       <button type="button" class="header-btn" data-lang="en" lang="en" aria-pressed="false" title="English" aria-label="English">EN</button>
     </div>
-    <h2 data-i18n="about.title">Về Saigon_Miền Tây Sound Map</h2>
-    <p data-i18n-html="about.p1">Saigon_Miền Tây Sound Map là một dự án cộng tác do <a href="https://officinegap.com" target="_blank">Officine Gặp</a> khởi xướng — một studio sáng tạo liên ngành có trụ sở tại Thành phố Hồ Chí Minh, Việt Nam.</p>
+    <h2 data-i18n="about.title">Về dự án Ghé Lại Saigon_Miền Tây</h2>
+    <p data-i18n-html="about.p1">Ghé Lại Saigon_Miền&nbsp;Tây là một dự án cộng tác do <a href="https://officinegap.com" target="_blank">Officine Gặp</a> khởi xướng — một studio sáng tạo liên ngành có trụ sở tại Thành phố Hồ Chí Minh, Việt Nam. Trước tháng 11 năm 2026, dự án có tên là Saigon_Miền&nbsp;Tây Sound Map.</p>
     <p data-i18n="about.p2">Dự án mời mọi người cùng ghi lại và chia sẻ đời sống thường ngày ở Thành phố Hồ Chí Minh và các tỉnh phía Nam: tiếng rao hàng rong, tiếng xe máy ngược xuôi, âm thanh của những nghi thức và nghi lễ, tiếng chợ lao xao và những cơn mưa mùa. Dự án cũng đón nhận những tấm ảnh chụp phố xá, nhà cửa, sông nước, cùng những gì mọi người tạo nên từ những nơi ấy: bản phác thảo công trình của một kiến trúc sư, một buổi dạo bộ được vẽ lại theo trí nhớ, một câu chuyện hay một bài thơ về một con phố, một dòng sông hay một ngôi nhà.</p>
     <p data-i18n="about.p3">Mỗi phần đóng góp bắt đầu từ một người dành thời gian ở một nơi, một mình hay cùng người khác. Những gì được chia sẻ chỉ giữ lại một phần của khoảnh khắc ấy, nhưng có thể mời người khác tìm đến và tự mình cảm nhận nơi chốn đó. Gộp lại, các phần đóng góp ấy tạo thành một kho lưu trữ sống đang lớn dần: nguồn tư liệu cho nghệ sĩ, kiến trúc sư, nhà nghiên cứu và bất kỳ ai muốn chú ý kỹ hơn đến nhịp điệu và sắc thái của đời sống miền Nam Việt Nam.</p>
     <p data-i18n="about.p4">Bản đồ cũng đã bắt đầu đón nhận những đóng góp từ các thành phố khác, nơi mọi người đang sống hoặc đặt chân đến. Dù bạn ở đâu, tấm bản đồ là một lời mời: dừng lại ở nơi bạn chọn, để ý những gì đang có ở đó, và để lại chút gì đó của khoảnh khắc ấy cho người khác.</p>
@@ -1524,7 +1528,7 @@
     // Shared in English, it opens in English; otherwise in Vietnamese.
     const url = `${location.origin}/?rec=${btn.dataset.rec}${lang === I18N.DEFAULT ? '' : '&lang=' + lang}`;
     if (navigator.share) {
-      navigator.share({ title: 'Saigon_Miền Tây Sound Map', url }).catch(() => {});
+      navigator.share({ title: 'Ghé Lại Saigon_Miền Tây', url }).catch(() => {});
     } else if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(url).then(
         () => toast(t('share.copied')),
@@ -3413,7 +3417,7 @@
   }
 
   document.addEventListener('DOMContentLoaded', () => {
-    console.log('Saigon Sound Map v2.0');
+    console.log('Ghé Lại Saigon_Miền Tây v2.0');
     applyStatic();
     labelStyleToggle();
     updateLocStatus();

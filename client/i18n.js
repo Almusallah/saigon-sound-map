@@ -10,7 +10,7 @@
 
   const en = {
     // Page shell
-    'splash': 'Loading the Saigon_Miền&nbsp;Tây Sound Map,<br>please wait&hellip;',   // HTML
+    'splash': 'Loading Ghé&nbsp;Lại Saigon_Miền&nbsp;Tây,<br>please wait&hellip;',   // HTML
     'meta.description': "A living, community-built archive of everyday life in Ho Chi Minh City and the Mekong Delta, open to sounds, photographs, drawings and writing, each placed where it belongs.",
     'lang.aria': 'Language',
     'close': 'Close',
@@ -21,8 +21,8 @@
     'header.satellite': 'Satellite',
     'header.map': 'Map',
     'header.archive': 'Archive',
-    'city.title': '{name} SOUND MAP',          // header for cities other than Saigon; name arrives in capitals
-    'city.docTitle': '{name} Sound Map',                              // browser tab
+    'city.title': 'GHÉ\u00a0LẠI {name}',          // header for cities other than Saigon; name arrives in capitals
+    'city.docTitle': 'Ghé Lại {name}',                              // browser tab
     'city.count': ({ name, n }) => `${name} — ${n} ${n === 1 ? 'contribution' : 'contributions'} so far`,
     'city.empty': '{name} — nothing here yet. Be the first!',
 
@@ -216,7 +216,8 @@
     'archive.empty': 'Nothing matches here. Try another location, kind, category or search.',
 
     // Welcome
-    'welcome.title': 'Welcome to the Saigon_Miền&nbsp;Tây Sound Map',   // HTML
+    'welcome.title': 'Welcome to Ghé&nbsp;Lại Saigon_Miền&nbsp;Tây',   // HTML
+    'welcome.gloss': 'ghé lại — to drop by, and to come back',   // shown under the welcome title; an empty string hides it
     'welcome.p1': "This project explores everyday urban life through its built, sensorial and acoustic environment.",
     'welcome.p2': "The map invites you to slow down and notice the atmosphere of a place: its sounds and light, its buildings and textures, the people you share it with. A place can feel different from one moment, and one person, to the next.",
     'welcome.p3': "Anyone can add what they bring back from a place: a recording, a photograph, a drawing or sketch, a story, a poem — each placed where it belongs.",
@@ -224,8 +225,8 @@
     'welcome.hint': 'Tap anywhere outside to begin',
 
     // About (HTML: keep the links exactly)
-    'about.title': 'About Saigon_Miền Tây Sound Map',
-    'about.p1': 'The Saigon_Miền Tây Sound Map is a collaborative project initiated by <a href="https://officinegap.com" target="_blank">Officine Gặp</a>, an interdisciplinary creative studio based in Ho Chi Minh City, Vietnam.',
+    'about.title': 'About Ghé\u00a0Lại Saigon_Miền\u00a0Tây',
+    'about.p1': 'Ghé Lại Saigon_Miền&nbsp;Tây is a collaborative project initiated by <a href="https://officinegap.com" target="_blank">Officine Gặp</a>, an interdisciplinary creative studio based in Ho Chi Minh City, Vietnam. “Ghé lại” is everyday Southern Vietnamese for dropping by somewhere, and also for coming back. Until November 2026 the project was called the Saigon_Miền&nbsp;Tây Sound Map.',
     'about.p2': "The project invites anyone to record and share everyday life in Ho Chi Minh City and the southern provinces: the sounds of street vendors and motorbike traffic, rituals and ceremonies, market chatter and monsoon rains. It also welcomes photographs of streets, houses and waterways, and what people make in response to them: an architect's sketches for a project, a walk drawn from memory, a story or a poem about a street, a river or a house.",
     'about.p3': "Each contribution begins with someone spending time in a place, alone or with others. It holds only part of that moment, but it can invite others to go there and feel the place for themselves. Together, the contributions form a growing, living archive: a resource for artists, architects, researchers, and anyone who wants to pay closer attention to the rhythms and textures of life in southern Vietnam.",
     'about.p4': "Contributions have also begun to arrive from other cities, added by people where they live or travel. Wherever you are, the map is an invitation: stop where you choose, notice what is there, and leave something of that moment for others.",
@@ -233,9 +234,9 @@
     'about.contact': 'Contact us <a href="mailto:info@officinegap.com">info[at]officinegap.com</a>',
 
     // Share previews (server)
-    'og.image': 'An image from the Saigon_Miền Tây Sound Map.',
-    'og.text': 'A text from the Saigon_Miền Tây Sound Map.',
-    'og.sound': 'A {category} recording from the Saigon_Miền Tây Sound Map.',
+    'og.image': 'An image from Ghé Lại Saigon_Miền Tây.',
+    'og.text': 'A text from Ghé Lại Saigon_Miền Tây.',
+    'og.sound': ({ category }) => `${/^[aeiou]/i.test(category) ? 'An' : 'A'} ${category} recording from Ghé Lại Saigon_Miền Tây.`,
 
     // Categories — the keys are the stored values and never change.
     'cat.Food & Drink': 'Food & Drink',
@@ -276,7 +277,7 @@
 
   // Same keys, in the same order, as en.
   const vi = {
-    'splash': 'Đang tải Saigon_Miền&nbsp;Tây Sound Map,<br>xin chờ một chút&hellip;',
+    'splash': 'Đang tải bản đồ Ghé&nbsp;Lại Saigon_Miền&nbsp;Tây,<br>xin chờ một chút&hellip;',
     'meta.description': 'Kho lưu trữ sống do cộng đồng cùng xây dựng, ghi lại đời sống thường ngày ở Thành phố Hồ Chí Minh và Đồng bằng sông Cửu Long qua âm thanh, ảnh chụp, bức vẽ và trang viết — mỗi thứ được đặt vào đúng nơi của nó.',
     'lang.aria': 'Ngôn ngữ',
     'close': 'Đóng',
@@ -285,8 +286,8 @@
     'header.satellite': 'Vệ tinh',
     'header.map': 'Bản đồ',
     'header.archive': 'Lưu trữ',
-    'city.title': 'BẢN ĐỒ ÂM THANH {name}',
-    'city.docTitle': 'Bản đồ âm thanh {name}',
+    'city.title': 'GHÉ\u00a0LẠI {name}',
+    'city.docTitle': 'Ghé Lại {name}',
     'city.count': '{name} — đã có {n} lượt đóng góp',
     'city.empty': '{name} — chưa có gì ở đây. Hãy là người đầu tiên đóng góp!',
     'kind.sound': 'Âm thanh',
@@ -466,22 +467,23 @@
     'archive.more': 'Tải thêm từ {place} (còn {n})',
     'archive.allLoaded': 'Đã tải hết',
     'archive.empty': 'Không có kết quả phù hợp. Hãy thử địa điểm, loại, danh mục hoặc từ khóa khác.',
-    'welcome.title': 'Chào mừng bạn đến với Saigon_Miền&nbsp;Tây Sound Map',
+    'welcome.title': 'Ghé&nbsp;Lại Saigon_Miền&nbsp;Tây',
+    'welcome.gloss': '',
     'welcome.p1': 'Dự án này khám phá đời sống đô thị thường ngày qua môi trường của thành phố: một môi trường vừa được xây nên, vừa được cảm nhận bằng các giác quan, vừa được lắng nghe qua âm thanh.',
     'welcome.p2': 'Tấm bản đồ mời bạn chậm lại và để ý đến bầu không khí của một nơi chốn: âm thanh và ánh sáng, nhà cửa và chất liệu, cả những người đang cùng bạn ở đó. Cùng một nơi, nhưng mỗi lúc có thể mang một cảm giác khác, và mỗi người lại cảm nhận theo cách riêng của mình.',
     'welcome.p3': 'Ai cũng có thể đóng góp những gì mình mang về từ một nơi chốn: một bản ghi âm, một tấm ảnh, một bức vẽ hay bản phác thảo, một câu chuyện, một bài thơ — mỗi thứ được đặt vào đúng nơi của nó.',
     'welcome.p4': 'Đây là một kho lưu trữ mở và vẫn đang hình thành — hãy khám phá và đóng góp trên tinh thần tôn trọng. Khi ghi âm, chụp ảnh hay vẽ ở nơi công cộng hoặc bán công cộng, xin hãy lưu tâm đến bối cảnh xung quanh, đến môi trường cùng mọi sự sống và cách sống gắn với các không gian ấy, và xin phép trước khi chụp cận cảnh người khác.',
     'welcome.hint': 'Nhấn vào bất kỳ đâu bên ngoài để bắt đầu',
-    'about.title': 'Về Saigon_Miền Tây Sound Map',
-    'about.p1': 'Saigon_Miền Tây Sound Map là một dự án cộng tác do <a href="https://officinegap.com" target="_blank">Officine Gặp</a> khởi xướng — một studio sáng tạo liên ngành có trụ sở tại Thành phố Hồ Chí Minh, Việt Nam.',
+    'about.title': 'Về dự án Ghé\u00a0Lại Saigon_Miền\u00a0Tây',
+    'about.p1': 'Ghé Lại Saigon_Miền&nbsp;Tây là một dự án cộng tác do <a href="https://officinegap.com" target="_blank">Officine Gặp</a> khởi xướng — một studio sáng tạo liên ngành có trụ sở tại Thành phố Hồ Chí Minh, Việt Nam. Trước tháng 11 năm 2026, dự án có tên là Saigon_Miền&nbsp;Tây Sound Map.',
     'about.p2': 'Dự án mời mọi người cùng ghi lại và chia sẻ đời sống thường ngày ở Thành phố Hồ Chí Minh và các tỉnh phía Nam: tiếng rao hàng rong, tiếng xe máy ngược xuôi, âm thanh của những nghi thức và nghi lễ, tiếng chợ lao xao và những cơn mưa mùa. Dự án cũng đón nhận những tấm ảnh chụp phố xá, nhà cửa, sông nước, cùng những gì mọi người tạo nên từ những nơi ấy: bản phác thảo công trình của một kiến trúc sư, một buổi dạo bộ được vẽ lại theo trí nhớ, một câu chuyện hay một bài thơ về một con phố, một dòng sông hay một ngôi nhà.',
     'about.p3': 'Mỗi phần đóng góp bắt đầu từ một người dành thời gian ở một nơi, một mình hay cùng người khác. Những gì được chia sẻ chỉ giữ lại một phần của khoảnh khắc ấy, nhưng có thể mời người khác tìm đến và tự mình cảm nhận nơi chốn đó. Gộp lại, các phần đóng góp ấy tạo thành một kho lưu trữ sống đang lớn dần: nguồn tư liệu cho nghệ sĩ, kiến trúc sư, nhà nghiên cứu và bất kỳ ai muốn chú ý kỹ hơn đến nhịp điệu và sắc thái của đời sống miền Nam Việt Nam.',
     'about.p4': 'Bản đồ cũng đã bắt đầu đón nhận những đóng góp từ các thành phố khác, nơi mọi người đang sống hoặc đặt chân đến. Dù bạn ở đâu, tấm bản đồ là một lời mời: dừng lại ở nơi bạn chọn, để ý những gì đang có ở đó, và để lại chút gì đó của khoảnh khắc ấy cho người khác.',
     'about.feedback': 'Tấm bản đồ này vẫn đang hình thành — mọi góp ý, ý tưởng và đề xuất luôn được đón nhận.',
     'about.contact': 'Liên hệ với chúng tôi qua <a href="mailto:info@officinegap.com">info[at]officinegap.com</a>',
-    'og.image': 'Một hình ảnh trên Saigon_Miền Tây Sound Map.',
-    'og.text': 'Một bài viết trên Saigon_Miền Tây Sound Map.',
-    'og.sound': 'Một bản ghi âm thuộc danh mục {category} trên Saigon_Miền Tây Sound Map.',
+    'og.image': 'Một hình ảnh trên bản đồ Ghé Lại Saigon_Miền Tây.',
+    'og.text': 'Một bài viết trên bản đồ Ghé Lại Saigon_Miền Tây.',
+    'og.sound': 'Một bản ghi âm trên bản đồ Ghé Lại Saigon_Miền Tây, thuộc mục {category}.',
     'cat.Food & Drink': 'Ăn uống',
     'cat.Sidewalks': 'Vỉa hè',
     'cat.Street Vendors': 'Hàng rong',

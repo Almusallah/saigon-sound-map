@@ -1,7 +1,7 @@
 {
   "name": "saigon-sound-map",
   "version": "1.0.0",
-  "description": "Saigon Sound Map \u2014 interactive field recordings mapped across Ho Chi Minh City",
+  "description": "Ghé Lại Saigon_Miền Tây \u2014 a community-built archive of sounds, photographs, drawings and texts, each placed on a map",
   "main": "server/index.js",
   "scripts": {
     "start": "node server/index.js",

@@ -33,8 +33,21 @@ test('Vietnamese is NFC, carries its diacritics, and keeps the project name',()=
   assert.equal(s,s.normalize('NFC'),`${k} is not NFC`);
  }
  assert.match(render('vi','welcome.p1'),/[àáảãạăâđêôơưằắẳẵặầấẩẫậèéẻẽẹềếểễệìíỉĩịòóỏõọồốổỗộờớởỡợùúủũụừứửữựỳýỷỹỵ]/i);
- for(const k of ['about.title','about.p1','og.image','og.text','og.sound'])assert.match(render('vi',k),/Saigon_Miền Tây Sound Map/,k);
- assert.match(render('vi','welcome.title'),/Saigon_Miền&nbsp;Tây Sound Map/);
+ const NAME=/Ghé(?:[ \u00a0]|&nbsp;)Lại Saigon_Miền(?:[ \u00a0]|&nbsp;)Tây/;
+ for(const lang of ['vi','en'])for(const k of ['about.title','about.p1','og.image','og.text','og.sound'])assert.match(render(lang,k),NAME,`${lang} ${k}`);
+ for(const lang of ['vi','en'])for(const k of ['splash','welcome.title'])assert.match(render(lang,k),/Ghé&nbsp;Lại Saigon_Miền&nbsp;Tây/,`${lang} ${k}`);
+});
+test('the old name lives on only as the former name, in About',()=>{
+ for(const lang of ['vi','en'])for(const [k,v] of Object.entries(I18N.STRINGS[lang]))
+  if(k!=='about.p1'&&typeof v==='string')assert.doesNotMatch(v,/Sound Map|SOUND MAP|âm thanh \{name\}/i,`${lang} ${k}`);
+ for(const lang of ['vi','en'])assert.match(render(lang,'about.p1'),/2026.*Saigon_Miền&nbsp;Tây Sound Map/,lang);
+ assert.match(page,/<title>Ghé Lại Saigon_Miền Tây<\/title>/);assert.match(page,/<h1 id="site-title">GHÉ&nbsp;LẠI SAIGON_MIỀN&nbsp;TÂY<\/h1>/);
+ const m=JSON.parse(fs.readFileSync(MANIFEST,'utf8'));assert.equal(m.name,'Ghé Lại Saigon_Miền Tây');assert.equal(m.short_name,'Ghé Lại');
+ assert.doesNotMatch(page+server,/Saigon_Miền Tây Sound Map'|— Saigon_Miền Tây Sound Map/);
+});
+test('the meaning of the name is spelled out in English only',()=>{
+ assert.equal(vi['welcome.gloss'],'');assert.match(en['welcome.gloss'],/ghé lại/);
+ assert.match(page,/<p class="welcome-gloss" data-i18n="welcome.gloss"><\/p>/);assert.match(page,/\.welcome-gloss:empty \{ display: none; \}/);
 });
 test('markup in a translation is the same markup',()=>{
  const tags=s=>[...s.matchAll(/<[^>]+>|&\w+;/g)].map(m=>m[0]);
@@ -86,6 +99,7 @@ test('the markup already holds the Vietnamese words (no flash of another languag
  const m=JSON.parse(manifest);assert.equal(m.lang,'vi');assert.equal(m.description,vi['meta.description']);
 });
 test('share previews speak the link\'s language',()=>{
+ assert.equal(I18N.make('en')('og.sound',{category:'Announcements & Signals'}),'An Announcements & Signals recording from Ghé Lại Saigon_Miền Tây.');
  const html='<html lang="vi"><meta name="description" content="VI"><meta property="og:title" content="X"><meta property="og:description" content="VI"><meta property="og:url" content="U"><!--og:image--><meta name="twitter:card" content="summary">';
  const rec={id:'abcd1234-0000',title:'',kind:'sound',category:'Vehicles',body:'',description:''};
  let handler;const ctx=vm.createContext({I18N,CLIENT_INDEX:html,cacheIsFresh:()=>true,cache:[rec],refreshCache:async()=>[rec],SITE_URL:'https://x',THUMB_EDGE:720,console,
@@ -97,8 +111,8 @@ test('share previews speak the link\'s language',()=>{
   const viHtml=await run({rec:'abcd1234'}),enHtml=await run({rec:'abcd1234',lang:'en'}),plain=await run({lang:'en'});
   assert.match(viHtml,/<html lang="vi">/);assert.ok(viHtml.includes(I18N.make('vi')('untitled')));
   assert.ok(viHtml.includes(I18N.make('vi')('og.sound',{category:I18N.make('vi')('cat.Vehicles')})));
-  assert.match(enHtml,/<html lang="en">/);assert.match(enHtml,/content="Untitled — Saigon_Miền Tây Sound Map"/);
-  assert.match(enHtml,/A Vehicles recording from the Saigon_Miền Tây Sound Map\./);assert.match(enHtml,/\?rec=abcd1234&amp;lang=en/);
+  assert.match(enHtml,/<html lang="en">/);assert.match(enHtml,/content="Untitled — Ghé Lại Saigon_Miền Tây"/);
+  assert.match(enHtml,/A Vehicles recording from Ghé Lại Saigon_Miền Tây\./);assert.match(enHtml,/\?rec=abcd1234&amp;lang=en/);
   assert.match(plain,/<html lang="en">/);assert.ok(plain.includes(`content="${en['meta.description'].replace(/&/g,'&amp;')}"`));
   assert.match(plain,/property="og:url" content="https:\/\/x\/\?lang=en"/);
  })();
@@ -115,5 +129,6 @@ test('an English link is English before any script runs',()=>{
   assert.match(enPage,/<html lang="en">/);
   assert.deepEqual(require('../server/utils/i18n-markup').sync(enPage,I18N.make('en')).stale,[]);
   assert.ok(enPage.includes(en.splash));
+  assert.ok(enPage.includes(`<p class="welcome-gloss" data-i18n="welcome.gloss">${en['welcome.gloss']}</p>`));
  })();
 });

@@ -839,7 +839,7 @@ app.get('*', async (req, res) => {
           : t('og.sound', { category: I18N.has('en', 'cat.' + r.category) ? t('cat.' + r.category) : r.category || t('cat.Background') });
         const desc  = r.description ||
           (opening ? (opening.length > 200 ? cleanText(opening, 199) + '…' : opening) : '') || what;
-        html = setOg(html, 'title', `${title} — Saigon_Miền Tây Sound Map`);
+        html = setOg(html, 'title', `${title} — Ghé Lại Saigon_Miền Tây`);
         html = setOg(html, 'description', desc);
         html = setOg(html, 'url', `${SITE_URL}/?rec=${ref}${lang === I18N.DEFAULT ? '' : '&lang=' + lang}`);
         // Recording photos make share links unfurl with a picture. The

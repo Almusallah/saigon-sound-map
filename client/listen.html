@@ -3,11 +3,11 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Phòng nghe — Saigon_Miền Tây Sound Map</title>
-<meta name="description" content="A journey composed live from the Saigon_Miền Tây Sound Map: a day of the city in eleven minutes. Every sound is a place in the room. Walk through it.">
+<title>Phòng nghe — Ghé Lại Saigon_Miền Tây</title>
+<meta name="description" content="A journey composed live from the recordings of Ghé Lại Saigon_Miền Tây: a day of the city in eleven minutes. Every sound is a place in the room. Walk through it.">
 <meta name="theme-color" content="#000000">
 <meta property="og:title" content="Phòng nghe · The Listening Room">
-<meta property="og:description" content="A journey composed live from the Saigon_Miền Tây Sound Map — a day of the city in eleven minutes. Walk through it, or walk the real streets of Saigon and find the sounds where they were recorded.">
+<meta property="og:description" content="A journey composed live from the recordings of Ghé Lại Saigon_Miền Tây — a day of the city in eleven minutes. Walk through it, or walk the real streets of Saigon and find the sounds where they were recorded.">
 <meta property="og:type" content="website">
 <style>
   :root { --bg: #000; --ink: #fff; }
@@ -80,7 +80,7 @@
   <div class="door">
     <h1>Phòng nghe</h1>
     <div class="sub">The listening room</div>
-    <p>A journey composed live by the machine from the recordings of the Saigon_Miền Tây Sound Map: a day of the city in eleven minutes, from dawn to night. Every sound is a place in this room. Walk through it, and what you hear changes with where you stand.</p>
+    <p>A journey composed live by the machine from the recordings of Ghé Lại Saigon_Miền&nbsp;Tây: a day of the city in eleven minutes, from dawn to night. Every sound is a place in this room. Walk through it, and what you hear changes with where you stand.</p>
     <div class="doors"><button id="go" type="button" disabled>Loading the archive…</button><button id="go-streets" class="alt" type="button" disabled>Enter the streets</button></div>
     <div id="status" role="status"></div>
     <div class="how">Headphones · arrows or drag to move · shift to run<br>Tap the floor to go there · in the streets, walk up to a sound to find it</div>
@@ -182,7 +182,7 @@
       ctx = new (window.AudioContext || window.webkitAudioContext)({ latencyHint: 'playback' });
       await ctx.resume();
       if ('mediaSession' in navigator && 'MediaMetadata' in window) {
-        navigator.mediaSession.metadata = new MediaMetadata({ title: 'Phòng nghe · The Listening Room', artist: 'Saigon_Miền Tây Sound Map', album: 'Officine Gặp' });
+        navigator.mediaSession.metadata = new MediaMetadata({ title: 'Phòng nghe · The Listening Room', artist: 'Ghé Lại Saigon_Miền Tây', album: 'Officine Gặp' });
         try { navigator.mediaSession.setActionHandler('pause', () => ctx.suspend()); navigator.mediaSession.setActionHandler('play', () => ctx.resume()); } catch {}
       }
   }
