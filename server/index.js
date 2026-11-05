@@ -14,6 +14,8 @@ const pendingUploads = new Map();
 const { syncB2ToMongo, uploadRecording, cleanupOrphans, deleteB2Object, deleteImagesOf, streamB2ObjectAsMp3, transcodeLegacyToMp3, backfillDurations } = require('./utils/b2');
 const { LIMITS, cleanText, entryKind, isSound, imageUrlsOf } = require('./utils/entry');
 const { THUMB_EDGE } = require('./utils/image');
+const I18N = require('../client/i18n');
+const i18nMarkup = require('./utils/i18n-markup');
 
 // ── App setup ────────────────────────────────────────────────────────────
 const app  = express();
@@ -41,7 +43,8 @@ const uploadLimiter = rateLimit({
   max: 300,
   standardHeaders: true,
   legacyHeaders: false,
-  message: { success: false, message: 'Too many uploads from this IP. Try again later.' },
+  // `code` lets the page say it in its own language (client/i18n.js err.*).
+  message: { success: false, code: 'too-many', message: 'Too many uploads from this IP. Try again later.' },
 });
 
 // Read endpoints get a generous bucket — protects against scrape floods
@@ -89,9 +92,9 @@ const upload = multer({
 const MAX_UPLOAD_BYTES = 60 * 1024 * 1024;
 function boundUpload(req, res, next) {
   const len = Number(req.headers['content-length']);
-  if (!Number.isFinite(len)) return res.status(411).json({ success: false, message: 'Upload rejected: length required' });
+  if (!Number.isFinite(len)) return res.status(411).json({ success: false, code: 'length-required', message: 'Upload rejected: length required' });
   if (len > MAX_UPLOAD_BYTES) {
-    return res.status(413).json({ success: false, message: 'This upload is too large (over 60 MB). Try fewer or smaller images.' });
+    return res.status(413).json({ success: false, code: 'too-large', message: 'This upload is too large (over 60 MB). Try fewer or smaller images.' });
   }
   next();
 }
@@ -272,18 +275,19 @@ app.post('/api/upload', uploadLimiter, boundUpload, upload.fields([
     const images = req.files?.imageFile || [];
     const body = cleanText(req.body.body, LIMITS.body, { multiline: true });
     const kind = entryKind({ hasAudio: !!audio, imageCount: images.length, body, hint: req.body.kind });
-    if (!kind) return res.status(400).json({ success: false, message: req.imagesRefused
-      ? 'None of the images could be read. Try a JPEG or PNG.' : 'Add a sound, an image or a text' });
+    if (!kind) return res.status(400).json(req.imagesRefused
+      ? { success: false, code: 'images-unreadable', message: 'None of the images could be read. Try a JPEG or PNG.' }
+      : { success: false, code: 'nothing', message: 'Add a sound, an image or a text' });
 
     const lat = parseFloat(req.body.latitude);
     const lng = parseFloat(req.body.longitude);
     if (!Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) {
-      return res.status(400).json({ success: false, message: 'Invalid coordinates' });
+      return res.status(400).json({ success: false, code: 'coordinates', message: 'Invalid coordinates' });
     }
 
     const key = req.body.uploadKey;
     if (key && (typeof key !== 'string' || !/^[a-zA-Z0-9-]{16,80}$/.test(key))) {
-      return res.status(400).json({ success: false, message: 'Invalid upload key' });
+      return res.status(400).json({ success: false, code: 'upload-key', message: 'Invalid upload key' });
     }
     const metadata = {
       kind,
@@ -297,7 +301,7 @@ app.post('/api/upload', uploadLimiter, boundUpload, upload.fields([
       originalFilename: audio ? audio.originalname : '',
       imageBuffers:     images.map(i => i.buffer),
     };
-    if (!metadata.title) return res.status(400).json({ success: false, message: 'A title is needed' });
+    if (!metadata.title) return res.status(400).json({ success: false, code: 'title', message: 'A title is needed' });
     // A sound the previous form could also have sent keeps that form's
     // identity (its raw fields), so a draft retried across the deploy is
     // recognised instead of saved twice.
@@ -324,7 +328,8 @@ app.post('/api/upload', uploadLimiter, boundUpload, upload.fields([
     // the full payload, which is how one failed upload once became six
     // orphaned B2 objects.
     const status = err.name === 'ValidationError' || err.status === 400 ? 400 : 500;
-    res.status(status).json({ success: false, message: err.status === 400 ? err.message : 'Upload failed', error: err.message });
+    res.status(status).json({ success: false, code: err.code || (status === 500 ? 'server' : undefined),
+      message: err.status === 400 ? err.message : 'Upload failed', error: err.message });
   }
 });
 
@@ -773,6 +778,16 @@ function setOg(html, prop, value) {
   );
 }
 
+// The page in another language, made once from the Vietnamese one: every
+// keyed word, the description, <html lang> — so an English link paints
+// English before any script has loaded.
+const pageIn = {};
+function clientIndex(lang) {
+  if (lang === I18N.DEFAULT) return CLIENT_INDEX;
+  return pageIn[lang] || (pageIn[lang] = i18nMarkup.sync(CLIENT_INDEX, I18N.make(lang)).html
+    .replace(`<html lang="${I18N.DEFAULT}">`, `<html lang="${lang}">`));
+}
+
 // App download page (Android APK + iOS install steps)
 app.get('/app', (req, res) => {
   res.set('Cache-Control', 'no-cache');
@@ -804,23 +819,29 @@ app.get('/.well-known/assetlinks.json', (req, res) => {
 app.all('/api/*', (req, res) => res.status(404).json({ error: 'Not found' }));
 
 app.get('*', async (req, res) => {
-  let html = CLIENT_INDEX;
+  // The page is Vietnamese unless the link asks for English (?lang=en);
+  // so is its preview when the link is shared.
+  const lang = I18N.pick(req.query.lang === 'en' ? 'lang=en' : '');
+  const t = I18N.make(lang);
+  let html = clientIndex(lang);
+  // Scrapers fetch og:url as the canonical page: it must keep the language.
+  if (lang !== I18N.DEFAULT) html = setOg(html, 'url', `${SITE_URL}/?lang=${lang}`);
   const ref = typeof req.query.rec === 'string' ? req.query.rec : null;
   if (ref && /^[a-f0-9]{4,36}$/i.test(ref)) {
     try {
       const list = cacheIsFresh() ? cache : await refreshCache();
       const r = list.find(x => x.id && x.id.startsWith(ref));
       if (r) {
-        const title = (r.title || '').replace(/^\[[^\]]*\]\s*/, '').trim() || 'Untitled';
+        const title = (r.title || '').replace(/^\[[^\]]*\]\s*/, '').trim() || t('untitled');
         // A shared poem unfurls with its opening lines.
         const opening = (r.body || '').replace(/\s+/g, ' ').trim();
-        const what = { image: 'An image', text: 'A text' }[r.kind] || `A ${r.category || 'field'} recording`;
+        const what = r.kind === 'image' || r.kind === 'text' ? t('og.' + r.kind)
+          : t('og.sound', { category: I18N.has('en', 'cat.' + r.category) ? t('cat.' + r.category) : r.category || t('cat.Background') });
         const desc  = r.description ||
-          (opening ? (opening.length > 200 ? cleanText(opening, 199) + '…' : opening) : '') ||
-          `${what} from the Saigon_Miền Tây Sound Map.`;
+          (opening ? (opening.length > 200 ? cleanText(opening, 199) + '…' : opening) : '') || what;
         html = setOg(html, 'title', `${title} — Saigon_Miền Tây Sound Map`);
         html = setOg(html, 'description', desc);
-        html = setOg(html, 'url', `${SITE_URL}/?rec=${ref}`);
+        html = setOg(html, 'url', `${SITE_URL}/?rec=${ref}${lang === I18N.DEFAULT ? '' : '&lang=' + lang}`);
         // Recording photos make share links unfurl with a picture. The
         // 720 px thumbnail, not the 2400 px drawing: WhatsApp drops
         // previews whose image is over about 300 KB.
@@ -854,7 +875,9 @@ app.get('*', async (req, res) => {
 // retryable and would pointlessly re-send the full payload twice more.
 app.use((err, req, res, next) => {
   if (err instanceof multer.MulterError) {
-    return res.status(400).json({ success: false, message: `Upload rejected: ${err.message}` });
+    const code = { LIMIT_FILE_SIZE: 'file-too-large', LIMIT_FILE_COUNT: 'too-many-files', LIMIT_UNEXPECTED_FILE: 'too-many-files',
+      LIMIT_FIELD_VALUE: 'field-too-long' }[err.code] || 'rejected';
+    return res.status(400).json({ success: false, code, message: `Upload rejected: ${err.message}` });
   }
   next(err);
 });

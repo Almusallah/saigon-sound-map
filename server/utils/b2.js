@@ -154,8 +154,8 @@ async function putObject(key, body, contentType) {
 
 // A contribution the client can fix (unreadable images, nothing to save)
 // is a 400 — the client retries 5xx with the whole payload.
-function clientError(message) {
-  return Object.assign(new Error(message), { status: 400 });
+function clientError(message, code) {
+  return Object.assign(new Error(message), { status: 400, code });
 }
 
 // One contribution: a sound (audio, optional photos), an image entry
@@ -224,9 +224,9 @@ async function uploadRecording(fileBuffer, mimeType, {
     if (kind === 'image' && !images.length) {
       // A large-format scan (A1 at 300 dpi is ~70 MP) is a JPEG or PNG
       // already; tell its maker what to change instead.
-      throw clientError(overPixelLimit
-        ? 'This image is over 50 megapixels. Export it smaller (about 2400 px on the long side) and try again.'
-        : 'None of the images could be read. Try a JPEG or PNG.');
+      throw overPixelLimit
+        ? clientError('This image is over 50 megapixels. Export it smaller (about 2400 px on the long side) and try again.', 'megapixels')
+        : clientError('None of the images could be read. Try a JPEG or PNG.', 'images-unreadable');
     }
 
     // Unknown category values must never sink an upload. Browser

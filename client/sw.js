@@ -22,7 +22,17 @@ const isStaticCdn = (url) =>
   url.hostname === 'fonts.googleapis.com' ||
   url.hostname === 'fonts.gstatic.com';
 
-self.addEventListener('install', (e) => self.skipWaiting());
+// The page's helper scripts are fetched at install, not only when a page
+// asks for them: a page served while the previous worker was in charge
+// can ask for a script that worker never cached (i18n.js, new with the
+// language switch), and the next offline launch then has no table to boot
+// from. Each is fetched on its own, so one failure cannot block the update.
+const HELPERS = ['/i18n.js', '/draft-store.js', '/archive-locations.js'];
+self.addEventListener('install', (e) => {
+  self.skipWaiting();
+  e.waitUntil(caches.open(SHELL).then((c) => Promise.all(HELPERS.map((u) =>
+    fetch(u, { cache: 'no-cache' }).then((res) => res.ok && c.put(u, res)).catch(() => {})))));
+});
 
 // Deleting old caches here also heals devices bloated by the shell-v1 bug.
 self.addEventListener('activate', (e) => e.waitUntil(
@@ -60,7 +70,7 @@ self.addEventListener('fetch', (e) => {
           // The page's own helper scripts too: without them the map throws
           // at boot, so an offline launch of the installed app was blank.
           if (res.ok && (e.request.mode === 'navigate' || url.pathname.startsWith('/icons/') ||
-              /^\/(draft-store|archive-locations)\.js$/.test(url.pathname))) {
+              HELPERS.includes(url.pathname))) {
             const copy = res.clone();
             caches.open(SHELL).then((c) => c.put(e.request, copy));
           }
