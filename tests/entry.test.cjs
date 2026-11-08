@@ -67,3 +67,16 @@ test('cleanText stays linear on long whitespace runs (one crafted field once fro
   for(const multiline of [true,false]){const t=Date.now();cleanText(s,LIMITS.body,{multiline});assert.ok(Date.now()-t<250,`${multiline} ${JSON.stringify(s.slice(0,3))}`);}
  assert.equal(cleanText('poem \n\t \n',100,ml),'poem');
 });
+test('entryKind: a video comes after audio and before everything else',()=>{
+ assert.equal(entryKind({hasAudio:false,hasVideo:true,imageCount:0,body:''}),'video');
+ assert.equal(entryKind({hasAudio:false,hasVideo:true,imageCount:3,body:'poem',hint:'text'}),'video');
+ assert.equal(entryKind({hasAudio:true,hasVideo:true,imageCount:0,body:''}),'sound');
+ // Callers that know nothing of video keep their answers.
+ assert.equal(entryKind({hasAudio:false,imageCount:2,body:''}),'image');
+});
+test('imageUrlsOf also lists a video\'s clip, so deleting an entry deletes it',()=>{
+ assert.deepEqual(imageUrlsOf({kind:'video',videoUrl:'v.mp4',imageUrl:'p.jpg',images:[{url:'p.jpg',thumbUrl:'p-t.jpg'}]}),['v.mp4','p.jpg','p-t.jpg']);
+ assert.deepEqual(imageUrlsOf({kind:'video',videoUrl:'v.mp4'}),['v.mp4']);
+ // A sound's audio is never in the list: DELETE leaves it for the resync.
+ assert.deepEqual(imageUrlsOf({audioUrl:'a.mp3',videoUrl:''}),[]);
+});

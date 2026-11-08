@@ -65,6 +65,11 @@ window.DraftStore = (() => {
       return write(s => s.put(value, 'current')).then(r => { dropOverlay(n); return r; });
     },
     saveText: value => { try { localStorage.setItem(TEXT, JSON.stringify({ ...value, key: known ? value.key : undefined, seq: stamp() })); } catch {} },
-    clear: () => { dropOverlay(); return write(s => s.delete('current')); },
+    // A chosen video, kept under its own key and written once when chosen:
+    // saved with the rest it would be rewritten (up to 50 MB) on every
+    // save of the words. The draft itself records only that there is one.
+    saveVideo: blob => write(s => s.put(blob, 'video')),
+    readVideo: () => transaction('readonly', s => s.get('video')).then(v => v || null),
+    clear: () => { dropOverlay(); return write(s => { s.delete('video'); return s.delete('current'); }); },
   };
 })();

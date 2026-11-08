@@ -145,3 +145,33 @@ test('round 3: the page\'s own Back is not a visitor\'s; a pending pin is closed
  assert.match(tag('audio-file-btn'),/aria-describedby="audio-file-label audio-file-name"/);
  assert.doesNotMatch(page,/<label for="audio-file-btn"/);
 });
+test('video: a face of the archive form, never of the sound map',()=>{
+ assert.match(tag('video-file'),/accept="video\/\*[^"]*"/);assert.match(tag('video-file'),/\shidden\b/);
+ assert.match(markup,/<button[^>]*data-kind="video"[^>]*data-i18n="kind.video"/);
+ assert.match(markup,/<option value="video" data-i18n="kinds.video">/);
+ assert.match(page,/\.form-card:not\(\[data-kind="video"\]\) \.only-video/);
+ assert.match(page,/\.form-card\[data-kind="video"\] \.not-video/);
+ // A dropped clip is a video before it is a sound (.mp4 and .webm are both).
+ const drop=between(script,"$('form-overlay').addEventListener('drop'",'});');
+ assert.ok(drop.indexOf('isVideo')>=0&&drop.indexOf('isVideo')<drop.indexOf('isAudio'),'video checked first');
+ // The chosen clip goes with the form's end, success or discard.
+ assert.ok((script.match(/clearVideo\(\)/g)||[]).length>=2);
+ // A lone video stays visible below the cluster zoom.
+ assert.match(script,/\^shape-\(image\|video\|text\)-/);
+ // Never preloaded: 24 cards would start 24 downloads.
+ assert.match(script,/<video controls playsinline preload="none"/);
+ // Leaving the archive stops a video, in a popup too.
+ assert.match(between(script,'function setMode(','if (how !== '),/classList\.contains\('vpc'\)/);
+});
+test('video picks: the latest wins; a dropped sound stays a sound; a failed load lets go; no stray marker',()=>{
+ const sv=between(script,'async function setVideo(','\n  }\n');
+ assert.match(sv,/const pick = \+\+videoPick/);assert.match(sv,/if \(pick !== videoPick\) return;/);assert.match(sv,/Math\.ceil/);
+ assert.match(between(script,'function clearVideo(','}'),/videoPick\+\+/);
+ // The pre-video rule: a dropped .webm/.mp4 is a sound on the sound map and under Sound.
+ assert.match(script,/const isAudio = f => \/\^audio\\\/\/\.test\(f\.type\) \|\|/);
+ assert.match(script,/files\.find\(f => isVideo\(f\) && !\(formKind === 'sound' && isAudio\(f\)\)\)/);
+ assert.match(script,/v\.onerror = \(\) => v\.pause\(\);/);
+ assert.match(between(script,'function setMode(','\n  }\n'),/strayVideo \|\| visibleKey\(\) !== before/);
+ // A recovered video must be the one the draft names.
+ assert.match(script,/v\.size === d\.video\.size/);
+});

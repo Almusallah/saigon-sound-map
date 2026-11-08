@@ -3,6 +3,8 @@ require('dotenv').config();
 const express   = require('express');
 const cors      = require('cors');
 const fs        = require('fs');
+const os        = require('os');
+const crypto    = require('crypto');
 const path      = require('path');
 const multer    = require('multer');
 const mongoose  = require('mongoose');
@@ -14,6 +16,7 @@ const pendingUploads = new Map();
 const { syncB2ToMongo, uploadRecording, cleanupOrphans, deleteB2Object, deleteImagesOf, streamB2ObjectAsMp3, transcodeLegacyToMp3, backfillDurations } = require('./utils/b2');
 const { LIMITS, cleanText, entryKind, isSound, imageUrlsOf } = require('./utils/entry');
 const { THUMB_EDGE } = require('./utils/image');
+const { VIDEO_LIMITS } = require('./utils/video');
 const I18N = require('../client/i18n');
 const i18nMarkup = require('./utils/i18n-markup');
 
@@ -68,11 +71,55 @@ function requireAdmin(req, res, next) {
     next();
 }
 
+// Sounds and images stay in memory — each a few MB, never over 25. A
+// video (up to 50 MB) goes straight to a temp file: held in memory it
+// would be one concurrent upload away from the 512 MB instance's limit.
+// The route removes the temp file when it is done with it.
+const MEMORY_FILE_BYTES = 25 * 1024 * 1024;
+const uploadStorage = {
+  _handleFile(req, file, cb) {
+    if (file.fieldname === 'videoFile') {
+      // multer has already answered (an earlier part of the same request
+      // was refused): nothing would ever read or remove a file begun now.
+      if (req.res?.headersSent) { file.stream.resume(); return cb(null, {}); }
+      const dest = path.join(os.tmpdir(), `up-${crypto.randomUUID()}`);
+      const out = fs.createWriteStream(dest);
+      let size = 0, settled = false;
+      const drop = () => { settled = true; out.destroy(); fs.unlink(dest, () => {}); };
+      file.stream.on('data', d => { size += d.length; });
+      // multer counts a stream error itself; calling back as well would
+      // count it twice.
+      file.stream.on('error', drop);
+      // A phone that loses signal mid-upload leaves no file behind. An
+      // incomplete request never reaches the route — multer waits for an
+      // end that never comes — even when this part had already finished.
+      req.on('close', () => { if (!req.complete) drop(); });
+      out.on('error', err => { if (!settled) { drop(); cb(err); } });
+      out.on('finish', () => { if (!settled) { settled = true; cb(null, { path: dest, size }); } });
+      file.stream.pipe(out);
+      return;
+    }
+    const chunks = [];
+    let size = 0;
+    file.stream.on('data', d => { size += d.length; if (size <= MEMORY_FILE_BYTES) chunks.push(d); });
+    file.stream.on('end', () => (size > MEMORY_FILE_BYTES
+      ? cb(new multer.MulterError('LIMIT_FILE_SIZE', file.fieldname))
+      : cb(null, { buffer: Buffer.concat(chunks), size })));
+  },
+  _removeFile(req, file, cb) {
+    if (file.path) return fs.unlink(file.path, () => cb(null));
+    delete file.buffer;
+    cb(null);
+  },
+};
+
 const upload = multer({
-  storage: multer.memoryStorage(),
-  // 25 MB per file; one audio plus up to LIMITS.images images.
+  storage: uploadStorage,
+  // Per file: a video up to VIDEO_LIMITS.bytes (50 MB, on disk); audio and
+  // images up to 25 MB (in memory, enforced by uploadStorage). One audio or
+  // one video, plus up to LIMITS.images images.
   // Text fields: the longest is a 20,000-character text (≤80 KB as UTF-8).
-  limits: { fileSize: 25 * 1024 * 1024, files: 1 + LIMITS.images, fieldSize: 128 * 1024, fields: 20 },
+  limits: { fileSize: VIDEO_LIMITS.bytes, files: 2 + LIMITS.images, fieldSize: 128 * 1024, fields: 20 },
   // A picked "photo" that isn't actually an image (raw HEIC/DNG fallback
   // from the client sends application/octet-stream) is silently dropped —
   // a bad attachment must never reject the audio that came with it.
@@ -188,6 +235,7 @@ app.get('/api/export.geojson', readLimiter, async (req, res) => {
           description: r.description || '',
           category:    r.category,
           audioUrl:    r.audioUrl || '',
+          videoUrl:    r.videoUrl || '',
           imageUrl:    r.imageUrl || '',
           images:      r.images || [],
           body:        r.body || '',
@@ -266,15 +314,26 @@ app.get('/api/download/:idPrefix', readLimiter, async (req, res) => {
 // One contribution: a sound (audio + optional photos), an image entry
 // (drawings, sketches, photos) or a text (a story, a poem; optional
 // images). The kind follows what actually arrived — see utils/entry.js.
+// sha256 of a file on disk, read as a stream: a video's identity for the
+// upload id without loading it into memory.
+function fileDigest(file) {
+  return new Promise((resolve, reject) => {
+    const h = crypto.createHash('sha256');
+    fs.createReadStream(file).on('error', reject).on('data', d => h.update(d)).on('end', () => resolve(h.digest()));
+  });
+}
+
 app.post('/api/upload', uploadLimiter, boundUpload, upload.fields([
   { name: 'audioFile', maxCount: 1 },
+  { name: 'videoFile', maxCount: 1 }, // on disk; checked and re-encoded by utils/video.js
   { name: 'imageFile', maxCount: LIMITS.images }, // non-images already dropped by fileFilter
 ]), async (req, res) => {
+  const video = req.files?.videoFile?.[0];
   try {
     const audio = req.files?.audioFile?.[0];
     const images = req.files?.imageFile || [];
     const body = cleanText(req.body.body, LIMITS.body, { multiline: true });
-    const kind = entryKind({ hasAudio: !!audio, imageCount: images.length, body, hint: req.body.kind });
+    const kind = entryKind({ hasAudio: !!audio, hasVideo: !!video, imageCount: images.length, body, hint: req.body.kind });
     if (!kind) return res.status(400).json(req.imagesRefused
       ? { success: false, code: 'images-unreadable', message: 'None of the images could be read. Try a JPEG or PNG.' }
       : { success: false, code: 'nothing', message: 'Add a sound, an image or a text' });
@@ -299,20 +358,23 @@ app.post('/api/upload', uploadLimiter, boundUpload, upload.fields([
       latitude:         lat,
       longitude:        lng,
       originalFilename: audio ? audio.originalname : '',
-      imageBuffers:     images.map(i => i.buffer),
+      // A video's cover is its own poster frame.
+      imageBuffers:     kind === 'video' ? [] : images.map(i => i.buffer),
     };
     if (!metadata.title) return res.status(400).json({ success: false, code: 'title', message: 'A title is needed' });
     // A sound the previous form could also have sent keeps that form's
     // identity (its raw fields), so a draft retried across the deploy is
     // recognised instead of saved twice.
     const legacy = kind === 'sound' && !body && !metadata.author && images.length <= 1;
-    const id = uploadId(key, audio ? audio.buffer : Buffer.alloc(0),
+    const media = audio ? audio.buffer : kind === 'video' ? await fileDigest(video.path) : Buffer.alloc(0);
+    const id = uploadId(key, media,
       legacy ? [req.body.title, req.body.description, req.body.category, lat, lng]
              : [metadata.title, metadata.description, metadata.category, lat, lng, kind, body, metadata.author],
       metadata.imageBuffers);
     let job = id && pendingUploads.get(id);
     if (!job) {
-      job = uploadRecording(audio ? audio.buffer : null, audio ? audio.mimetype : '', { ...metadata, id });
+      job = uploadRecording(audio ? audio.buffer : null, audio ? audio.mimetype : '',
+        { ...metadata, id, videoPath: kind === 'video' ? video.path : null });
       if (id) pendingUploads.set(id, job);
     }
     let recording;
@@ -330,15 +392,20 @@ app.post('/api/upload', uploadLimiter, boundUpload, upload.fields([
     const status = err.name === 'ValidationError' || err.status === 400 ? 400 : 500;
     res.status(status).json({ success: false, code: err.code || (status === 500 ? 'server' : undefined),
       message: err.status === 400 ? err.message : 'Upload failed', error: err.message });
+  } finally {
+    // This request's own temp file. A retry that joined an earlier
+    // request's job (pendingUploads) never read it; the earlier request
+    // removes its file once that job is done.
+    if (video?.path) fs.promises.unlink(video.path).catch(() => {});
   }
 });
 
 app.delete('/api/recordings/:id', requireAdmin, async (req, res) => {
   try {
     // This route intentionally leaves the AUDIO in B2 (the next sync
-    // re-imports it), but images can never be re-linked by the sync —
-    // delete them so they don't strand in the bucket.
-    const doc = await Recording.findOne({ id: req.params.id }, 'imageUrl images').lean();
+    // re-imports it), but images and a video's clip can never be
+    // re-linked by the sync — delete them so they don't strand in the bucket.
+    const doc = await Recording.findOne({ id: req.params.id }, 'imageUrl images videoUrl').lean();
     const imgs = doc ? await deleteImagesOf(doc) : { deleted: 0, errors: [] };
     await Recording.deleteOne({ id: req.params.id });
     cache = cache.filter(r => r.id !== req.params.id);
@@ -443,6 +510,12 @@ app.post('/api/admin/import-geojson', requireAdmin, backupFile.single('geojson')
           if (state === 'unknown') return unsure(audioUrl);
           if (state === 'gone') return { id, skip: 'its audio is gone' };
         }
+        const videoUrl = url(p.videoUrl);
+        if (kind === 'video') {
+          const state = videoUrl ? await probe(videoUrl) : 'gone';
+          if (state === 'unknown') return unsure(videoUrl);
+          if (state === 'gone') return { id, skip: 'its video is gone' };
+        }
         const listed = (Array.isArray(p.images) ? p.images : []).filter(img => url(img?.url)).slice(0, LIMITS.images);
         const images = [], dropped = [];
         for (const img of listed) {
@@ -470,7 +543,8 @@ app.post('/api/admin/import-geojson', requireAdmin, backupFile.single('geojson')
         if (kind === 'text' && !body) return { id, skip: 'the text is empty' };
         const createdAt = new Date(p.createdAt);
         return { id, dropped, doc: new Recording({
-          id, kind, audioUrl: kind === 'sound' ? audioUrl : '', imageUrl, images: images.length ? images : undefined, body,
+          id, kind, audioUrl: kind === 'sound' ? audioUrl : '', ...(kind === 'video' ? { videoUrl } : {}),
+          imageUrl, images: images.length ? images : undefined, body,
           title: cleanText(p.title, LIMITS.title) || 'Untitled',
           description: cleanText(p.description, LIMITS.description, { multiline: true }),
           category: Recording.CATEGORIES.includes(p.category) ? p.category : 'Background',
@@ -835,7 +909,7 @@ app.get('*', async (req, res) => {
         const title = (r.title || '').replace(/^\[[^\]]*\]\s*/, '').trim() || t('untitled');
         // A shared poem unfurls with its opening lines.
         const opening = (r.body || '').replace(/\s+/g, ' ').trim();
-        const what = r.kind === 'image' || r.kind === 'text' ? t('og.' + r.kind)
+        const what = r.kind === 'image' || r.kind === 'video' || r.kind === 'text' ? t('og.' + r.kind)
           : t('og.sound', { category: I18N.has('en', 'cat.' + r.category) ? t('cat.' + r.category) : r.category || t('cat.Background') });
         const desc  = r.description ||
           (opening ? (opening.length > 200 ? cleanText(opening, 199) + '…' : opening) : '') || what;
@@ -875,8 +949,9 @@ app.get('*', async (req, res) => {
 // retryable and would pointlessly re-send the full payload twice more.
 app.use((err, req, res, next) => {
   if (err instanceof multer.MulterError) {
-    const code = { LIMIT_FILE_SIZE: 'file-too-large', LIMIT_FILE_COUNT: 'too-many-files', LIMIT_UNEXPECTED_FILE: 'too-many-files',
-      LIMIT_FIELD_VALUE: 'field-too-long' }[err.code] || 'rejected';
+    const code = err.code === 'LIMIT_FILE_SIZE' && err.field === 'videoFile' ? 'video-too-large'
+      : { LIMIT_FILE_SIZE: 'file-too-large', LIMIT_FILE_COUNT: 'too-many-files', LIMIT_UNEXPECTED_FILE: 'too-many-files',
+        LIMIT_FIELD_VALUE: 'field-too-long' }[err.code] || 'rejected';
     return res.status(400).json({ success: false, code, message: `Upload rejected: ${err.message}` });
   }
   next(err);
@@ -903,7 +978,10 @@ async function connectWithRetry() {
 async function start() {
   await connectWithRetry();
 
-  app.listen(PORT, () => console.log(`Server on port ${PORT}`));
+  const server = app.listen(PORT, () => console.log(`Server on port ${PORT}`));
+  // Node cuts a request still arriving after 5 minutes: a 50 MB video
+  // from a phone on a slow connection needs longer. The page waits 15.
+  server.requestTimeout = 15 * 60 * 1000;
 
   // The B2->Mongo sync used to run on every boot. On the free tier the
   // service cold-starts many times a day, so that meant re-listing the

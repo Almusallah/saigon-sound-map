@@ -25,3 +25,10 @@ test('switching view keeps every other parameter',()=>{
  assert.equal(Views.withView('https://x/?view=archive&city=Milan','sound'),'https://x/?city=Milan');
  assert.equal(Views.withView('https://x/?view=archive','sound'),'https://x/');
 });
+test('a video lives in the archive only, between images and texts',()=>{
+ assert.equal(Views.forLink('sound','video'),'archive');assert.equal(Views.forLink('archive','video'),'archive');
+ assert.equal(Views.shows('sound','video',''),false);assert.equal(Views.shows('sound','video','video'),false);
+ assert.equal(Views.shows('archive','video',''),true);assert.equal(Views.shows('archive','video','video'),true);
+ assert.equal(Views.shows('archive','video','image'),false);
+ assert.deepEqual(Views.kindsPresent(['text','video','sound','image']),['sound','image','video','text']);
+});

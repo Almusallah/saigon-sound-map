@@ -21,8 +21,8 @@ const CATEGORIES = [...NEW_CATEGORIES, ...LEGACY_CATEGORIES];
 // What leads a contribution. The archive began as sounds only; drawings,
 // sketches, photos and writing (stories, poems) share the same map, form
 // and categories. Documents saved before this field have audio — read
-// them as 'sound'.
-const KINDS = ['sound', 'image', 'text'];
+// them as 'sound'. Short videos joined on 8 Nov 2026 (archive only).
+const KINDS = ['sound', 'image', 'video', 'text'];
 
 const imageSchema = new mongoose.Schema({
   url:      { type: String, required: true },
@@ -40,6 +40,11 @@ const recordingSchema = new mongoose.Schema({
   // Only sounds have audio. Image and text entries keep '' so every
   // consumer can test `audioUrl` the way the listening room always has.
   audioUrl:    { type: String, default: '', required: function () { return (this.kind || 'sound') === 'sound'; } },
+  // A video entry's clip: H.264/AAC MP4 under videos/ in B2 (see
+  // utils/video.js). Its poster frame is the cover (imageUrl / images[0]).
+  // Never set on a sound — the listening room, the streets and the
+  // Sampler read audioUrl only.
+  videoUrl:    { type: String, default: '', required: function () { return this.kind === 'video'; } },
   // Cover image: images[0].url, or the single photo of an older
   // recording. Kept for og:image, the export and older clients.
   imageUrl:    { type: String, default: '' },
@@ -61,7 +66,7 @@ const recordingSchema = new mongoose.Schema({
   },
   source:      { type: String, enum: ['upload', 'b2-sync'], default: 'upload' },
   fileSize:    { type: Number, default: 0 },
-  // Audio length in seconds, measured server-side with ffprobe at upload
+  // Audio (or video) length in seconds, measured server-side with ffprobe at upload
   // (or by the backfill-durations admin job). Lets the client print
   // durations without fetching file metadata from B2.
   duration:    { type: Number, default: 0 },

@@ -66,10 +66,10 @@ test('every key the page and server use exists, including the built ones',()=>{
  for(const m of page.matchAll(/data-i18n-attr="([^"]+)"/g))m[1].split(';').forEach(p=>used.add(p.split(':')[1]));
  for(const src of [page,server])for(const m of src.matchAll(/\bt\('([\w.-]+)'/g))used.add(m[1]);
  for(const m of page.matchAll(/\bsay\([^,]+, '([\w.-]+)'/g))used.add(m[1]);
- const kinds=['sound','image','text'];
+ const kinds=['sound','image','video','text'];
  kinds.forEach(k=>['kind.'+k,'kinds.'+k,`kind.${k}.lower`,'share.'+k,...['photo','title','desc','submit','pin','formats'].map(f=>`ks.${k}.${f}`)].forEach(x=>used.add(x)));
- ['image','text','sound'].forEach(k=>used.add('og.'+k));
- ['sound','text','description'].forEach(w=>used.add('left.'+w));
+ ['image','video','text','sound'].forEach(k=>used.add('og.'+k));
+ ['sound','video','images','text','description'].forEach(w=>used.add('left.'+w));
  ['network','timeout','server'].forEach(e=>used.add('err.'+e));
  ['header.satellite','header.map','mb.zoomIn','mb.zoomOut','mb.resetBearing','mb.findMe','mb.noLocation','photo.count','photo.countCover','up.preparingN','up.preparing1'].forEach(x=>used.add(x));
  const missing=[...used].filter(k=>!k.endsWith('.')&&!(k in en)); // 'cat.' + c and the like are listed above
@@ -91,7 +91,9 @@ test('every category, city and archive area has a label',()=>{
 test('upload errors the server sends carry codes the page can say',()=>{
  const codes=new Set([...server.matchAll(/code: '([\w-]+)'/g)].map(m=>m[1]));
  for(const m of server.matchAll(/LIMIT_\w+: '([\w-]+)'/g))codes.add(m[1]);
- for(const m of fs.readFileSync(path.join(__dirname,'../server/utils/b2.js'),'utf8').matchAll(/clientError\('[^']*', '([\w-]+)'\)/g))codes.add(m[1]);
+ for(const f of ['b2.js','video.js'])for(const m of fs.readFileSync(path.join(__dirname,'../server/utils/'+f),'utf8').matchAll(/clientError\([`'][^`']*[`'], '([\w-]+)'\)/g))codes.add(m[1]);
+ for(const m of server.matchAll(/\? '([\w-]+)'\s*\n?\s*: \{ LIMIT_/g))codes.add(m[1]); // video-too-large, by field
+ for(const c of ['video-too-long','video-unreadable','video-too-large','video-resolution','video-sound-only'])assert.ok(codes.has(c),'scan finds '+c);
  codes.add('server');
  assert.ok(codes.size>=12,[...codes].join());
  for(const c of codes)assert.ok(('err.'+c) in en,`err.${c}`);

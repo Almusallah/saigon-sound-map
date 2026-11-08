@@ -40,3 +40,24 @@ test('a scan over the pixel limit says how to fix it, not "try a JPEG"',async()=
  await assert.rejects(uploadRecording(null,'',{...base,kind:'image',imageBuffers:[png],id:'44444444-aaaa-4aaa-aaaa-444444444444'}),
   e=>e.status===400&&/50 megapixels/.test(e.message));
 });
+test('a video: the clip under videos/<id>.mp4, its poster as the cover, no audio; a failure leaves nothing',{skip:(()=>{try{require('node:child_process').execFileSync('ffmpeg',['-version'],{stdio:'ignore'});return false;}catch{return true;}})()},async()=>{
+ const fs=require('node:fs'),os=require('node:os'),path=require('node:path'),{execFileSync}=require('node:child_process');
+ const clip=path.join(os.tmpdir(),'b2test-clip.mp4');
+ execFileSync('ffmpeg',['-hide_banner','-loglevel','error','-y','-f','lavfi','-i','testsrc2=size=320x240:rate=10:duration=3','-c:v','libx264','-preset','ultrafast','-pix_fmt','yuv420p',clip]);
+ try{
+  const id='33333333-aaaa-4aaa-aaaa-333333333333';
+  // Images sent alongside are not taken: the poster is the cover.
+  const doc=await uploadRecording(null,'',{...base,kind:'video',videoPath:clip,imageBuffers:[await jpeg()],id});
+  assert.equal(doc.kind,'video');assert.equal(doc.audioUrl,'');
+  assert.equal(doc.videoUrl,`https://s3.test.invalid/test-bucket/videos/${id}.mp4`);
+  assert.equal(doc.images.length,1);assert.equal(doc.imageUrl,doc.images[0].url);
+  assert.ok(doc.images[0].width>0&&doc.images[0].height>0);
+  assert.ok(doc.duration>2.5&&doc.duration<3.5);assert.ok(doc.fileSize>0);
+  assert.deepEqual([...store.keys()].sort(),[`images/${id}-0-t_10.77_106.7.jpg`,`images/${id}_10.77_106.7.jpg`,`videos/${id}.mp4`]);
+  assert.ok(fs.existsSync(clip),'the upload\'s own temp file is the route\'s to remove');
+  // The poster's write fails: the clip already written is rolled back.
+  store.clear();failPut=k=>k.startsWith('images/');
+  await assert.rejects(uploadRecording(null,'',{...base,kind:'video',videoPath:clip,id:'44444444-aaaa-4aaa-aaaa-444444444444'}),/storage/);
+  assert.equal(store.size,0);
+ }finally{fs.rmSync(clip,{force:true});}
+});

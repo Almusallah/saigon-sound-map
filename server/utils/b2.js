@@ -3,6 +3,7 @@
  * Uses AWS SDK v3 (S3-compatible).
  */
 
+const fs = require('fs');
 const { S3Client, ListObjectsV2Command, HeadObjectCommand } = require('@aws-sdk/client-s3');
 const { Upload } = require('@aws-sdk/lib-storage');
 const { v4: uuidv4 } = require('uuid');
@@ -80,6 +81,10 @@ async function listAllAudioFiles() {
     }));
     for (const obj of (res.Contents || [])) {
       if (obj.Key.endsWith('/')) continue;
+      // A video entry's clip is an .mp4 too, but never a sound: re-imported
+      // as an "Auto-discovered recording" it would play a film's soundtrack
+      // in the listening room.
+      if (obj.Key.startsWith('videos/')) continue;
       const ext = fileExtension(obj.Key);
       if (!ext || !AUDIO_EXTENSIONS.has(ext)) continue;
       files.push({ key: obj.Key, size: obj.Size, lastModified: obj.LastModified });
@@ -144,6 +149,13 @@ function buildImageKey(id, lat, lng, ext, index = 0, thumb = false) {
   return `images/${name}_${lat}_${lng}.${ext}`;
 }
 
+// A video's clip. No coordinates in the name: the resync's filename
+// parser cannot mistake it for a recording even if the prefix rule above
+// were ever lost.
+function buildVideoKey(id) {
+  return `videos/${id}.mp4`;
+}
+
 async function putObject(key, body, contentType) {
   await new Upload({
     client: getS3(),
@@ -159,11 +171,14 @@ function clientError(message, code) {
 }
 
 // One contribution: a sound (audio, optional photos), an image entry
-// (drawings / sketches / photos) or a text (story, poem; optional
-// images). `fileBuffer` is null when there is no audio.
+// (drawings / sketches / photos), a video (a short clip; its poster frame
+// becomes the cover) or a text (story, poem; optional images).
+// `fileBuffer` is null when there is no audio; `videoPath` is the temp
+// file of an uploaded video, which the caller removes.
 async function uploadRecording(fileBuffer, mimeType, {
   title, description, category, latitude, longitude, originalFilename,
   kind = 'sound', body = '', author = '', imageBuffers = [], id = uuidv4(),
+  videoPath = null,
 }) {
   const existing = await Recording.findOne({ id });
   if (existing) return existing;
@@ -173,8 +188,27 @@ async function uploadRecording(fileBuffer, mimeType, {
     for (const url of written) { try { await deleteB2Object(url); } catch {} }
   };
 
-  let audioUrl = '', duration = 0, fileSize = 0;
+  let audioUrl = '', videoUrl = '', duration = 0, fileSize = 0;
+  let poster = null; // a video's poster frame, uploaded with the images below
   try {
+    if (videoPath && kind === 'video') {
+      const { prepareVideo } = require('./video');
+      const v = await prepareVideo(videoPath);
+      try {
+        console.log(`[upload] video ${v.width}x${v.height}, ${v.duration}s, ${v.size} bytes`);
+        videoUrl = await putObject(buildVideoKey(id), fs.createReadStream(v.mp4), 'video/mp4');
+        written.push(videoUrl);
+        duration = v.duration;
+        fileSize = v.size;
+        if (v.poster) poster = await fs.promises.readFile(v.poster);
+      } finally {
+        await v.cleanup();
+      }
+      // A video's own images are not taken: the form sends none, and the
+      // poster is its cover.
+      imageBuffers = poster ? [poster] : [];
+    }
+
     if (fileBuffer) {
       // Normalise everything to MP3 before it reaches B2 — WebM/Opus uploads
       // (Chrome/Android recordings) are silent for every Safari listener.
@@ -239,7 +273,7 @@ async function uploadRecording(fileBuffer, mimeType, {
 
     const doc = new Recording({
       id, kind, title: title || 'Untitled', description: description || '',
-      category: safeCategory, audioUrl, imageUrl: images[0]?.url || '',
+      category: safeCategory, audioUrl, ...(videoUrl ? { videoUrl } : {}), imageUrl: images[0]?.url || '',
       ...(images.length ? { images } : {}), body, author,
       latitude: parseFloat(latitude), longitude: parseFloat(longitude),
       source: 'upload', fileSize, duration,
@@ -479,6 +513,6 @@ async function backfillDurations({ limit = 10 } = {}) {
 }
 
 module.exports = {
-  syncB2ToMongo, uploadRecording, cleanupOrphans,
+  syncB2ToMongo, uploadRecording, cleanupOrphans, listAllAudioFiles,
   deleteB2Object, deleteImagesOf, streamB2ObjectAsMp3, transcodeLegacyToMp3, backfillDurations,
 };

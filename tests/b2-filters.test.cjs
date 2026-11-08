@@ -15,3 +15,11 @@ test('maintenance jobs only ever read entries with audio',async t=>{
  assert.match(calls[0].fields,/\bimages\b/); // orphans take their images with them
  assert.deepEqual(calls[2].filter.$or,[{duration:{$exists:false}},{duration:0}]);
 });
+test('the resync never takes a video\'s clip for a recording',async t=>{
+ const s3=require('@aws-sdk/client-s3');const own=s3.S3Client.prototype.send;
+ t.after(()=>{s3.S3Client.prototype.send=own;});
+ s3.S3Client.prototype.send=async()=>({Contents:[
+  {Key:'recordings/aaaa_10.7_106.6.mp4',Size:1},{Key:'videos/bbbb.mp4',Size:1},{Key:'videos/cccc_10.7_106.6.mp4',Size:1},{Key:'images/dddd_10.7_106.6.jpg',Size:1}],IsTruncated:false});
+ const files=await b2.listAllAudioFiles();
+ assert.deepEqual(files.map(f=>f.key),['recordings/aaaa_10.7_106.6.mp4']);
+});

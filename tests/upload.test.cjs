@@ -5,7 +5,7 @@ const source=fs.readFileSync(path.join(__dirname,'../server/index.js'),'utf8');
 function routeHarness(existingDescription='Keep these field notes',{fail}={}){
  let handler,calls=0,last;const stored=new Map(),changes=[],pendingUploads=new Map();
  const sandbox={console:{log(){},error(){}},Buffer,LIMITS,cleanText,entryKind,deleteImagesOf:async()=>({deleted:0,errors:[]}),
- refreshCache:async()=>{},uploadId,pendingUploads,cache:[],cacheTime:0,uploadLimiter:{},boundUpload:{},requireAdmin:{},upload:{fields:()=>({})},imageUrlsOf:()=>[],
+ refreshCache:async()=>{},uploadId,fs,fileDigest:async p=>require('node:crypto').createHash('sha256').update(fs.readFileSync(p)).digest(),pendingUploads,cache:[],cacheTime:0,uploadLimiter:{},boundUpload:{},requireAdmin:{},upload:{fields:()=>({})},imageUrlsOf:()=>[],
  app:{post(...args){handler=args.at(-1);}},
  Recording:{find(){return {limit(){return {lean:async()=>[{id:'abc',title:'Before',category:'Nature',description:existingDescription}]};}};},updateOne:async(q,u)=>changes.push(u.$set)},
  uploadRecording:async(bytes,type,meta)=>{calls++;last={bytes,type,meta};await new Promise(r=>setTimeout(r,5));if(fail)throw fail;if(stored.has(meta.id))return stored.get(meta.id);const doc={id:meta.id,...meta,toObject(){return {id:this.id};}};stored.set(meta.id,doc);return doc;}};
@@ -143,4 +143,29 @@ test('an unknown API path is a JSON 404, not the map page',()=>{
  const res={status(n){this.statusCode=n;return this;},json(b){this.body=b;return this;}};handler({},res);
  assert.equal(path,'/api/*');assert.equal(res.statusCode,404);assert.equal(res.body.error,'Not found');
  assert.ok(start<source.indexOf("app.get('*'")&&start>source.lastIndexOf("app.post('/api/"),'registered after every API route, before the page fallback');
+});
+test('a video goes up from its temp file: kind video, no images, its bytes in the id, the temp file removed',async()=>{
+ const os=require('node:os'),tmp=n=>{const f=path.join(os.tmpdir(),`up-test-${process.pid}-${n}`);fs.writeFileSync(f,'clip '+n);return f;};
+ const [h,fn]=uploadRoute();
+ const a=tmp('a'),res=h.response();
+ await fn({files:{videoFile:[{path:a,size:6}],imageFile:[img('x')]},body:{...at,title:'Bến Tre',kind:'video',uploadKey:'draft-key-12345678'}},res);
+ assert.equal(res.statusCode,200);assert.equal(h.last.bytes,null);assert.equal(h.last.type,'');
+ assert.equal(h.last.meta.kind,'video');assert.equal(h.last.meta.videoPath,a);assert.equal(h.last.meta.imageBuffers.length,0);
+ await new Promise(r=>setTimeout(r,20));assert.equal(fs.existsSync(a),false,'temp file removed');
+ // Another clip from the same draft, same words: a new entry, not the first one returned.
+ const first=h.last.meta.id,b=tmp('b');
+ await fn({files:{videoFile:[{path:b,size:6}]},body:{...at,title:'Bến Tre',kind:'video',uploadKey:'draft-key-12345678'}},h.response());
+ assert.notEqual(h.last.meta.id,first);
+ // A sound sent with it leads, as always: the video is not taken, and its file still goes.
+ const c=tmp('c');
+ await fn({files:{videoFile:[{path:c,size:6}],audioFile},body:{...at,title:'Bến Tre',uploadKey:'draft-key-12345678'}},h.response());
+ assert.equal(h.last.meta.kind,'sound');assert.equal(h.last.meta.videoPath,null);
+ await new Promise(r=>setTimeout(r,20));assert.equal(fs.existsSync(c),false);
+});
+test('a video refused by the checks is a 400 with its code, and leaves no temp file',async()=>{
+ const os=require('node:os'),f=path.join(os.tmpdir(),`up-test-${process.pid}-long`);fs.writeFileSync(f,'long clip');
+ const [h,fn]=uploadRoute({fail:Object.assign(new Error('This video is 75 seconds long.'),{status:400,code:'video-too-long'})}),res=h.response();
+ await fn({files:{videoFile:[{path:f,size:9}]},body:{...at,title:'Dài quá',kind:'video'}},res);
+ assert.equal(res.statusCode,400);assert.equal(res.body.code,'video-too-long');assert.match(res.body.message,/75 seconds/);
+ await new Promise(r=>setTimeout(r,20));assert.equal(fs.existsSync(f),false);
 });

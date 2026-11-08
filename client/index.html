@@ -599,6 +599,9 @@
       vertical-align: middle;
     }
     .popup-inner .rec-date { color: var(--text-light); margin: 0 0 12px 8px; }
+    /* Where a card was made — shown only in the all-places list, where
+       places are mixed. */
+    .rec-place { display: inline-block; margin: 6px 0 0 8px; font-size: 10px; font-weight: 600; letter-spacing: .3px; vertical-align: middle; }
     .share-btn {
       background: transparent; border: none; cursor: pointer;
       font-size: 13px; margin-left: 6px; padding: 2px 4px;
@@ -888,9 +891,17 @@
       box-shadow: 0 1px 4px rgba(0,0,0,.25);
     }
     .marker.k-text:hover::before, .marker.k-text:focus-visible::before { box-shadow: 0 0 0 4px rgba(18,18,18,.25); }
+    /* Video: a play triangle. */
+    .marker.k-video { background: none !important; border: 0 !important; box-shadow: none; filter: drop-shadow(0 1px 2px rgba(0,0,0,.35)); }
+    .marker.k-video::before {
+      content: ''; position: absolute; inset: 0 0 0 2px;
+      background: var(--c); clip-path: polygon(0 0, 100% 50%, 0 100%);
+    }
+    .marker.k-video:hover, .marker.k-video:focus-visible, .marker.k-video.sounding { filter: drop-shadow(0 0 3px rgba(18,18,18,.7)); }
     .kind-glyph { display: inline-block; width: 8px; height: 8px; margin-right: 7px; background: currentColor; border-radius: 50%; vertical-align: 1px; }
     .kind-glyph.k-image { border-radius: 1px; }
     .kind-glyph.k-text { border-radius: 0; transform: rotate(45deg) scale(.85); }
+    .kind-glyph.k-video { border-radius: 0; clip-path: polygon(0 0, 100% 50%, 0 100%); }
     .filter-chip.kind-chip { background: transparent; border: 1px solid rgba(18,18,18,.25); }
     .filter-chip.kind-chip[aria-pressed="true"] { background: var(--primary); color: var(--header-bg); border-color: var(--primary); }
     .filter-sep { flex: 0 0 1px; align-self: stretch; margin: 2px 2px; background: rgba(18,18,18,.18); }
@@ -898,6 +909,18 @@
     /* Popups and archive cards */
     .popup-cover { display: block; position: relative; width: 100%; padding: 0; border: 0; background: none; cursor: zoom-in; }
     .popup-photo.contain, .rec-item-photo.contain { object-fit: contain; background: #e9e8e3; }
+    /* A video plays where a cover would be. Its box is sized before
+       anything loads (the poster's own proportions in a card, a fixed
+       height in a popup), so neither the list nor a popup jumps. */
+    .vpc video { display: block; width: 100%; background: #121212; object-fit: contain; }
+    .vpc.card-video { margin-bottom: 8px; }
+    .vpc.card-video video { max-height: 420px; border-radius: var(--radius-sm); }
+    .vpc.popup-video video { height: 200px; }
+    @media (max-height: 560px) { .vpc.popup-video video { height: 110px; } }
+    .mapboxgl-popup-content:has(.popup-video) .mapboxgl-popup-close-button {
+      background: rgba(0,0,0,.55); color: #fff;
+      width: 24px; height: 24px; border-radius: 50%; line-height: 22px; z-index: 1;
+    }
     .photo-count {
       position: absolute; right: 8px; bottom: 8px; padding: 3px 7px; border-radius: 2px;
       background: rgba(18,18,18,.78); color: #f3f3f1; font-size: 9px; letter-spacing: .12em;
@@ -972,8 +995,10 @@
     .kind-pick button + button { border-left: 1px solid var(--primary); }
     .kind-pick button[aria-checked="true"] { background: var(--primary); color: var(--header-bg); }
     .form-card:not([data-kind="sound"]) .only-sound,
+    .form-card:not([data-kind="video"]) .only-video,
     .form-card:not([data-kind="text"]) .only-text,
-    .form-card[data-kind="text"] .not-text { display: none; }
+    .form-card[data-kind="text"] .not-text,
+    .form-card[data-kind="video"] .not-video { display: none; }
     .photo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(76px, 1fr)); gap: 8px; margin-top: 10px; }
     .photo-grid:empty { display: none; }
     .photo-grid figure { position: relative; margin: 0; aspect-ratio: 1; border: 1px solid rgba(18,18,18,.25); border-radius: 4px; overflow: hidden; background: #e9e8e3; }
@@ -1184,7 +1209,7 @@
   <!-- The archive's List side -->
   <div class="archive" id="archive-panel">
     <div class="archive-col">
-      <p class="archive-intro" data-i18n="archive.intro">Kho lưu trữ nhận âm thanh, ảnh chụp, bức vẽ và bài viết, mỗi thứ được đặt vào đúng nơi của nó.</p>
+      <p class="archive-intro" data-i18n="archive.intro">Kho lưu trữ nhận âm thanh, ảnh chụp, bức vẽ, video và bài viết, mỗi thứ được đặt vào đúng nơi của nó.</p>
       <div class="archive-places">
         <button type="button" class="archive-home" id="archive-home" aria-pressed="true">
           <small data-i18n="archive.homeSmall">Bộ sưu tập từ nơi chúng tôi sống</small><strong data-i18n="archive.homeName">SÀI GÒN</strong>
@@ -1201,9 +1226,10 @@
       </div>
       <div class="archive-filter" id="kind-filter-box" hidden>
         <select id="kind-filter" data-i18n-attr="aria-label:archive.kindAria" aria-label="Lọc kho lưu trữ theo loại">
-          <option value="" data-i18n="archive.allKinds">Âm thanh, hình ảnh và bài viết</option>
+          <option value="" data-i18n="archive.allKinds">Âm thanh, hình ảnh, video và bài viết</option>
           <option value="sound" data-i18n="kinds.sound">Âm thanh</option>
           <option value="image" data-i18n="kinds.image">Hình ảnh</option>
+          <option value="video" data-i18n="kinds.video">Video</option>
           <option value="text" data-i18n="kinds.text">Bài viết</option>
         </select>
       </div>
@@ -1234,13 +1260,14 @@
   <div class="form-card" id="form-card" data-kind="sound" data-face="sound">
     <button class="form-close" id="form-close" data-i18n-attr="aria-label:close" aria-label="Đóng">&times;</button>
     <h2><span class="face-sound" data-i18n="form.heading.sound">Bản ghi âm mới</span><span class="face-archive" data-i18n="form.heading">Thêm vào kho lưu trữ</span></h2>
-    <p class="form-subtitle"><span class="face-sound" data-i18n="form.subtitle.sound">Ghi lại một âm thanh và đặt lên bản đồ</span><span class="face-archive" data-i18n="form.subtitle">Một âm thanh, một hình ảnh hay một bài viết, đặt vào đúng nơi của nó</span></p>
+    <p class="form-subtitle"><span class="face-sound" data-i18n="form.subtitle.sound">Ghi lại một âm thanh và đặt lên bản đồ</span><span class="face-archive" data-i18n="form.subtitle">Một âm thanh, một hình ảnh, một video hay một bài viết, đặt vào đúng nơi của nó</span></p>
 
     <!-- What leads this contribution. Values live in data attributes:
          auto-translate rewrites button text, never attributes. -->
     <div class="kind-pick face-archive" id="kind-pick" role="radiogroup" data-i18n-attr="aria-label:form.kindAria" aria-label="Bạn đang thêm gì?">
       <button type="button" role="radio" data-kind="sound" aria-checked="true" data-i18n="kind.sound">Âm thanh</button>
       <button type="button" role="radio" data-kind="image" aria-checked="false" data-i18n="kind.image">Hình ảnh</button>
+      <button type="button" role="radio" data-kind="video" aria-checked="false" data-i18n="kind.video">Video</button>
       <button type="button" role="radio" data-kind="text" aria-checked="false" data-i18n="kind.text">Bài viết</button>
     </div>
     <!-- What files this kind takes, and nothing the server would refuse. -->
@@ -1268,7 +1295,17 @@
         </div>
         <input type="file" id="audio-file" accept="audio/*,.webm,.mp3,.m4a,.mp4,.ogg,.wav" hidden>
       </div>
-      <div class="fg">
+      <div class="fg only-video">
+        <label id="video-file-label" data-i18n="form.videoFile">Video *</label>
+        <!-- No `capture`: a phone then offers its library, its camera and
+             its files from the one button. -->
+        <div class="loc-row">
+          <button type="button" class="loc-btn" id="video-file-btn" aria-describedby="video-file-label video-file-name" data-i18n="form.videoFileBtn">Chọn video</button>
+          <span class="audio-file-name" id="video-file-name" aria-live="polite"></span>
+        </div>
+        <input type="file" id="video-file" accept="video/*,.mp4,.mov,.m4v,.webm" hidden>
+      </div>
+      <div class="fg not-video">
         <label id="photo-label"></label>
         <div class="loc-row">
           <button type="button" class="loc-btn" id="photo-camera-btn" data-i18n="form.takePhoto">Chụp ảnh</button>
@@ -1321,7 +1358,7 @@
         <button type="submit" class="btn btn-primary" id="form-submit"></button>
       </div>
       <!-- The recording form's one way to the archive's form. -->
-      <p class="face-sound form-exit"><button type="button" id="form-to-archive" data-i18n="form.toArchive">Không có âm thanh — chỉ có ảnh, bức vẽ hay bài viết? Thêm vào kho lưu trữ</button></p>
+      <p class="face-sound form-exit"><button type="button" id="form-to-archive" data-i18n="form.toArchive">Không có âm thanh — chỉ có ảnh, bức vẽ, video hay bài viết? Thêm vào kho lưu trữ</button></p>
     </form>
   </div>
 </div>
@@ -1340,7 +1377,7 @@
     <p data-i18n="welcome.p1">Dự án này khám phá đời sống đô thị thường ngày qua môi trường của thành phố: một môi trường vừa được xây nên, vừa được cảm nhận bằng các giác quan, vừa được lắng nghe qua âm thanh.</p>
     <p class="in-sound" data-i18n="welcome.p2">Bản đồ âm thanh mời bạn chậm lại, lắng nghe và để ý đến những âm thanh luôn đổi thay của vùng đất này. Nhấn vào một chấm tròn để nghe; nhấn nút Bản ghi âm mới để thêm một âm thanh từ nơi bạn đang ở.</p>
     <p class="in-sound" data-i18n="welcome.p3">Ảnh chụp, bức vẽ và bài viết được đưa vào kho lưu trữ, mỗi thứ được đặt vào đúng nơi của nó. Chỉ cần nhấn nút Lưu trữ để mở.</p>
-    <p class="in-archive" data-i18n="welcome.p2.archive">Kho lưu trữ giữ âm thanh, ảnh chụp, bức vẽ và bài viết, mỗi thứ được đặt vào đúng nơi của nó. Nhấn vào một thẻ hoặc một chấm tròn để mở; nhấn nút Thêm vào kho lưu trữ để đặt nội dung của bạn.</p>
+    <p class="in-archive" data-i18n="welcome.p2.archive">Kho lưu trữ giữ âm thanh, ảnh chụp, bức vẽ, video và bài viết, mỗi thứ được đặt vào đúng nơi của nó. Nhấn vào một thẻ hoặc một chấm tròn để mở; nhấn nút Thêm vào kho lưu trữ để đặt nội dung của bạn.</p>
     <p class="in-archive" data-i18n="welcome.p3.archive">Chỉ muốn nghe âm thanh? Nhấn nút Bản đồ âm thanh ở phía trên.</p>
     <p data-i18n="welcome.p4">Đây là một kho lưu trữ mở và vẫn đang hình thành — hãy khám phá và đóng góp trên tinh thần tôn trọng. Khi ghi âm, chụp ảnh hay vẽ ở nơi công cộng hoặc bán công cộng, xin hãy lưu tâm đến bối cảnh xung quanh, đến môi trường cùng mọi sự sống và cách sống gắn với các không gian ấy, và xin phép trước khi chụp cận cảnh người khác.</p>
     <p class="welcome-hint" data-i18n="welcome.hint">Nhấn vào bất kỳ đâu bên ngoài để bắt đầu</p>
@@ -1628,10 +1665,10 @@
   // texts (stories, poems). Documents from before the living archive have
   // no kind: they are all sounds.
   // The words for each kind are in the dictionary: kind.<k>, kinds.<k>.
-  const KINDS = { sound: {}, image: {}, text: {} };
+  const KINDS = { sound: {}, image: {}, video: {}, text: {} };
   function kindOf(r) {
     if (KINDS[r.kind]) return r.kind;
-    return r.audioUrl ? 'sound' : entryImages(r).length ? 'image' : 'text';
+    return r.audioUrl ? 'sound' : r.videoUrl ? 'video' : entryImages(r).length ? 'image' : 'text';
   }
   // Every image of an entry, cover first. Older recordings have a single
   // photo in imageUrl and no thumbnail.
@@ -1659,12 +1696,24 @@
   // Cover image; a tap opens the viewer. Drawings are contained, never
   // cropped — a recording's photo keeps filling its frame as before.
   function coverHTML(r, imgClass, btnClass) {
+    if (kindOf(r) === 'video') return videoHTML(r, btnClass === 'popup-cover' ? 'popup-video' : 'card-video');
     const imgs = entryImages(r);
     if (!imgs.length) return '';
     const contain = kindOf(r) === 'sound' ? '' : ' contain';
     return `<button type="button" class="${btnClass}" data-view="${esc(r.id)}" aria-label="${esc(t('cover.aria', { title: displayTitle(r) }))}">` +
       `<img class="${imgClass}${contain}" src="${esc(thumbOf(imgs[0]))}" alt="" loading="lazy">` +
       (imgs.length > 1 ? `<span class="photo-count">${esc(t('cover.count', { n: imgs.length }))}</span>` : '') + `</button>`;
+  }
+  // A video plays in place, in its card or popup: nothing loads before
+  // play is pressed (preload none — 24 cards must not start 24 downloads),
+  // its poster frame stands in until then. The poster's proportions are
+  // the video's, so a card holds its final height from the start.
+  function videoHTML(r, cls) {
+    const poster = entryImages(r)[0];
+    const ratio = poster && poster.width > 0 && poster.height > 0 ? ` style="aspect-ratio:${poster.width}/${poster.height}"` : '';
+    return `<div class="vpc ${cls}" data-rec="${esc(r.id)}" data-title="${esc(displayTitle(r))}">` +
+      `<video controls playsinline preload="none"${poster ? ` poster="${esc(thumbOf(poster))}"` : ''} src="${esc(r.videoUrl)}"${ratio}` +
+      ` aria-label="${esc(t('video.aria', { title: displayTitle(r) }))}"></video></div>`;
   }
   function openBtnHTML(r) {
     const n = entryImages(r).length;
@@ -1911,8 +1960,26 @@
     markersById[id]?.getElement().classList.toggle('sounding', isSounding(id));
   }
 
+  // A video is a player like the others: playing one stops any sound or
+  // other video (and a sound started later stops it), its marker is ringed,
+  // and a popup or card holding it survives a refresh of the map or list.
+  function attachVideoPlayer(wrap) {
+    const v = wrap._audio = wrap.querySelector('video');
+    if (!v) return;
+    const id = wrap.dataset.rec;
+    v.onplay = () => {
+      soundingPlayers.forEach(p => { if (p !== wrap) p._audio.pause(); });
+      soundingPlayers.add(wrap); markSounding(id);
+    };
+    v.onpause = v.onended = () => { soundingPlayers.delete(wrap); markSounding(id); };
+    // WebKit stays 'playing' when the file fails to load: pause it, so the
+    // pause above runs and the player is let go.
+    v.onerror = () => v.pause();
+  }
   // A player's words, for one carried across a language switch.
   function labelPlayer(wrap) {
+    const video = wrap.querySelector('video');
+    if (video && wrap.dataset.title) video.setAttribute('aria-label', t('video.aria', { title: wrap.dataset.title }));
     wrap.querySelector('.apc-btn')?.setAttribute('aria-label', t('player.playPause'));
     const loop = wrap.querySelector('.apc-loop');
     if (loop) { loop.setAttribute('aria-label', t('player.loop')); loop.title = t('player.loop'); }
@@ -1923,6 +1990,7 @@
   function attachAudioPlayer(wrap) {
     if (wrap._attached) return;
     wrap._attached = true;
+    if (wrap.classList.contains('vpc')) return attachVideoPlayer(wrap);
     const audio = wrap._audio = wrap.querySelector('audio'); // held: it may be parked in audioDock
     const btn   = wrap.querySelector('.apc-btn');
     const now   = wrap.querySelector('.apc-now');
@@ -2303,7 +2371,7 @@
       lastPayload = text;
       // `recordings` holds every contribution — sounds, images and texts.
       recordings = list.filter(r => r && typeof r.latitude === 'number' && typeof r.longitude === 'number' &&
-        (r.audioUrl || entryImages(r).length || (r.body || '').trim()))
+        (r.audioUrl || r.videoUrl || entryImages(r).length || (r.body || '').trim()))
         .map(r => ({ ...r, category: CAT_ALIASES[r.category] || r.category }));
       $('count-badge').textContent = recordings.length;   // every kind: what the door opens
       const present = Views.kindsPresent(recordings.map(kindOf)).join();
@@ -2359,6 +2427,9 @@
     if (kind === 'text') {
       const m = s / 2, r = m - lw;
       ctx.moveTo(m, m - r); ctx.lineTo(m + r, m); ctx.lineTo(m, m + r); ctx.lineTo(m - r, m); ctx.closePath();
+    } else if (kind === 'video') {
+      const inset = 2 * SHAPE_RATIO;
+      ctx.moveTo(inset + lw, inset); ctx.lineTo(s - inset, s / 2); ctx.lineTo(inset + lw, s - inset); ctx.closePath();
     } else {
       const inset = 2 * SHAPE_RATIO;
       ctx.rect(inset, inset, s - 2 * inset, s - 2 * inset);
@@ -2434,12 +2505,13 @@
         'circle-stroke-width': 1.5,
       },
     });
-    // Lone images and texts keep their shape too — square, diamond — drawn
+    // Lone images, videos and texts keep their shape too — square,
+    // triangle, diamond — drawn
     // per category colour the first time the map asks for one.
     if (!shapeImagesWired) {
       shapeImagesWired = true;
       map.on('styleimagemissing', e => {
-        const m = /^shape-(image|text)-(.*)$/.exec(e.id);
+        const m = /^shape-(image|video|text)-(.*)$/.exec(e.id);
         if (!m || map.hasImage(e.id)) return;
         const color = /^#[0-9a-f]{6}$/i.test(m[2]) ? m[2] : '#8B9195';
         map.addImage(e.id, drawShape(m[1], color), { pixelRatio: SHAPE_RATIO });
@@ -2524,7 +2596,7 @@
             ${authorHTML(r)}
             ${entryTextHTML(r, 200)}
             <span class="popup-tag" style="background:${color}">${esc(catLabel(cat))}</span>${kindTagHTML(r)}${recDateHTML(r)}${shareBtnHTML(r)}
-            ${kindOf(r) === 'sound' ? audioPlayerHTML(r.audioUrl, audioType(r.audioUrl), r.title, r.id, r.duration) : openBtnHTML(r)}
+            ${kindOf(r) === 'sound' ? audioPlayerHTML(r.audioUrl, audioType(r.audioUrl), r.title, r.id, r.duration) : kindOf(r) === 'video' ? '' : openBtnHTML(r)}
           </div>
         `;
   }
@@ -2544,7 +2616,7 @@
     // sound — or, for a docked loop, leave it playing with its controls
     // gone. Triggers include the 2-minute refresh whenever anyone uploads.
     const soundingIds = new Set([...soundingPlayers]
-      .filter(w => w.closest('.popup-inner')).map(w => w.dataset.rec));
+      .filter(w => w.closest('.popup-inner, .popup-video')).map(w => w.dataset.rec));
     const kept = new Map();
     Object.entries(markersById).forEach(([id, m]) => { if (soundingIds.has(id)) kept.set(id, m); });
     const keptSet = new Set(kept.values());
@@ -2595,7 +2667,7 @@
         // Attach the custom audio-player JS once the popup is in the DOM.
         popup.on('open', () => {
           const el = popup.getElement();
-          if (el) el.querySelectorAll('.apc').forEach(w => { attachAudioPlayer(w); undockAudio(w); popupPlayer.set(popup, w); });
+          if (el) el.querySelectorAll('.apc, .vpc').forEach(w => { attachAudioPlayer(w); undockAudio(w); popupPlayer.set(popup, w); });
           labelPopupClose(popup);
           ensurePopupVisible(popup);
         });
@@ -2827,24 +2899,30 @@
     [...crypto.getRandomValues(new Uint8Array(16))].map(b => b.toString(16).padStart(2, '0')).join('');
   const MAX_IMAGES = 8;
   let draftFile = null, draftKey = newDraftKey(), draftReady = false;
-  let formKind = 'sound';  // what leads the contribution: sound, image or text
+  let formKind = 'sound';  // what leads the contribution: sound, image, video or text
   let photos = [];         // chosen images (File/Blob), in order
+  // The chosen video. Its bytes are kept in the draft store once, when it
+  // is chosen (DraftStore.saveVideo) — not with every save of the words,
+  // which would rewrite up to 50 MB at each pause in typing.
+  let videoFile = null, videoKept = false; // kept: written to this device's draft store
   const draftFields = ['f-title','f-desc','f-body','f-author','f-category','f-lat','f-lng'];
   function draftSnapshot() {
     return { values: Object.fromEntries(draftFields.map(id => [id, $(id).value])),
       kind: formKind, audio: recordedBlob, file: $('audio-file').files[0] || draftFile,
+      video: videoFile ? { name: videoFile.name || '', size: videoFile.size } : null,
       photos: photos.slice(), key: draftKey };
   }
   // Drafts saved before multi-image uploads kept a single `photo`.
   const draftPhotos = d => d.photos || (d.photo ? [d.photo] : []);
   // A location alone is not a draft. Any map tap fills it, so saving it
   // would "recover" an old pin next time and quietly place a new sound there.
-  const draftHasContent = d => !!(d.audio || d.file || draftPhotos(d).length ||
+  const draftHasContent = d => !!(d.audio || d.file || d.video || draftPhotos(d).length ||
     ['f-title', 'f-desc', 'f-body'].some(id => (d.values?.[id] || '').trim()));
   // What a contribution of this kind cannot do without.
   const draftHasMain = d => ({
     sound: !!(d.audio || d.file),
     image: draftPhotos(d).length > 0,
+    video: !!d.video,
     text:  !!(d.values?.['f-body'] || '').trim(),
   })[KINDS[d.kind] ? d.kind : 'sound'];
   // Saves coalesce: one write at a time, and whatever changed meanwhile is
@@ -2863,15 +2941,22 @@
           if (!draftHasContent(snapshot)) { await DraftStore.clear().catch(() => {}); continue; }
           say($('draft-status'), 'draft.saving');
           await DraftStore.save(snapshot).then(() => {
-            say($('draft-status'), 'draft.saved');
+            say($('draft-status'), videoFile && !videoKept ? 'draft.failed' : 'draft.saved');
           }, () => { say($('draft-status'), 'draft.failed'); });
         }
       } finally { draftWrite = null; }
     })();
   }
-  const draftLoaded = DraftStore.read().then(d => {
+  const draftLoaded = DraftStore.read().then(async d => {
     if (!d) return;
     if (!draftHasContent(d)) return DraftStore.clear().catch(() => {}); // location-only drafts saved before this rule
+    // The video stored apart is taken only when it is the one this draft
+    // names; one missing (its write failed) leaves the draft without it.
+    if (d.video) {
+      const v = await DraftStore.readVideo().catch(() => null);
+      if (v && v.size === d.video.size && (v.name || '') === (d.video.name || '')) { videoFile = v; videoKept = true; }
+      else d = { ...d, video: null };
+    }
     // Restore the location only together with what it locates — the sound
     // recorded there, the images, the text. Without one, the saved pin was
     // just an old map tap.
@@ -2885,9 +2970,10 @@
     setKind(KINDS[d.kind] ? d.kind : 'sound', true);
     if (recordedBlob) { $('rec-play').disabled = false; say($('rec-status'), 'rec.recovered'); }
     if (draftFile) say($('draft-status'), 'draft.recoveredFile', { name: draftFile.name });
+    else if (videoFile) say($('draft-status'), 'draft.recoveredFile', { name: videoFile.name || 'video' });
     else if (recordedBlob) say($('draft-status'), 'draft.recoveredRec');
     else say($('draft-status'), 'draft.recovered');
-    showAudioFileName();
+    showAudioFileName(); showVideoFileName();
     renderPhotos(); updateLocStatus();
   }).catch(() => { say($('draft-status'), 'draft.unavailable'); })
     .finally(() => { draftReady = true; });
@@ -2936,7 +3022,7 @@
     if (mediaRecorder?.state === 'recording') {
       await new Promise(resolve => { mediaRecorder.addEventListener('stop', resolve, { once: true }); $('rec-stop').click(); });
     }
-    resetRecorder(); draftFile = null; draftKey = newDraftKey();
+    resetRecorder(); draftFile = null; clearVideo(); draftKey = newDraftKey();
     $('upload-form').reset(); clearPhotos(); updateLocStatus();
     await DraftStore.clear().then(() => { say($('draft-status'), 'draft.discarded'); },
       () => { say($('draft-status'), 'draft.discardFailed'); });
@@ -3028,6 +3114,62 @@
   }
   $('audio-file-btn').onclick = () => $('audio-file').click();
   $('audio-file').addEventListener('change', showAudioFileName);
+  // Outside iOS this chooser still takes an .mp4 — a voice memo can be
+  // one — so a video picked here is kept as a sound. Say what happens to it.
+  $('audio-file').addEventListener('change', () => {
+    if (/^video\//.test($('audio-file').files[0]?.type || '')) toast(t('audio.videoNote'));
+  });
+
+  // The video. Too long or too large is said at once, not after minutes
+  // of uploading; the server checks both again.
+  const VIDEO_MAX_BYTES = 50 * 1024 * 1024, VIDEO_MAX_SECONDS = 60;
+  function showVideoFileName() {
+    $('video-file-name').textContent = videoFile
+      ? `${videoFile.name || 'video'} · ${(videoFile.size / 1048576).toFixed(1)} MB` : '';
+  }
+  // Each pick (and each clear) has its number: a slow length check that
+  // finishes after a newer pick, a discard or a sent upload is dropped.
+  let videoPick = 0;
+  function clearVideo() { videoPick++; videoFile = null; videoKept = false; showVideoFileName(); }
+  // Its length from its own metadata; null when this browser cannot read
+  // it (a format it does not play) — the server decides then.
+  function videoSeconds(file) {
+    return new Promise(resolve => {
+      const v = document.createElement('video'), url = URL.createObjectURL(file);
+      let settled = false;
+      const done = sec => {
+        if (settled) return; settled = true;
+        URL.revokeObjectURL(url); v.removeAttribute('src'); v.load();
+        resolve(Number.isFinite(sec) && sec > 0 ? sec : null);
+      };
+      v.preload = 'metadata'; v.muted = true;
+      v.onloadedmetadata = () => done(v.duration);
+      v.onerror = () => done(null);
+      setTimeout(() => done(null), 8000);
+      v.src = url;
+    });
+  }
+  async function setVideo(file) {
+    const pick = ++videoPick;
+    // Rounded up: a refused file never reads as exactly the limit.
+    if (file.size > VIDEO_MAX_BYTES) { toast(t('video.tooBig', { mb: Math.ceil(file.size / 1048576) })); return; }
+    const sec = await videoSeconds(file);
+    if (pick !== videoPick) return;
+    if (sec !== null && sec > VIDEO_MAX_SECONDS + 0.5) { toast(t('video.tooLong', { n: Math.round(sec) })); return; }
+    videoFile = file; videoKept = false; showVideoFileName();
+    // A failed write (a full or private-mode store) is said, as for any
+    // other draft: the video would not be there after a reload.
+    const kept = await DraftStore.saveVideo(file).then(() => true, () => false);
+    if (pick === videoPick) videoKept = kept;
+    void saveDraft();
+  }
+  $('video-file-btn').onclick = () => $('video-file').click();
+  // Read, then empty the input, so choosing the same file again still fires.
+  $('video-file').onchange = () => {
+    const f = $('video-file').files[0];
+    $('video-file').value = '';
+    if (f) void setVideo(f);
+  };
   // reset() empties the input after its event: read it once that is done.
   $('upload-form').addEventListener('reset', () => setTimeout(showAudioFileName));
   $('photo-camera-btn').onclick  = () => $('image-camera').click();
@@ -3154,6 +3296,12 @@
   // sound file goes to the recording slot (kind Sound) and the rest to the
   // images. A dropped file never navigates away from the page.
   const onFileInput = e => e.target instanceof Element && !!e.target.closest('input[type=file]');
+  // Browsers type a dropped .webm or .mp4 as video even when it holds only
+  // sound. On the sound map, and under Sound in the archive, such a file is
+  // a sound (as with the chooser, which says so if it really is a video);
+  // otherwise in the archive a file the browser calls video goes to Video.
+  const isVideo = f => /^video\//.test(f.type) || /\.(mov|m4v|3gp)$/i.test(f.name || '') ||
+    (formKind === 'video' && !f.type && /\.(mp4|webm)$/i.test(f.name || ''));
   const isAudio = f => /^audio\//.test(f.type) || /\.(mp3|m4a|mp4|wav|ogg|oga|webm|aac|flac)$/i.test(f.name || '');
   $('form-overlay').addEventListener('dragover', e => {
     if (!onFileInput(e) && [...(e.dataTransfer?.types || [])].includes('Files')) e.preventDefault();
@@ -3162,6 +3310,14 @@
     if (onFileInput(e) || !e.dataTransfer?.files?.length) return;
     e.preventDefault();
     let files = [...e.dataTransfer.files];
+    // In the archive's form a dropped video goes to Video.
+    const video = $('form-card').dataset.face === 'archive' &&
+      files.find(f => isVideo(f) && !(formKind === 'sound' && isAudio(f)));
+    if (video) {
+      files = files.filter(f => f !== video);
+      if (formKind !== 'video') setKind('video');
+      void setVideo(video);
+    }
     const audio = formKind === 'sound' && files.find(isAudio);
     if (audio) {
       try {
@@ -3190,6 +3346,7 @@
     if (!title) { toast(t('v.title')); return; }
     if (kind === 'text' && !body.trim()) { toast(t('v.text')); return; }
     if (kind === 'image' && !photos.length) { toast(t('v.image')); return; }
+    if (kind === 'video' && !videoFile) { toast(t('v.video')); return; }
     if (!cat)   { toast(t('v.category')); return; }
     if (!$('f-lat').value || !$('f-lng').value) {
       toast(t('v.location'));
@@ -3201,6 +3358,8 @@
     // poem disappears that way.
     const left = [];
     if (kind !== 'sound' && (recordedBlob || mediaRecorder?.state === 'recording' || $('audio-file').files[0] || draftFile)) left.push('sound');
+    if (kind !== 'video' && videoFile) left.push('video');
+    if (kind === 'video' && photos.length) left.push('images');
     if (kind !== 'text' && $('f-body').value.trim()) left.push('text');
     if (kind === 'text' && $('f-desc').value.trim()) left.push('description');
     if (left.length && !confirm(t('left.confirm', { parts: left.map(w => t('left.' + w)).join(t('left.and')), kind: t(`kind.${kind}.lower`) }))) return;
@@ -3251,10 +3410,13 @@
     fd.append('category', cat);
     fd.append('latitude', $('f-lat').value);
     fd.append('longitude', $('f-lng').value);
+    // The video last, after every word: the largest part of the request.
+    if (kind === 'video') fd.append('videoFile', videoFile, videoFile.name || 'video.mp4');
 
     // Images — downscaled client-side before they travel, one at a time.
     let sentImages = 0, droppedImages = 0, droppedTiff = 0, imageBytes = 0;
-    if (photos.length) {
+    // A video takes no images: its cover is its own first frame.
+    if (photos.length && kind !== 'video') {
       $('loading').classList.add('show');
       for (const [i, f] of photos.entries()) {
         say($('loading-text'), photos.length > 1 ? 'up.preparingN' : 'up.preparing1', { i: i + 1, n: photos.length });
@@ -3275,7 +3437,7 @@
     }
 
     if (cancelled) return stopCancelled();
-    const totalBytes = (blob ? blob.size : 0) + imageBytes;
+    const totalBytes = (blob ? blob.size : 0) + (kind === 'video' ? videoFile.size : 0) + imageBytes;
     // The server refuses one request over 60 MB; say so before sending it.
     if (totalBytes > 59 * 1024 * 1024) {
       toast(t('up.tooLarge'));
@@ -3289,7 +3451,9 @@
     try {
       const conn = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
       const slow = conn && (conn.effectiveType === '2g' || conn.effectiveType === 'slow-2g' || conn.saveData);
-      const big = totalBytes > 5 * 1024 * 1024;
+      // A video is large by nature, and its size was shown when it was
+      // chosen: asking again on every one would be noise.
+      const big = kind !== 'video' && totalBytes > 5 * 1024 * 1024;
       if (slow || big) {
         const reason = slow ? t('up.slow', { type: conn.effectiveType }) : t('up.big');
         const ok = confirm(t('up.headsUp', { reason, mb: sizeMB }));
@@ -3306,7 +3470,12 @@
       const xhr = new XMLHttpRequest();
       window._currentXhr = xhr;
       xhr.open('POST', `${API}/upload`);
-      xhr.timeout = 120000; // 2 min hard timeout per attempt
+      // 2 min per attempt; a video gets 15 — up to 50 MB over a phone
+      // network, then a minute or more of re-encoding on the server.
+      xhr.timeout = kind === 'video' ? 900000 : 120000;
+      // Once a video has gone up, the wait is the server's: say so.
+      let sent = false;
+      if (kind === 'video') xhr.upload.onload = () => { sent = true; say($('loading-text'), 'up.processingVideo'); };
       xhr.upload.onprogress = (e) => {
         if (e.lengthComputable) {
           const pct = Math.round((e.loaded / e.total) * 100);
@@ -3320,7 +3489,7 @@
         // it sent a code for it.
         let msg = xhr.responseText || `HTTP ${xhr.status}`, code;
         try { const b = JSON.parse(xhr.responseText); msg = b.message || msg; code = b.code; } catch {}
-        reject(Object.assign(new Error(msg), { status: xhr.status, code }));
+        reject(Object.assign(new Error(msg), { status: xhr.status, code, sent }));
       };
       xhr.onerror = () => reject(new Error('network'));
       xhr.ontimeout = () => reject(new Error('timeout'));
@@ -3347,6 +3516,9 @@
           if (e.message === 'aborted') break; // don't retry user-cancelled
           // don't retry client errors (4xx) — only network, timeout, or 5xx
           if (e.status >= 400 && e.status < 500) break;
+          // A video the server received and then failed on would fail the
+          // same way again, after another 50 MB from the phone.
+          if (e.sent && e.status) break;
         }
       }
       if (lastErr) throw lastErr;
@@ -3365,7 +3537,7 @@
       // (a keystroke during the upload) then snapshots nothing and clears,
       // instead of storing what was just published under the new key.
       clearTimeout(draftTimer); draftTimer = 0;
-      resetRecorder(); draftFile = null;
+      resetRecorder(); draftFile = null; clearVideo();
       $('upload-form').reset();
       clearPhotos();
       say($('draft-status'), null);
@@ -3487,7 +3659,7 @@
   // built, and never under a card that is playing.
   function showArchiveList() {
     if (!lastPayload || archiveBuiltFrom === lastPayload) return;
-    if ([...$('rec-list').querySelectorAll('audio')].some(a => !a.paused)) return;
+    if ([...$('rec-list').querySelectorAll('audio, video')].some(a => !a.paused)) return;
     updateArchive();
   }
   function setPane(p) {
@@ -3508,6 +3680,10 @@
       // Leaving the archive stops its cards; a loop keeps sounding (as one
       // closed in a popup does) and is there again on return.
       soundingPlayers.forEach(w => { if ($('rec-list').contains(w) && !w._audio.loop) w._audio.pause(); });
+      // A video is the archive's alone: one playing in a map popup stops
+      // too, at once (its pause event comes later), or the rebuild below
+      // would keep its marker on the sound map.
+      soundingPlayers.forEach(w => { if (w.classList.contains('vpc')) { w._audio.pause(); soundingPlayers.delete(w); } });
     }
     if (how !== 'none') {
       try {
@@ -3525,7 +3701,11 @@
     buildFilterChips();
     // Today every entry is a sound, so this is usually skipped and an open
     // popup survives the door.
-    if (render && map && visibleKey() !== before) renderMarkers();
+    // A video marker the archive kept (its popup was playing when a chip
+    // narrowed the map) must not stay on the sound map, even when the
+    // visible ids are unchanged.
+    const strayVideo = mode === 'sound' && recordings.some(r => kindOf(r) === 'video' && markersById[r.id]);
+    if (render && map && (strayVideo || visibleKey() !== before)) renderMarkers();
     if (mode === 'archive' && pane === 'list') showArchiveList();
   }
   // Back to the sound map: through history when the door brought us here,
@@ -3612,12 +3792,17 @@
           ${coverHTML(r, 'rec-item-photo', 'rec-photo-link')}
           <h3>${esc(displayTitle(r))}</h3>
           ${authorHTML(r)}
-          <span class="rec-item-tag">${esc(catLabel(cat))}</span>${kindTagHTML(r)}${recDateHTML(r)}${shareBtnHTML(r)}
+          <span class="rec-item-tag">${esc(catLabel(cat))}</span>${kindTagHTML(r)}${archiveLocation ? '' : `<span class="rec-place">${esc(areaName(archiveLocations.locate(r)))}</span>`}${recDateHTML(r)}${shareBtnHTML(r)}
           ${entryTextHTML(r, 260)}
-          ${sound ? audioPlayerHTML(r.audioUrl, audioType(r.audioUrl), r.title, r.id, r.duration) : openBtnHTML(r)}
+          ${sound ? audioPlayerHTML(r.audioUrl, audioType(r.audioUrl), r.title, r.id, r.duration) : kindOf(r) === 'video' ? '' : openBtnHTML(r)}
         </li>`;
     };
-    const visibleGroups = archiveLocations.group(filtered);
+    // One place: its contributions. All places: one list, newest first,
+    // each card naming its place — grouped by place, the first screen of
+    // "All locations" was Saigon's, identical to the Saigon view.
+    const visibleGroups = archiveLocation ? archiveLocations.group(filtered)
+      : filtered.length ? [{ key: '', recordings: filtered }] : [];
+    const moreLabel = (key, n) => (key ? t('archive.more', { place: areaName(key), n }) : t('archive.moreAll', { n }));
     const pageSize = 24;
     // A player that is sounding (often a loop) is carried over into the
     // rebuilt list instead of being destroyed with its card. It is moved
@@ -3625,19 +3810,19 @@
     // leave the document and never pauses it.
     const sounding = [...soundingPlayers].filter(w => list.contains(w));
     list.innerHTML = visibleGroups.map(g => `
-      <li class="archive-group"><h3>${esc(areaName(g.key))} · ${g.recordings.length}</h3>
+      <li class="archive-group"><h3>${esc(g.key ? `${areaName(g.key)} · ${g.recordings.length}` : t('archive.latest', { n: g.recordings.length }))}</h3>
       <ul>${g.recordings.slice(0, pageSize).map(cardHTML).join('')}</ul>
-      ${g.recordings.length > pageSize ? `<button type="button" class="archive-more" data-location="${esc(g.key)}">${esc(t('archive.more', { place: areaName(g.key), n: g.recordings.length - pageSize }))}</button>` : ''}</li>`).join('') ||
+      ${g.recordings.length > pageSize ? `<button type="button" class="archive-more" data-location="${esc(g.key)}">${esc(moreLabel(g.key, g.recordings.length - pageSize))}</button>` : ''}</li>`).join('') ||
       `<li class="archive-empty">${esc(t('archive.empty'))}</li>`;
 
     sounding.forEach(w => {
-      const fresh = w.dataset.rec && list.querySelector(`.apc[data-rec="${CSS.escape(w.dataset.rec)}"]`);
+      const fresh = w.dataset.rec && list.querySelector(`.${w.classList.contains('vpc') ? 'vpc' : 'apc'}[data-rec="${CSS.escape(w.dataset.rec)}"]`);
       if (fresh) { fresh.replaceWith(w); labelPlayer(w); }
       else w._audio.pause(); // its card is filtered out: nothing left to control it from
     });
 
     // Hook every newly-rendered player
-    list.querySelectorAll('.apc').forEach(attachAudioPlayer);
+    list.querySelectorAll('.apc, .vpc').forEach(attachAudioPlayer);
 
     list.onclick = e => {
       const more = e.target.closest('.archive-more');
@@ -3646,14 +3831,14 @@
         const items = more.previousElementSibling;
         const offset = items.children.length;
         items.insertAdjacentHTML('beforeend', group.recordings.slice(offset, offset + pageSize).map(cardHTML).join(''));
-        [...items.children].slice(offset).forEach(item => item.querySelectorAll('.apc').forEach(attachAudioPlayer));
+        [...items.children].slice(offset).forEach(item => item.querySelectorAll('.apc, .vpc').forEach(attachAudioPlayer));
         const remaining = group.recordings.length - items.children.length;
-        more.textContent = remaining ? t('archive.more', { place: areaName(group.key), n: remaining }) : t('archive.allLoaded');
+        more.textContent = remaining ? moreLabel(group.key, remaining) : t('archive.allLoaded');
         more.disabled = !remaining;
         return;
       }
       const el = e.target.closest('.rec-item');
-      if (!el || e.target.closest('.apc, .rec-photo-link, .share-btn, .entry-open')) return;
+      if (!el || e.target.closest('.apc, .vpc, .rec-photo-link, .share-btn, .entry-open')) return;
       // The rest of a card: to the Map side, where its popup opens on arrival.
       const r = recordings.find(x => x.id === el.dataset.id);
       if (!r) return;
@@ -3848,7 +4033,7 @@
       // another document, and an <audio> adopted into one is reset.
       const words = document.createElement('div');
       words.innerHTML = popupHTML(r);
-      const live = popupPlayer.get(popup), fresh = live && words.querySelector('.apc');
+      const live = popupPlayer.get(popup), fresh = live && words.querySelector('.apc, .vpc');
       if (fresh) { fresh.replaceWith(live); labelPlayer(live); }
       const content = document.createDocumentFragment();
       content.append(...words.childNodes);

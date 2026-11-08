@@ -22,7 +22,7 @@ const plain=v=>JSON.parse(JSON.stringify(v)); // out of the sandbox realm
 test('writes land in the order they were made',async()=>{
  const s=load();
  await Promise.all([s.store.save({v:'a'}),s.store.clear(),s.store.save({v:'b'})]);
- assert.deepEqual(s.log.filter(x=>!x.startsWith('tx')),['put:current','delete:current','put:current']);
+ assert.deepEqual(s.log.filter(x=>!x.startsWith('tx')),['put:current','delete:video','delete:current','put:current']);
  assert.equal(s.data.get('current').v,'b');
 });
 test('an idle, open store starts the write in the same task (pagehide saves)',async()=>{
@@ -89,4 +89,19 @@ test('a page that could not read the store claims no contribution: its words go 
  const next=load({data:first.data,local:first.local}); // and works again on the next
  const d=plain(await next.store.read());delete d.seq;
  assert.deepEqual(d,{values:{t:'typed while storage failed'},key:'k1',photos:['p1','p2']},'media kept, under the stored key');
+});
+
+test('a chosen video is kept once under its own key, read back, and cleared with the draft',async()=>{
+ const data=new Map(),s=load({data});
+ const video={name:'clip.mov',size:3};
+ await s.store.saveVideo(video);
+ await s.store.save({kind:'video',video:{name:'clip.mov',size:3},values:{}});
+ assert.equal(data.get('video'),video);assert.equal(data.get('current').video.name,'clip.mov');
+ // Saving the words again never rewrites the video.
+ const puts=()=>s.log.filter(x=>x==='put:video').length;
+ await s.store.save({kind:'video',video:{name:'clip.mov',size:3},values:{'f-title':'Ferry'}});
+ assert.equal(puts(),1);
+ const next=load({data});assert.equal(await next.store.readVideo(),video);
+ await next.store.clear();assert.equal(data.has('video'),false);assert.equal(data.has('current'),false);
+ assert.equal(await next.store.readVideo(),null);
 });

@@ -33,10 +33,12 @@ function cleanText(value, max, { multiline = false } = {}) {
 }
 
 // Audio always leads: every contribution with sound stays in the
-// listening room, the streets and the Sampler. A text that comes with
-// illustrations stays a text when the contributor said so.
-function entryKind({ hasAudio, imageCount, body, hint }) {
+// listening room, the streets and the Sampler. A video comes next — the
+// form sends one only under Video. A text that comes with illustrations
+// stays a text when the contributor said so.
+function entryKind({ hasAudio, hasVideo = false, imageCount, body, hint }) {
   if (hasAudio) return 'sound';
+  if (hasVideo) return 'video';
   if (hint === 'text' && body) return 'text';
   if (imageCount > 0) return 'image';
   if (body) return 'text';
@@ -46,9 +48,12 @@ function entryKind({ hasAudio, imageCount, body, hint }) {
 // The /api/recordings family serves playable sounds only.
 function isSound(r) { return !!(r && r.audioUrl); }
 
-// Every B2 object an entry owns besides its audio (cover, images, thumbs).
+// Every B2 object an entry owns besides its audio: a video's clip, the
+// cover (a video's poster frame), images, thumbs. The resync never
+// re-links any of these, so whatever deletes an entry deletes them too.
 function imageUrlsOf(r) {
   const urls = new Set();
+  if (r && r.videoUrl) urls.add(r.videoUrl);
   if (r && r.imageUrl) urls.add(r.imageUrl);
   for (const img of (r && r.images) || []) {
     if (img && img.url) urls.add(img.url);

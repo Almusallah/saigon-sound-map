@@ -15,7 +15,7 @@ test('a sound, explicit or by default, needs its audioUrl',()=>{
  assert.equal(new Recording({...base,audioUrl:'x'}).kind,'sound');
 });
 test('kind, body, author and images are bounded',()=>{
- assert.deepEqual(errorsOf({...base,kind:'video',audioUrl:'x'}),['kind']);
+ assert.deepEqual(errorsOf({...base,kind:'gif',audioUrl:'x'}),['kind']);
  assert.deepEqual(errorsOf({...base,kind:'text',body:'x'.repeat(20000)}),[]);
  assert.deepEqual(errorsOf({...base,kind:'text',body:'x'.repeat(20001)}),['body']);
  assert.deepEqual(errorsOf({...base,kind:'text',body:'b',author:'x'.repeat(80)}),[]);
@@ -27,4 +27,13 @@ test('kind, body, author and images are bounded',()=>{
 test('text capped by cleanText always fits the model limits',()=>{
  const author=cleanText('🌸'.repeat(100),LIMITS.author),body=cleanText('😀'.repeat(LIMITS.body+1),LIMITS.body,{multiline:true});
  assert.deepEqual(errorsOf({...base,kind:'text',body,author}),[]);
+});
+
+test('a video needs its clip, never audio; its poster is its cover',()=>{
+ assert.deepEqual(errorsOf({...base,kind:'video'}),['videoUrl']);
+ assert.deepEqual(errorsOf({...base,kind:'video',videoUrl:'https://b2/videos/a.mp4'}),[]);
+ assert.deepEqual(errorsOf({...base,kind:'video',videoUrl:'v',imageUrl:'p',images:[{url:'p',thumbUrl:'pt',width:720,height:1280}]}),[]);
+ assert.ok(Recording.KINDS.includes('video'));
+ // A sound never needs a video, and keeps validating as before.
+ assert.deepEqual(errorsOf({...base,kind:'sound',audioUrl:'a'}),[]);
 });
