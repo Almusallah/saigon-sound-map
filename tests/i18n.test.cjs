@@ -39,7 +39,12 @@ test('Vietnamese is NFC, carries its diacritics, and keeps the project name',()=
 });
 test('the old name lives on only as the former name, in About',()=>{
  for(const lang of ['vi','en'])for(const [k,v] of Object.entries(I18N.STRINGS[lang]))
-  if(k!=='about.p1'&&typeof v==='string')assert.doesNotMatch(v,/Sound Map|SOUND MAP|âm thanh \{name\}/i,`${lang} ${k}`);
+  if(k!=='about.p1'&&typeof v==='string'){
+   // "Sound map" (lower-case m) names the interface; "Sound Map" was the project.
+   assert.doesNotMatch(v,/Sound Map|SOUND MAP/,`${lang} ${k}`);
+   assert.doesNotMatch(v,/Saigon_Miền(?:[ \u00a0]|&nbsp;)Tây Sound|âm thanh \{name\}/i,`${lang} ${k}`);
+  }
+ assert.equal(en['door.sound'],'Sound map');assert.equal(vi['door.sound'],'Bản đồ âm thanh');
  for(const lang of ['vi','en'])assert.match(render(lang,'about.p1'),/2026.*Saigon_Miền&nbsp;Tây Sound Map/,lang);
  assert.match(page,/<title>Ghé Lại Saigon_Miền Tây<\/title>/);assert.match(page,/<h1 id="site-title">GHÉ&nbsp;LẠI SAIGON_MIỀN&nbsp;TÂY<\/h1>/);
  const m=JSON.parse(fs.readFileSync(MANIFEST,'utf8'));assert.equal(m.name,'Ghé Lại Saigon_Miền Tây');assert.equal(m.short_name,'Ghé Lại');
@@ -62,7 +67,7 @@ test('every key the page and server use exists, including the built ones',()=>{
  for(const src of [page,server])for(const m of src.matchAll(/\bt\('([\w.-]+)'/g))used.add(m[1]);
  for(const m of page.matchAll(/\bsay\([^,]+, '([\w.-]+)'/g))used.add(m[1]);
  const kinds=['sound','image','text'];
- kinds.forEach(k=>['kind.'+k,'kinds.'+k,`kind.${k}.lower`,'share.'+k,...['photo','title','desc','submit','pin'].map(f=>`ks.${k}.${f}`)].forEach(x=>used.add(x)));
+ kinds.forEach(k=>['kind.'+k,'kinds.'+k,`kind.${k}.lower`,'share.'+k,...['photo','title','desc','submit','pin','formats'].map(f=>`ks.${k}.${f}`)].forEach(x=>used.add(x)));
  ['image','text','sound'].forEach(k=>used.add('og.'+k));
  ['sound','text','description'].forEach(w=>used.add('left.'+w));
  ['network','timeout','server'].forEach(e=>used.add('err.'+e));

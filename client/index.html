@@ -24,6 +24,9 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
   <meta name="apple-mobile-web-app-title" content="Ghé Lại">
   <link href="https://api.mapbox.com/mapbox-gl-js/v3.24.0/mapbox-gl.css" rel="stylesheet">
+  <!-- Lime accent variant to compare (?accent=a|b|c, "a" otherwise): read
+       once before first paint, never stored, never put in a share link. -->
+  <script>document.documentElement.setAttribute('data-accent', (/[?&]accent=([abc])(?:&|#|$)/.exec(location.search) || [, 'a'])[1]);</script>
   <style>
     /* ── Variables ──────────────────────────────────────────────────── */
     :root {
@@ -389,6 +392,7 @@
     }
     /* Location row inside the upload form */
     .loc-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .audio-file-name { font-size: 12px; color: var(--text-light); overflow-wrap: anywhere; }
     .loc-status {
       flex: 1 1 100%; font-size: 12px;
       color: rgba(18,18,18,.55);
@@ -429,37 +433,20 @@
     @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: .3; } }
 
     /* ── Archive panel ─────────────────────────────────────────────── */
-    /* Location-first archive, with Saigon as the home collection. */
+    /* Location-first archive, with Saigon as the home collection. Since
+       8 Nov 2026 it is the archive's List side: a sheet of paper over the
+       map, under the archive bar, never a drawer. Hidden with visibility,
+       not display, so its scroll, its "Load more" pages and a card that is
+       playing all survive a trip to the Map side and back. */
     .archive {
-      position: fixed; top: 0; right: 0; width: 400px;
-      height: 100%; height: 100dvh; /* see .overlay — phone toolbars */
-      transform: translateX(100%); will-change: transform;
+      position: absolute; top: 44px; left: 0; right: 0; bottom: 0; z-index: 12;
+      overflow-y: auto; visibility: hidden;
       background: var(--header-bg); color: var(--primary);
-      border-left: 1px solid var(--primary);
-      z-index: 999; transition: transform .35s cubic-bezier(.4,0,.2,1);
-      overflow-y: auto; box-shadow: -4px 0 16px rgba(0,0,0,.4);
     }
-    .archive.open { transform: translateX(0); }
-    .archive-head {
-      position: sticky; top: 0; background: var(--header-bg);
-      padding: 18px 20px; display: flex; justify-content: space-between;
-      align-items: center; border-bottom: 1px solid rgba(18,18,18,.25);
-      z-index: 1;
-    }
-    .archive-head h2 {
-      font-size: 18px; font-weight: 700; color: var(--primary);
-      letter-spacing: 0.3px;
-    }
-    .archive-close {
-      background: transparent; border: 1px solid var(--primary);
-      width: 32px; height: 32px; border-radius: 50%;
-      font-size: 18px; cursor: pointer; color: var(--primary);
-      display: flex; align-items: center; justify-content: center;
-      transition: all .2s; line-height: 1;
-    }
-    .archive-close:hover {
-      background: var(--primary); color: var(--header-bg);
-    }
+    body[data-mode="archive"][data-pane="list"] .archive { visibility: visible; }
+    .archive-col { max-width: 680px; margin: 0 auto; }
+    .archive-intro { padding: 18px 16px 2px; font-size: 12px; line-height: 1.6; color: rgba(18,18,18,.72); }
+    .archive .rec-list { padding-bottom: calc(150px + env(safe-area-inset-bottom, 0px)); }
     .archive-search { padding: 12px 16px; }
     .archive-search input {
       width: 100%; padding: 10px 12px 10px 36px;
@@ -835,7 +822,6 @@
       .header-btn { padding: 6px 10px; font-size: 12px; }
       .city-select { padding: 6px 20px 6px 8px; font-size: 12px; max-width: 110px; background-position: right 7px center; }
       .badge { padding: 1px 6px; font-size: 10px; }
-      .archive { width: 100%; }
       .filter-bar { top: 8px; left: 60px; transform: none; max-width: calc(100vw - 70px); font-size: 11px; }
       .fab { bottom: calc(80px + env(safe-area-inset-bottom, 0px)); height: 50px; padding: 0 18px; font-size: 13px; }
       .fab-icon { font-size: 18px; }
@@ -883,7 +869,6 @@
     #initial-loading p { font-size: 11px; font-weight: 500; }
     .mapboxgl-map { font-family: inherit; }   /* Mapbox sets Helvetica on the map; popups follow the page */
     .mapboxgl-popup-content { border-radius: 4px; }
-    .archive-head h2 { font-size: 12px; font-weight: 500; letter-spacing: .2em; text-transform: uppercase; }
     .archive-home { border-radius: 4px; }
     .archive-home strong { font-size: 24px; font-weight: 500; letter-spacing: .06em; }
     .archive-home:focus-visible { outline-color: #121212; }
@@ -1000,9 +985,164 @@
     .photo-note { font-size: 11px; color: var(--text-light); margin-top: 6px; }
     #f-body { min-height: 220px; line-height: 1.7; }
     .rights-note { font-size: 11px; line-height: 1.6; color: #6b6b66; margin-top: 4px; }
+
+    /* ── Two interfaces (8 Nov 2026): the sound map, and the archive a tap away ──
+       body[data-mode] is the interface showing (sound | archive) and
+       body[data-pane] the archive's side (list | map). Never data-view: the
+       viewer opener listens for [data-view] in the capture phase and would
+       swallow every click on the page. */
+    body[data-mode="sound"] :is(#archive-btn .to-sound, .fab-archive),
+    body[data-mode="archive"] :is(#archive-btn .to-archive, .fab-sound) { display: none; }
+    /* The welcome card keeps the words it opened with, even if a shared
+       link then moves the page into the archive under it. */
+    .welcome-overlay[data-mode="sound"] .in-archive,
+    .welcome-overlay[data-mode="archive"] .in-sound { display: none; }
+
+    /* The archive bar: its name, and List | Map. */
+    .archive-bar {
+      display: none; position: absolute; top: 0; left: 0; right: 0; height: 44px; z-index: 13;
+      align-items: center; justify-content: space-between; gap: 12px; padding: 0 12px 0 16px;
+      background: var(--header-bg); border-bottom: 1px solid rgba(18,18,18,.12);
+    }
+    body[data-mode="archive"] .archive-bar { display: flex; }
+    .archive-bar h2 {
+      font-size: 11px; font-weight: 500; letter-spacing: .2em; text-transform: uppercase; color: var(--primary);
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0;
+    }
+    .archive-switch { display: flex; flex: 0 0 auto; border: 1px solid var(--primary); border-radius: 4px; overflow: hidden; }
+    .archive-switch button {
+      min-height: 32px; padding: 0 12px; border: 0; background: transparent; color: var(--primary);
+      font: inherit; font-size: 10px; font-weight: 500; letter-spacing: .12em; text-transform: uppercase; cursor: pointer;
+    }
+    .archive-switch button + button { border-left: 1px solid var(--primary); }
+    .archive-switch button[aria-pressed="true"] { background: var(--primary); color: var(--header-bg); }
+    /* The switch clips its children; the focus ring goes inside. */
+    .archive-switch button:focus-visible { outline-offset: -4px; }
+    .archive-switch button[aria-pressed="true"]:focus-visible { outline-color: var(--header-bg); }
+    /* The map's own controls and the chips step down under the bar. */
+    body[data-mode="archive"] .mapboxgl-ctrl-top-left { top: 44px; }
+    body[data-mode="archive"] .filter-bar { top: 58px; }
+    body[data-mode="archive"][data-pane="list"] .filter-bar { visibility: hidden; }
+    /* Above the list sheet only; on the map the FAB stays under popups (z 11). */
+    body[data-mode="archive"][data-pane="list"] .fab { z-index: 13; }
+    .fab { transition: transform .2s, box-shadow .2s, background-color .2s, color .2s; }
+
+    /* The main button: a record dot on the sound map, a plus in the archive.
+       Glyphs live in CSS so auto-translate can't touch them. */
+    .fab-sound::before {
+      content: ''; display: inline-block; width: 9px; height: 9px; margin-right: 10px;
+      border-radius: 50%; background: currentColor; vertical-align: 0;
+    }
+    .fab-archive::before { content: '+\00a0'; }
+    /* left: 50% leaves the button half the map's width to shrink into; one line, always. */
+    .fab { white-space: nowrap; }
+
+    /* The door to the other interface, in the header. Outlined, so it reads
+       as a button to everyone; it never breaks inside itself. */
+    #archive-btn { opacity: 1; border: 1px solid var(--primary); border-radius: 2px; white-space: nowrap; padding: 8px 10px; }
+    #archive-btn .to-archive::after { content: '\00a0\2192'; }
+    #archive-btn .to-sound::before { content: '\2190\00a0'; }
+    #archive-btn .badge { margin-top: -4px; margin-bottom: -4px; vertical-align: 1px; }
+
+    /* Header: the title, the controls, VI | EN; it wraps at any width rather
+       than squeezing the door. */
+    header { flex-wrap: wrap; row-gap: 8px; }
+    header .header-actions { margin-left: auto; }
+    header .head-lang { margin-left: 12px; }
+
+    /* One form, two faces: the recording form from the sound map, the
+       form for every kind from the archive. */
+    .form-card[data-face="sound"] .face-archive,
+    .form-card[data-face="archive"] .face-sound { display: none; }
+    .kind-formats { margin: -10px 0 18px; font-size: 11px; line-height: 1.6; color: var(--text-light); }
+    .kind-formats:empty { display: none; }
+    .form-exit { margin-top: 22px; padding-top: 14px; border-top: 1px solid rgba(18,18,18,.12); }
+    #form-to-archive {
+      background: none; border: 0; padding: 6px 0; font: inherit; font-size: 12px; line-height: 1.6; text-align: left;
+      color: var(--primary); cursor: pointer; text-decoration: underline; text-underline-offset: 3px;
+      text-decoration-color: rgba(18,18,18,.35);
+    }
+    #form-to-archive::after { content: '\00a0\2192'; }
+
+    /* Satellite lives in the map's control stack, under "find my location". */
+    .map-wrap > #style-toggle { display: none; }
+    .mapboxgl-ctrl-group #style-toggle { display: flex; align-items: center; justify-content: center; color: #333; }
+    .mapboxgl-ctrl-group #style-toggle.active { background-color: rgba(18,18,18,.14); }
+
+    /* A sound that is playing: its dot is ringed while it sounds. */
+    .marker.sounding { box-shadow: 0 0 0 2px #121212, 0 0 0 5px var(--lime, #f3f3f1); }
+
+    @media (max-width: 720px) {
+      /* Row 1: the title and VI | EN. Row 2: city, About, and the door.
+         One row needs about 690px with the Vietnamese labels. */
+      header .logo { order: 0; }
+      header .head-lang { order: 1; margin-left: auto; }
+      header .header-actions { order: 2; margin-left: 0; width: 100%; }
+      #archive-btn { margin-left: auto; }
+    }
+    @media (max-width: 600px) {
+      #archive-btn { padding: 7px 9px; }
+      body[data-mode="archive"] .filter-bar { top: 52px; }
+    }
+    @media (max-width: 360px) {
+      header { padding-left: 12px; padding-right: 12px; }
+      header .header-actions { gap: 4px; }
+      header .header-actions > .header-btn, header .header-actions > #archive-btn { padding-left: 6px; padding-right: 6px; }
+      header .city-select { max-width: 84px; }
+    }
+    @media (max-width: 359px) { #archive-btn .badge { display: none; } }
+
+    /* ── Lime, back as a few strategic inserts (8 Nov 2026) ──────────────
+       Three variants to compare on a phone: ?accent=a | b | c, read once at
+       boot (never stored), "a" otherwise. Paper and ink stay as they are:
+       --primary and --header-bg are never lime, and lime never sits on
+       paper as text or as a line (1.09:1) — always on ink, or as a fill
+       edged in ink. Cluster colours are in CLUSTER_PAINT in the script.
+       a  lime light on ink: the old black pill with lime words, lime rings
+          and numerals on the clusters, lime on whatever is lit.
+       b  highlighter: lime fills edged in ink — the button, what is lit,
+          the clusters.
+       c  black band: the header as one ink strip with the lime wordmark
+          and a lime seam; lime numerals on the clusters. */
+    :root[data-accent] { --lime: #B8FF00; --lime-deep: #9DD600; }
+
+    [data-accent="a"] .fab,
+    [data-accent="a"] .filter-chip.active,
+    [data-accent="a"] .filter-chip.kind-chip[aria-pressed="true"],
+    [data-accent="a"] .archive-switch button[aria-pressed="true"],
+    [data-accent="a"] .btn-primary,
+    [data-accent="a"] .kind-pick button[aria-checked="true"],
+    [data-accent="a"] .archive-home[aria-pressed="true"],
+    [data-accent="a"] .apc-btn,
+    [data-accent="a"] .apc.looping .apc-loop { color: var(--lime); }
+    [data-accent="a"] #count-badge { background: #121212; color: var(--lime); border-color: #121212; }
+
+    [data-accent="b"] .fab { background: var(--lime); color: #121212; box-shadow: inset 0 0 0 1.5px #121212, 0 8px 24px rgba(0,0,0,.16); }
+    [data-accent="b"] .fab:hover { background: var(--lime-deep); box-shadow: inset 0 0 0 1.5px #121212, 0 10px 28px rgba(0,0,0,.22); }
+    [data-accent="b"] .filter-chip.active { background: var(--lime); color: #121212; box-shadow: inset 0 0 0 1px #121212; }
+    [data-accent="b"] .filter-chip.kind-chip[aria-pressed="true"] { background: var(--lime); color: #121212; border-color: #121212; }
+    [data-accent="b"] .archive-switch button[aria-pressed="true"],
+    [data-accent="b"] .kind-pick button[aria-checked="true"],
+    [data-accent="b"] .archive-home[aria-pressed="true"] { background: var(--lime); color: #121212; }
+    [data-accent="b"] .archive-switch button[aria-pressed="true"]:focus-visible { outline-color: #121212; }
+    [data-accent="b"] .btn-primary { background: var(--lime); color: #121212; box-shadow: inset 0 0 0 1.5px #121212; }
+    [data-accent="b"] .btn-primary:hover { background: var(--lime-deep); box-shadow: inset 0 0 0 1.5px #121212; }
+    [data-accent="b"] #count-badge { background: var(--lime); color: #121212; border-color: #121212; }
+
+    [data-accent="c"] header { background: #121212; border-bottom: 2px solid var(--lime); }
+    [data-accent="c"] header h1 { color: var(--lime); }
+    [data-accent="c"] header .header-btn, [data-accent="c"] header .city-select { color: #f3f3f1; }
+    [data-accent="c"] header .lang-switch .header-btn[aria-pressed="true"] { color: var(--lime); opacity: 1; text-decoration-color: var(--lime); }
+    [data-accent="c"] header .lang-switch .header-btn + .header-btn { border-left-color: rgba(243,243,241,.3); }
+    [data-accent="c"] header #archive-btn { color: var(--lime); border-color: var(--lime); }
+    [data-accent="c"] header .badge { color: var(--lime); border-color: rgba(184,255,0,.5); }
+    [data-accent="c"] header .city-select { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23f3f3f1' stroke-width='1.5' fill='none'/%3E%3C/svg%3E"); }
+    [data-accent="c"] header .city-select option { background: #121212; color: #f3f3f1; }
+    [data-accent="c"] header :focus-visible { outline-color: var(--lime); }   /* ink on ink would vanish */
+    [data-accent="c"] .archive-switch button[aria-pressed="true"] { color: var(--lime); }
 </style>
 </head>
-<body>
+<body data-mode="sound" data-pane="list">
 
 <!-- Initial loading splash. Visible on first paint; fades out once the map
      fires its 'load' event (handled in initMap). -->
@@ -1020,42 +1160,91 @@
     <!-- options populated from CITIES at runtime via buildCitySelect() -->
     <select class="city-select" id="city-select" data-i18n-attr="aria-label:city.aria" aria-label="Chuyển bản đồ đến một thành phố"></select>
     <button class="header-btn" id="about-btn" data-i18n="header.about">Giới thiệu</button>
-    <button class="header-btn" id="style-toggle"></button>
-    <button class="header-btn" id="archive-btn"><span data-i18n="header.archive">Lưu trữ</span> <span class="badge" id="count-badge">0</span></button>
-    <!-- Language: Vietnamese first. Each button names its language in that
-         language, so either reader finds theirs. -->
-    <div class="lang-switch" role="group" data-i18n-attr="aria-label:lang.aria" aria-label="Ngôn ngữ">
-      <button type="button" class="header-btn" data-lang="vi" lang="vi" aria-pressed="true" title="Tiếng Việt" aria-label="Tiếng Việt">VI</button>
-      <button type="button" class="header-btn" data-lang="en" lang="en" aria-pressed="false" title="English" aria-label="English">EN</button>
-    </div>
+    <!-- The door between the two interfaces. Its words for each side are
+         shown by body[data-mode]; what it does reads the mode, never them. -->
+    <button type="button" class="header-btn" id="archive-btn"><span class="to-archive"><span data-i18n="header.archive">Lưu trữ</span> <span class="badge" id="count-badge">0</span></span><span class="to-sound" data-i18n="door.sound">Bản đồ âm thanh</span></button>
+  </div>
+  <!-- Language: Vietnamese first. Each button names its language in that
+       language, so either reader finds theirs. -->
+  <div class="lang-switch head-lang" role="group" data-i18n-attr="aria-label:lang.aria" aria-label="Ngôn ngữ">
+    <button type="button" class="header-btn" data-lang="vi" lang="vi" aria-pressed="true" title="Tiếng Việt" aria-label="Tiếng Việt">VI</button>
+    <button type="button" class="header-btn" data-lang="en" lang="en" aria-pressed="false" title="English" aria-label="English">EN</button>
   </div>
 </header>
 
 <div class="map-wrap">
   <div id="map"></div>
 
+  <!-- The archive's bar: its name, and its two sides. -->
+  <div class="archive-bar" id="archive-bar">
+    <h2 data-i18n="archive.title">Kho lưu trữ</h2>
+    <div class="archive-switch" role="group" data-i18n-attr="aria-label:archive.showAria" aria-label="Xem kho lưu trữ dưới dạng"><button type="button" data-show="list" aria-pressed="true" data-i18n="archive.list">Danh sách</button><button type="button" data-show="map" aria-pressed="false" data-i18n="archive.map">Bản đồ</button></div>
+  </div>
+
+  <!-- The archive's List side -->
+  <div class="archive" id="archive-panel">
+    <div class="archive-col">
+      <p class="archive-intro" data-i18n="archive.intro">Kho lưu trữ nhận âm thanh, ảnh chụp, bức vẽ và bài viết, mỗi thứ được đặt vào đúng nơi của nó.</p>
+      <div class="archive-places">
+        <button type="button" class="archive-home" id="archive-home" aria-pressed="true">
+          <small data-i18n="archive.homeSmall">Bộ sưu tập từ nơi chúng tôi sống</small><strong data-i18n="archive.homeName">SÀI GÒN</strong>
+          <span id="archive-home-count"></span>
+        </button>
+      </div>
+      <div class="archive-filter">
+        <label for="archive-location" data-i18n="archive.byLocation">Khám phá theo địa điểm</label>
+        <select id="archive-location"></select>
+        <p class="archive-location-note" data-i18n="archive.locationNote">Các đóng góp ở gần nhau được nhóm theo địa điểm. Miền Tây có bộ sưu tập riêng.</p>
+      </div>
+      <div class="archive-search">
+        <input type="search" id="archive-search-input" data-i18n-attr="aria-label:archive.searchAria;placeholder:archive.searchPh" aria-label="Tìm trong kho lưu trữ tại địa điểm đã chọn" placeholder="Tìm ở địa điểm này…">
+      </div>
+      <div class="archive-filter" id="kind-filter-box" hidden>
+        <select id="kind-filter" data-i18n-attr="aria-label:archive.kindAria" aria-label="Lọc kho lưu trữ theo loại">
+          <option value="" data-i18n="archive.allKinds">Âm thanh, hình ảnh và bài viết</option>
+          <option value="sound" data-i18n="kinds.sound">Âm thanh</option>
+          <option value="image" data-i18n="kinds.image">Hình ảnh</option>
+          <option value="text" data-i18n="kinds.text">Bài viết</option>
+        </select>
+      </div>
+      <div class="archive-filter">
+        <!-- options populated from CATS at runtime via buildCategoryDropdowns() -->
+        <select id="cat-filter" data-i18n-attr="aria-label:archive.catAria" aria-label="Lọc kho lưu trữ theo danh mục"></select>
+      </div>
+      <div class="rec-count" id="rec-count" role="status" aria-live="polite"></div>
+      <ul class="rec-list" id="rec-list"></ul>
+    </div>
+  </div>
+
   <!-- Category filter chips -->
   <div class="filter-bar" id="filter-bar">
   </div>
 
-  <!-- Contribute FAB: a sound, an image or a text -->
-  <button class="fab" id="upload-btn" data-i18n="fab">Đóng góp</button>
+  <!-- Satellite / map: moved into the map's control stack by initMap(). -->
+  <button type="button" id="style-toggle" class="style-toggle"><svg aria-hidden="true" viewBox="0 0 20 20" width="18" height="18"><path d="M10 3 2 7l8 4 8-4-8-4ZM2 10l8 4 8-4M2 13l8 4 8-4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg></button>
+
+  <!-- The main button: a new recording on the sound map; anything, in the archive. -->
+  <button type="button" class="fab" id="upload-btn"><span class="fab-sound" data-i18n="fab.sound">Bản ghi âm mới</span><span class="fab-archive" data-i18n="fab.archive">Thêm vào kho lưu trữ</span></button>
 </div>
 
 <!-- Upload form overlay -->
 <div class="overlay" id="form-overlay">
-  <div class="form-card" id="form-card" data-kind="sound">
+  <!-- One form, two faces (data-face): the recording form opened from the
+       sound map, and the form for every kind opened from the archive. -->
+  <div class="form-card" id="form-card" data-kind="sound" data-face="sound">
     <button class="form-close" id="form-close" data-i18n-attr="aria-label:close" aria-label="Đóng">&times;</button>
-    <h2 data-i18n="form.heading">Thêm vào kho lưu trữ</h2>
-    <p class="form-subtitle" data-i18n="form.subtitle">Một âm thanh, một hình ảnh hay một bài viết, đặt vào đúng nơi của nó</p>
+    <h2><span class="face-sound" data-i18n="form.heading.sound">Bản ghi âm mới</span><span class="face-archive" data-i18n="form.heading">Thêm vào kho lưu trữ</span></h2>
+    <p class="form-subtitle"><span class="face-sound" data-i18n="form.subtitle.sound">Ghi lại một âm thanh và đặt lên bản đồ</span><span class="face-archive" data-i18n="form.subtitle">Một âm thanh, một hình ảnh hay một bài viết, đặt vào đúng nơi của nó</span></p>
 
     <!-- What leads this contribution. Values live in data attributes:
          auto-translate rewrites button text, never attributes. -->
-    <div class="kind-pick" id="kind-pick" role="radiogroup" data-i18n-attr="aria-label:form.kindAria" aria-label="Bạn đang thêm gì?">
+    <div class="kind-pick face-archive" id="kind-pick" role="radiogroup" data-i18n-attr="aria-label:form.kindAria" aria-label="Bạn đang thêm gì?">
       <button type="button" role="radio" data-kind="sound" aria-checked="true" data-i18n="kind.sound">Âm thanh</button>
       <button type="button" role="radio" data-kind="image" aria-checked="false" data-i18n="kind.image">Hình ảnh</button>
       <button type="button" role="radio" data-kind="text" aria-checked="false" data-i18n="kind.text">Bài viết</button>
     </div>
+    <!-- What files this kind takes, and nothing the server would refuse. -->
+    <p class="kind-formats face-archive" id="kind-formats"></p>
 
     <div class="recorder only-sound">
       <div class="recorder-label" data-i18n="rec.label">Ghi âm</div>
@@ -1070,8 +1259,14 @@
     <p id="draft-status" role="status" aria-live="polite"></p>
     <form id="upload-form">
       <div class="fg only-sound">
-        <label for="audio-file" data-i18n="form.audioFile">Hoặc chọn một tệp âm thanh</label>
-        <input type="file" id="audio-file" accept="audio/*,.webm,.mp3,.m4a,.mp4,.ogg,.wav">
+        <label id="audio-file-label" data-i18n="form.audioFile">Hoặc tải lên một tệp âm thanh có sẵn</label>
+        <!-- A pill like the photo buttons below, not the browser's dark
+             "Choose file": that one read as THE upload button. -->
+        <div class="loc-row">
+          <button type="button" class="loc-btn" id="audio-file-btn" aria-describedby="audio-file-label audio-file-name" data-i18n="form.audioFileBtn">Chọn tệp âm thanh</button>
+          <span class="audio-file-name" id="audio-file-name" aria-live="polite"></span>
+        </div>
+        <input type="file" id="audio-file" accept="audio/*,.webm,.mp3,.m4a,.mp4,.ogg,.wav" hidden>
       </div>
       <div class="fg">
         <label id="photo-label"></label>
@@ -1098,7 +1293,7 @@
         <label for="f-desc" data-i18n="form.desc">Mô tả</label>
         <textarea id="f-desc" maxlength="4000"></textarea>
       </div>
-      <div class="fg">
+      <div class="fg" id="author-field">
         <label for="f-author" data-i18n="form.author">Tên của bạn hoặc tên được ghi công (không bắt buộc)</label>
         <input type="text" id="f-author" maxlength="80" autocomplete="name" data-i18n-attr="placeholder:form.authorPh" placeholder="Ví dụ: một studio, một nhà thơ, một người ghi âm">
       </div>
@@ -1125,6 +1320,8 @@
         <button type="button" class="btn btn-cancel" id="draft-discard" data-i18n="form.discard">Bỏ bản nháp</button>
         <button type="submit" class="btn btn-primary" id="form-submit"></button>
       </div>
+      <!-- The recording form's one way to the archive's form. -->
+      <p class="face-sound form-exit"><button type="button" id="form-to-archive" data-i18n="form.toArchive">Không có âm thanh — chỉ có ảnh, bức vẽ hay bài viết? Thêm vào kho lưu trữ</button></p>
     </form>
   </div>
 </div>
@@ -1141,8 +1338,10 @@
     <h2 data-i18n-html="welcome.title">Ghé&nbsp;Lại Saigon_Miền&nbsp;Tây</h2>
     <p class="welcome-gloss" data-i18n="welcome.gloss"></p>
     <p data-i18n="welcome.p1">Dự án này khám phá đời sống đô thị thường ngày qua môi trường của thành phố: một môi trường vừa được xây nên, vừa được cảm nhận bằng các giác quan, vừa được lắng nghe qua âm thanh.</p>
-    <p data-i18n="welcome.p2">Tấm bản đồ mời bạn chậm lại và để ý đến bầu không khí của một nơi chốn: âm thanh và ánh sáng, nhà cửa và chất liệu, cả những người đang cùng bạn ở đó. Cùng một nơi, nhưng mỗi lúc có thể mang một cảm giác khác, và mỗi người lại cảm nhận theo cách riêng của mình.</p>
-    <p data-i18n="welcome.p3">Ai cũng có thể đóng góp những gì mình mang về từ một nơi chốn: một bản ghi âm, một tấm ảnh, một bức vẽ hay bản phác thảo, một câu chuyện, một bài thơ — mỗi thứ được đặt vào đúng nơi của nó.</p>
+    <p class="in-sound" data-i18n="welcome.p2">Bản đồ âm thanh mời bạn chậm lại, lắng nghe và để ý đến những âm thanh luôn đổi thay của vùng đất này. Nhấn vào một chấm tròn để nghe; nhấn nút Bản ghi âm mới để thêm một âm thanh từ nơi bạn đang ở.</p>
+    <p class="in-sound" data-i18n="welcome.p3">Ảnh chụp, bức vẽ và bài viết được đưa vào kho lưu trữ, mỗi thứ được đặt vào đúng nơi của nó. Chỉ cần nhấn nút Lưu trữ để mở.</p>
+    <p class="in-archive" data-i18n="welcome.p2.archive">Kho lưu trữ giữ âm thanh, ảnh chụp, bức vẽ và bài viết, mỗi thứ được đặt vào đúng nơi của nó. Nhấn vào một thẻ hoặc một chấm tròn để mở; nhấn nút Thêm vào kho lưu trữ để đặt nội dung của bạn.</p>
+    <p class="in-archive" data-i18n="welcome.p3.archive">Chỉ muốn nghe âm thanh? Nhấn nút Bản đồ âm thanh ở phía trên.</p>
     <p data-i18n="welcome.p4">Đây là một kho lưu trữ mở và vẫn đang hình thành — hãy khám phá và đóng góp trên tinh thần tôn trọng. Khi ghi âm, chụp ảnh hay vẽ ở nơi công cộng hoặc bán công cộng, xin hãy lưu tâm đến bối cảnh xung quanh, đến môi trường cùng mọi sự sống và cách sống gắn với các không gian ấy, và xin phép trước khi chụp cận cảnh người khác.</p>
     <p class="welcome-hint" data-i18n="welcome.hint">Nhấn vào bất kỳ đâu bên ngoài để bắt đầu</p>
   </div>
@@ -1175,42 +1374,6 @@
     <p class="heritage-subtitle">A living archive of sounds shaped by place, history, and migration</p>
     <div class="heritage-tree" id="heritage-tree"></div>
   </div>
-</div>
-
-<!-- Archive panel -->
-<div class="archive" id="archive-panel">
-  <div class="archive-head">
-    <h2 data-i18n="archive.title">Kho lưu trữ</h2>
-    <button class="archive-close" id="archive-close" data-i18n-attr="aria-label:archive.close" aria-label="Đóng kho lưu trữ">&times;</button>
-  </div>
-  <div class="archive-places">
-    <button type="button" class="archive-home" id="archive-home" aria-pressed="true">
-      <small data-i18n="archive.homeSmall">Bộ sưu tập từ nơi chúng tôi sống</small><strong data-i18n="archive.homeName">SÀI GÒN</strong>
-      <span id="archive-home-count"></span>
-    </button>
-  </div>
-  <div class="archive-filter">
-    <label for="archive-location" data-i18n="archive.byLocation">Khám phá theo địa điểm</label>
-    <select id="archive-location"></select>
-    <p class="archive-location-note" data-i18n="archive.locationNote">Các đóng góp ở gần nhau được nhóm theo địa điểm. Miền Tây có bộ sưu tập riêng.</p>
-  </div>
-  <div class="archive-search">
-    <input type="search" id="archive-search-input" data-i18n-attr="aria-label:archive.searchAria;placeholder:archive.searchPh" aria-label="Tìm trong kho lưu trữ tại địa điểm đã chọn" placeholder="Tìm ở địa điểm này…">
-  </div>
-  <div class="archive-filter">
-    <select id="kind-filter" data-i18n-attr="aria-label:archive.kindAria" aria-label="Lọc kho lưu trữ theo loại">
-      <option value="" data-i18n="archive.allKinds">Âm thanh, hình ảnh và bài viết</option>
-      <option value="sound" data-i18n="kinds.sound">Âm thanh</option>
-      <option value="image" data-i18n="kinds.image">Hình ảnh</option>
-      <option value="text" data-i18n="kinds.text">Bài viết</option>
-    </select>
-  </div>
-  <div class="archive-filter">
-    <!-- options populated from CATS at runtime via buildCategoryDropdowns() -->
-    <select id="cat-filter" data-i18n-attr="aria-label:archive.catAria" aria-label="Lọc kho lưu trữ theo danh mục"></select>
-  </div>
-  <div class="rec-count" id="rec-count" role="status" aria-live="polite"></div>
-  <ul class="rec-list" id="rec-list"></ul>
 </div>
 
 <!-- Viewer: one contribution on its own sheet — images to swipe through,
@@ -1251,6 +1414,7 @@
 <script src="/i18n.js"></script>
 <script src="/draft-store.js"></script>
 <script src="/archive-locations.js"></script>
+<script src="/views.js"></script>
 <script>
 (function () {
   'use strict';
@@ -1358,9 +1522,29 @@
     showPointOfInterestLabels: false, showTransitLabels: false };
   let currentStyle = NEUTRAL_STYLE;
   let activeFilter = '';   // category chip
-  let activeKind = '';     // kind toggle: '', 'sound', 'image' or 'text'
-  const matchesFilters = r => (!activeKind || kindOf(r) === activeKind) &&
+  let activeKind = '';     // kind toggle (archive only): '', 'sound', 'image' or 'text'
+  // Two interfaces on one page (8 Nov 2026): `mode` is the sound map
+  // ('sound', the default) or the archive (?view=archive); `pane` is the
+  // archive's List or Map side, never kept in the address. Both are
+  // mirrored on <body data-mode data-pane> for the CSS.
+  // Entries this page load pushed carry its tag: only those may be left
+  // with history.back(), which never crosses into another document (a
+  // reload or a restored tab would otherwise reload the page on Back).
+  const PAGE_LOAD = Math.random().toString(36).slice(2);
+  let mode = Views.pick(location.search);
+  let pane = mode === 'archive' && new URLSearchParams(location.search).get('rec') ? 'map' : 'list';
+  document.body.dataset.mode = mode;
+  document.body.dataset.pane = pane;
+  // The sound map shows sounds only; the archive every kind, or the one toggled.
+  const matchesFilters = r => Views.shows(mode, kindOf(r), activeKind) &&
     (!activeFilter || catInfo(r).cat === activeFilter);
+  // Cluster colours per lime variant (see the accent CSS). Read inside
+  // setupClusters, so they survive the satellite toggle's setStyle.
+  const CLUSTER_PAINT = {
+    a: { fill: '#121212', opacity: 0.92, stroke: '#B8FF00', strokeWidth: 2,   text: '#B8FF00' },
+    b: { fill: '#B8FF00', opacity: 1,    stroke: '#121212', strokeWidth: 1.5, text: '#121212' },
+    c: { fill: '#121212', opacity: 0.92, stroke: '#f3f3f1', strokeWidth: 2,   text: '#B8FF00' },
+  }[document.documentElement.dataset.accent] || { fill: '#121212', opacity: 0.92, stroke: '#B8FF00', strokeWidth: 2, text: '#B8FF00' };
   let mediaRecorder, recordedChunks = [], recordedBlob = null;
 
   const $ = id => document.getElementById(id);
@@ -1550,6 +1734,23 @@
     deepLinkDone = true; // recordings are loaded by now; one attempt only
     const r = recordings.find(x => x.id.startsWith(ref));
     if (!r) return;
+    flyToEntry(r, 16);
+  }
+
+  // Fly to an entry and open its popup on arrival: shared links, and a
+  // card tapped in the archive's list. A chip that hides the entry is
+  // cleared first, or there would be no marker to open.
+  let flyTok = 0;
+  function flyToEntry(r, zoom) {
+    if (!matchesFilters(r)) { activeFilter = ''; activeKind = ''; buildFilterChips(); renderMarkers(); }
+    const tok = ++flyTok;
+    // One popup at a time: an earlier card's (or the sound map's) closes,
+    // as a tap on the map would close it; a looping player is docked by
+    // the popup's close handler and keeps sounding.
+    Object.entries(markersById).forEach(([id, m]) => {
+      const p = m.getPopup();
+      if (id !== r.id && p && p.isOpen()) p.remove();
+    });
     // Open the popup only once the camera has arrived. Mapbox picks the
     // popup's anchor from the marker's screen position at open time, so
     // opening mid-flight anchored it to where the marker used to be —
@@ -1559,11 +1760,12 @@
       if (opened) return;          // once only — never resurrect a popup
       opened = true;               // the visitor has since closed
       clearTimeout(fallback);
+      if (tok !== flyTok) return;  // a later card took over the flight
       // Looked up on arrival: the markers may have been rebuilt mid-flight.
       const m = markersById[r.id];
       if (m && m.getPopup() && !m.getPopup().isOpen()) m.togglePopup();
     };
-    map.flyTo({ center: [r.longitude, r.latitude], zoom: 16 });
+    map.flyTo({ center: [r.longitude, r.latitude], zoom });
     map.once('moveend', openIt);
     // Safety net for a flight that never reports finishing — but it must
     // never fire mid-flight: opening runs ensurePopupVisible, whose panBy
@@ -1599,7 +1801,8 @@
       const seenBottom = vv ? vv.offsetTop + vv.height : window.innerHeight;
       const seenLeft   = vv ? vv.offsetLeft : 0;
       const seenRight  = vv ? vv.offsetLeft + vv.width : window.innerWidth;
-      const top    = Math.max(wrap.top, seenTop);
+      // The archive's bar covers the top of the map.
+      const top    = Math.max(wrap.top + (mode === 'archive' ? $('archive-bar').offsetHeight : 0), seenTop);
       const bottom = Math.min(wrap.bottom, seenBottom);
       const left   = Math.max(wrap.left, seenLeft);
       const right  = Math.min(wrap.right, seenRight);
@@ -1702,6 +1905,12 @@
   }
   document.addEventListener('visibilitychange', syncWakeLock);
 
+  // A sound's map marker is ringed while any of its players sounds.
+  const isSounding = id => !!id && [...soundingPlayers].some(w => w.dataset.rec === id);
+  function markSounding(id) {
+    markersById[id]?.getElement().classList.toggle('sounding', isSounding(id));
+  }
+
   // A player's words, for one carried across a language switch.
   function labelPlayer(wrap) {
     wrap.querySelector('.apc-btn')?.setAttribute('aria-label', t('player.playPause'));
@@ -1747,9 +1956,9 @@
       loop.setAttribute('aria-pressed', String(audio.loop));
       syncWakeLock();
     };
-    audio.onplaying = () => { wrap.classList.remove('loading'); wrap.classList.add('playing'); soundingPlayers.add(wrap); syncWakeLock(); };
-    audio.onpause   = () => { wrap.classList.remove('playing'); wrap.classList.remove('loading'); soundingPlayers.delete(wrap); undockAudio(wrap); syncWakeLock(); };
-    audio.onended   = () => { wrap.classList.remove('playing'); fill.style.width = '0%'; now.textContent = '0:00'; soundingPlayers.delete(wrap); undockAudio(wrap); syncWakeLock(); };
+    audio.onplaying = () => { wrap.classList.remove('loading'); wrap.classList.add('playing'); soundingPlayers.add(wrap); markSounding(wrap.dataset.rec); syncWakeLock(); };
+    audio.onpause   = () => { wrap.classList.remove('playing'); wrap.classList.remove('loading'); soundingPlayers.delete(wrap); markSounding(wrap.dataset.rec); undockAudio(wrap); syncWakeLock(); };
+    audio.onended   = () => { wrap.classList.remove('playing'); fill.style.width = '0%'; now.textContent = '0:00'; soundingPlayers.delete(wrap); markSounding(wrap.dataset.rec); undockAudio(wrap); syncWakeLock(); };
     // Duration updater. The popup case has a race: metadata can finish
     // loading BEFORE attachAudioPlayer runs (since the popup attaches
     // lazily on open), so a one-shot onloadedmetadata listener would
@@ -1794,8 +2003,9 @@
   }
 
   // Use the same browsing areas as Archive: Miền Tây is distinct from Saigon.
+  // Only what the current interface shows: sounds, on the sound map.
   function cityRecordings(name) {
-    return recordings.filter(r => archiveLocations.locate(r) === name);
+    return recordings.filter(r => Views.shows(mode, kindOf(r), '') && archiveLocations.locate(r) === name);
   }
   function cityCount(name) { return cityRecordings(name).length; }
 
@@ -1834,7 +2044,9 @@
     if (announce) {
       archiveLocation = name;
       archiveLocationChosen = true;
-      updateArchive();
+      // The sound map never builds archive cards; an archive already built
+      // follows the city (it is built on the right one when first opened).
+      if (archiveBuiltFrom !== null) updateArchive();
     }
     setCityTitle(name);
     // Animated camera moves are dropped while the style is still loading
@@ -1860,13 +2072,15 @@
       const url = new URL(location);
       if (name === DEFAULT_CITY) url.searchParams.delete('city');
       else url.searchParams.set('city', name);
-      history.replaceState(null, '', url);
+      history.replaceState(history.state, '', url); // keeps the archive's and the viewer's Back entries
     } catch {}
     if (announce) {
       // Don't claim "no recordings yet" while the archive is still loading.
       if (!recordings.length) { toast(cityName(name)); return; }
-      const n = cityCount(name);
-      toast(n ? t('city.count', { name: cityName(name), n }) : t('city.empty', { name: cityName(name) }));
+      const n = cityCount(name), nm = cityName(name);
+      toast(mode === 'sound'
+        ? (n ? t('city.count.sound', { name: nm, n }) : t('city.empty.sound', { name: nm }))
+        : (n ? t('city.count', { name: nm, n }) : t('city.empty', { name: nm })));
     }
   }
 
@@ -1887,12 +2101,16 @@
   // ── Build filter chips ──────────────────────────────────────────
   function buildFilterChips() {
     const bar = $('filter-bar');
-    // Kind toggles first — press the lit one again to show every kind —
-    // then the categories, which apply to every kind alike.
+    // In the archive, kind toggles first — press the lit one again to show
+    // every kind — then the categories, which apply to every kind alike.
+    // Kinds are offered only when two or more have entries; the sound map
+    // has categories only.
     // Rebuilt on a language switch: the lit chips stay lit.
-    bar.innerHTML = Object.keys(KINDS).map(k =>
+    const kinds = mode === 'archive' ? Views.kindsPresent(recordings.map(kindOf)) : [];
+    if (kinds.length < 2 || !kinds.includes(activeKind)) activeKind = '';
+    bar.innerHTML = (kinds.length < 2 ? '' : kinds.map(k =>
         `<button class="filter-chip kind-chip" data-kind="${k}" aria-pressed="${k === activeKind}"><span class="kind-glyph k-${k}" aria-hidden="true"></span>${esc(t('kinds.' + k))}</button>`).join('') +
-      '<span class="filter-sep" aria-hidden="true"></span>' +
+      '<span class="filter-sep" aria-hidden="true"></span>') +
       ['', ...Object.keys(CATS)].map(name =>
         `<button class="filter-chip${name === activeFilter ? ' active' : ''}" data-cat="${esc(name)}">${esc(name ? catLabel(name) : t('filter.all'))}</button>`).join('');
     bar.querySelectorAll('.kind-chip').forEach(chip => {
@@ -1964,6 +2182,17 @@
       fitBoundsOptions: { maxZoom: 16 }
     });
     map.addControl(geolocate, 'top-left');
+    // Satellite / map: an icon under "find my location", out of the header.
+    map.addControl({
+      onAdd() {
+        const box = document.createElement('div');
+        box.className = 'mapboxgl-ctrl mapboxgl-ctrl-group';
+        box.appendChild($('style-toggle'));
+        this.box = box;
+        return box;
+      },
+      onRemove() { this.box.remove(); },
+    }, 'top-left');
     geolocate.on('error', (e) => {
       toast(t('geo.error'));
     });
@@ -1982,7 +2211,7 @@
       // fallback the style may not be ready yet — retry on 'load'
       // (setupClusters is idempotent via its getSource guard).
       try { setupClusters(); } catch (e) { map.once('load', () => { try { setupClusters(); } catch {} }); }
-      loadRecordings();
+      const firstLoad = loadRecordings();
       // Poll only while the tab is actually on screen. A forgotten
       // background tab refreshing every 2 min would keep the Render free
       // instance from ever hitting its 15-min idle timeout — one such tab
@@ -2007,8 +2236,16 @@
           il.classList.add('gone');
           setTimeout(() => il.remove(), 600);
         }
-        // Show the welcome modal right after the loading splash fades.
-        showWelcome();
+        // Show the welcome modal right after the loading splash fades. A
+        // shared link may move the page into the archive once the data is
+        // in: wait for it (briefly) so the card names the right buttons.
+        const waitFor = new URLSearchParams(location.search).get('rec')
+          ? Promise.race([firstLoad, new Promise(r => setTimeout(r, 2500))]) : null;
+        if (waitFor) waitFor.then(() => {
+          const busy = ['form-overlay', 'about-overlay', 'heritage-overlay'].some(id => $(id)?.classList.contains('open'))
+            || !$('viewer').hidden || pinMode;
+          if (!busy) showWelcome();
+        }); else showWelcome();
       }, 400);
     };
     map.on('load', boot);
@@ -2038,13 +2275,16 @@
         pinMode = false;
         openForm();
       } else {
-        toast(t('map.locationSet'));
+        toast(mode === 'sound' ? t('map.locationSet.sound') : t('map.locationSet.archive'));
       }
     });
   }
 
   // ── Load & render ───────────────────────────────────────────────
   let lastPayload = null;
+  // The kinds the chips were last built for, and the payload the archive's
+  // cards were last built from (null: never built, as on the sound map).
+  let kindsShown = '', archiveBuiltFrom = null;
   async function loadRecordings() {
     try {
       let res = await fetch(`${API}/entries`);
@@ -2065,7 +2305,9 @@
       recordings = list.filter(r => r && typeof r.latitude === 'number' && typeof r.longitude === 'number' &&
         (r.audioUrl || entryImages(r).length || (r.body || '').trim()))
         .map(r => ({ ...r, category: CAT_ALIASES[r.category] || r.category }));
-      $('count-badge').textContent = recordings.length;
+      $('count-badge').textContent = recordings.length;   // every kind: what the door opens
+      const present = Views.kindsPresent(recordings.map(kindOf)).join();
+      if (present !== kindsShown) { kindsShown = present; buildFilterChips(); }
       if (!archiveLocationChosen) {
         const params = new URLSearchParams(location.search);
         const linked = params.get('rec') && recordings.find(r => r.id.startsWith(params.get('rec')));
@@ -2073,11 +2315,23 @@
         archiveLocation = linked ? archiveLocations.locate(linked) : city || DEFAULT_CITY;
         archiveLocationChosen = true;
       }
+      // A shared image or text lives in the archive: switch to its Map side
+      // (in place — Back still leaves as before) so its marker exists when
+      // the link opens it. A shared sound stays where it is.
+      if (!deepLinkDone) {
+        const ref = new URLSearchParams(location.search).get('rec');
+        const linked = ref && recordings.find(r => r.id.startsWith(ref));
+        if (linked && Views.forLink(mode, kindOf(linked)) !== mode) setMode('archive', { history: 'replace', pane: 'map', render: false });
+        else if (linked && mode === 'archive') setPane('map');
+      }
       // The open archive is deliberately not rebuilt here: during a walk or
       // a live listening room the data changes on nearly every refresh,
       // and a rebuild resets paused players, "Load more" pages and the
       // scroll position. It picks up new recordings each time it opens.
       renderMarkers();
+      // ...except the first time: an archive opened before the data arrived
+      // (a ?view=archive link) is filled once, here.
+      if (mode === 'archive' && pane === 'list' && archiveBuiltFrom === null) updateArchive();
       openDeepLink();
     } catch (err) {
       console.error('Failed to load:', err);
@@ -2129,22 +2383,23 @@
       clusterRadius:  50,
     });
 
-    // Cluster circle: black fill, lime ring, size scales with point count.
+    // Cluster circle: size scales with point count; colours per lime
+    // variant (CLUSTER_PAINT).
     map.addLayer({
       id:     'cluster-circles',
       type:   'circle',
       source: 'recordings-source',
       filter: ['has', 'point_count'],
       paint: {
-        'circle-color':        '#121212',
+        'circle-color':        CLUSTER_PAINT.fill,
         'circle-radius':       ['step', ['get', 'point_count'], 18, 5, 22, 10, 26, 25, 32],
-        'circle-stroke-color': '#f3f3f1',
-        'circle-stroke-width': 2,
-        'circle-opacity':      0.92,
+        'circle-stroke-color': CLUSTER_PAINT.stroke,
+        'circle-stroke-width': CLUSTER_PAINT.strokeWidth,
+        'circle-opacity':      CLUSTER_PAINT.opacity,
       },
     });
 
-    // Cluster count text: lime numerals.
+    // Cluster count text.
     map.addLayer({
       id:     'cluster-counts',
       type:   'symbol',
@@ -2156,7 +2411,7 @@
         'text-size':    14,
         'text-allow-overlap': true,
       },
-      paint: { 'text-color': '#f3f3f1' },
+      paint: { 'text-color': CLUSTER_PAINT.text },
     });
 
     // Lone (unclustered) recordings: clusters only render for 2+ points and
@@ -2283,6 +2538,7 @@
   }
 
   function renderMarkers() {
+    if (!map) return; // a payload can arrive before the map exists
     // A marker whose popup is still sounding (often a loop someone left
     // running) survives the rebuild. Removing it would silently stop the
     // sound — or, for a docked loop, leave it playing with its controls
@@ -2333,6 +2589,7 @@
         el.style.borderColor = color;
         el.style.setProperty('--c', color);
         el.style.setProperty('--cf', color + 'BF');
+        if (isSounding(r.id)) el.classList.add('sounding');   // e.g. its card in the list is playing
 
         const popup = new mapboxgl.Popup({ offset: 25, maxWidth: '320px' }).setHTML(popupHTML(r));
         // Attach the custom audio-player JS once the popup is in the DOM.
@@ -2376,8 +2633,11 @@
     map.once('styledata', () => { setupClusters(); renderMarkers(); });
   };
 
+  // An icon now: its name is a label, never text that would erase the icon.
   function labelStyleToggle() {
-    $('style-toggle').textContent = t(currentStyle === NEUTRAL_STYLE ? 'header.satellite' : 'header.map');
+    const label = t(currentStyle === NEUTRAL_STYLE ? 'header.satellite' : 'header.map');
+    $('style-toggle').setAttribute('aria-label', label);
+    $('style-toggle').title = label;
   }
 
   // ── Sound Heritage (interactive doc, Ishkur-style) ──────────────
@@ -2522,6 +2782,7 @@
   function showWelcome() {
     const overlay = $('welcome-overlay');
     if (!overlay) return;
+    overlay.dataset.mode = mode;
     overlay.classList.add('open');
     let dismissed = false, hideOutside = null;
     const hide = () => {
@@ -2626,10 +2887,30 @@
     if (draftFile) say($('draft-status'), 'draft.recoveredFile', { name: draftFile.name });
     else if (recordedBlob) say($('draft-status'), 'draft.recoveredRec');
     else say($('draft-status'), 'draft.recovered');
+    showAudioFileName();
     renderPhotos(); updateLocStatus();
   }).catch(() => { say($('draft-status'), 'draft.unavailable'); })
     .finally(() => { draftReady = true; });
-  async function openForm() { await draftLoaded; updateLocStatus(); $('form-overlay').classList.add('open'); }
+  // One form, two faces. From the sound map: the recording form. From the
+  // archive: every kind, opening on images. A saved drawing or poem is
+  // never hidden behind the recording face.
+  async function openForm(fromButton) {
+    await draftLoaded;
+    const content = draftHasContent(draftSnapshot());
+    const face = mode === 'archive' || (formKind !== 'sound' && content) ? 'archive' : 'sound';
+    if (face === 'sound' && formKind !== 'sound') setKind('sound', true);
+    if (fromButton && face === 'archive' && mode === 'archive' && !content && formKind === 'sound') setKind('image', true);
+    const newFace = $('form-card').dataset.face !== face;
+    $('form-card').dataset.face = face;
+    // The recording form asks for no credit; one already typed stays in
+    // view, since only what is visible may be sent.
+    $('author-field').hidden = face === 'sound' && !$('f-author').value.trim();
+    updateLocStatus();
+    $('form-overlay').classList.add('open');
+    // A new face opens at its top, not where the old one was scrolled to
+    // (set once shown: a hidden box ignores scrollTop).
+    if (newFace) $('form-card').scrollTop = 0;
+  }
   function closeForm() {
     if (mediaRecorder?.state === 'recording') $('rec-stop').click();
     void saveDraft(); $('form-overlay').classList.remove('open');
@@ -2682,6 +2963,7 @@
     $('f-title').placeholder = t(`ks.${kind}.title`);
     $('f-desc').placeholder = t(`ks.${kind}.desc`);
     $('form-submit').textContent = t(`ks.${kind}.submit`);
+    say($('kind-formats'), `ks.${kind}.formats`);
     if (!quiet) void saveDraft();
   }
   $('kind-pick').onclick = e => {
@@ -2717,13 +2999,37 @@
   }
   function addPhotos(files) {
     // Some desktop browsers report HEIC with an empty type; trust the name.
-    const picked = [...files].filter(f => /^image\//.test(f.type) || /\.(hei[cf]|jpe?g|png|webp|gif|tiff?|bmp)$/i.test(f.name || ''));
+    const all = [...files];
+    const picked = all.filter(f => /^image\//.test(f.type) || /\.(hei[cf]|jpe?g|png|webp|gif|tiff?|bmp)$/i.test(f.name || ''));
+    // Say why a file was left out, never drop it in silence.
+    const skipped = all.filter(f => !picked.includes(f));
+    const said = [];
+    const isPdf = f => f.type === 'application/pdf' || /\.pdf$/i.test(f.name || '');
+    const others = skipped.filter(f => !isPdf(f)).length;
+    if (skipped.some(isPdf)) said.push(t('photo.pdf'));
+    if (others) said.push(t('photo.notImage', { n: others }));
     const room = MAX_IMAGES - photos.length;
-    if (picked.length > room) toast(t('photo.tooMany', { max: MAX_IMAGES, n: picked.length - room }));
+    if (picked.length > room) said.push(t('photo.tooMany', { max: MAX_IMAGES, n: picked.length - room }));
+    if (said.length) toast(said.join(' · '));
     photos.push(...picked.slice(0, Math.max(0, room)));
     renderPhotos(); void saveDraft();
   }
   function clearPhotos() { photos = []; renderPhotos(); }
+  // The sound file. On iPhone and iPad, WebKit counts audio/*, .mp4 and
+  // .webm as video: this chooser then opened the photo library filtered to
+  // videos, and a contributor looking for the photo just taken never found
+  // it (7 Nov 2026). With audio types only, iOS opens Files instead, where
+  // voice memos and downloads are. Photos stay with the buttons below.
+  const IS_IOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  if (IS_IOS) $('audio-file').accept = '.mp3,.m4a,.aac,.wav,.ogg,.flac,audio/mpeg,audio/mp4,audio/x-m4a,audio/aac,audio/wav,audio/ogg,audio/flac';
+  function showAudioFileName() {
+    const f = $('audio-file').files[0] || draftFile;
+    $('audio-file-name').textContent = f ? f.name : '';
+  }
+  $('audio-file-btn').onclick = () => $('audio-file').click();
+  $('audio-file').addEventListener('change', showAudioFileName);
+  // reset() empties the input after its event: read it once that is done.
+  $('upload-form').addEventListener('reset', () => setTimeout(showAudioFileName));
   $('photo-camera-btn').onclick  = () => $('image-camera').click();
   $('photo-gallery-btn').onclick = () => $('image-gallery').click();
   // Read the files, then empty the input so picking the same file again
@@ -2825,13 +3131,48 @@
 
   $('loc-pin').onclick = () => {
     pinMode = true;
+    // In the archive the pin goes on its map, not under the list.
+    if (mode === 'archive') setPane('map');
     // Hide the overlay WITHOUT closeForm() — that would reset the recorder
     // and silently discard a recording the contributor just made.
     $('form-overlay').classList.remove('open');
     toast(t(`ks.${formKind}.pin`));
   };
 
-  $('upload-btn').onclick = openForm;
+  $('upload-btn').onclick = () => openForm(true);
+  // No sound, only images or a text: on to the archive's form, keeping
+  // the draft (photos already picked come along).
+  $('form-to-archive').onclick = async () => {
+    closeForm();
+    setMode('archive', { history: 'push' });
+    setKind('image');
+    await openForm();
+    // The link pressed is gone with the face; focus moves to what it opened.
+    $('kind-pick').querySelector('[aria-checked="true"]')?.focus({ preventScroll: true });
+  };
+  // Files dropped on the form: a file input keeps its own drop; elsewhere a
+  // sound file goes to the recording slot (kind Sound) and the rest to the
+  // images. A dropped file never navigates away from the page.
+  const onFileInput = e => e.target instanceof Element && !!e.target.closest('input[type=file]');
+  const isAudio = f => /^audio\//.test(f.type) || /\.(mp3|m4a|mp4|wav|ogg|oga|webm|aac|flac)$/i.test(f.name || '');
+  $('form-overlay').addEventListener('dragover', e => {
+    if (!onFileInput(e) && [...(e.dataTransfer?.types || [])].includes('Files')) e.preventDefault();
+  });
+  $('form-overlay').addEventListener('drop', e => {
+    if (onFileInput(e) || !e.dataTransfer?.files?.length) return;
+    e.preventDefault();
+    let files = [...e.dataTransfer.files];
+    const audio = formKind === 'sound' && files.find(isAudio);
+    if (audio) {
+      try {
+        const dt = new DataTransfer(); dt.items.add(audio);
+        $('audio-file').files = dt.files;
+        $('audio-file').dispatchEvent(new Event('change', { bubbles: true }));
+        files = files.filter(f => f !== audio);
+      } catch {}
+    }
+    if (files.length) addPhotos(files);
+  });
   $('form-close').onclick = closeForm;
   $('form-cancel').onclick = closeForm;
   // Abort the in-flight upload; the XHR's onabort path shows the toast.
@@ -3010,13 +3351,15 @@
       }
       if (lastErr) throw lastErr;
       // Be honest if the server had to skip images we sent (bad decode).
-      let savedImages = sentImages;
+      let savedImages = sentImages, newId = null;
       try {
         const rec = JSON.parse(lastResponse)?.recording;
         savedImages = rec?.images?.length || (rec?.imageUrl ? 1 : 0);
+        newId = rec?.id || null;
       } catch {}
       const lost = sentImages - savedImages;
-      toast(lost > 0 ? t('up.savedLost', { n: lost }) : t('up.added'));
+      // Images and texts are not on the sound map: say where they went.
+      toast(lost > 0 ? t('up.savedLost', { n: lost }) : kind === 'sound' ? t('up.added') : t('up.addedArchive'));
       $('form-overlay').classList.remove('open');
       // Empty the form before anything awaits: a draft save still in flight
       // (a keystroke during the upload) then snapshots nothing and clears,
@@ -3029,7 +3372,11 @@
       draftKey = newDraftKey();
       await DraftStore.clear().catch(() => { toast(t('up.draftNotCleared')); });
       if (tempMarker) { tempMarker.remove(); tempMarker = null; }
-      loadRecordings();
+      // In the archive, show the new entry where it now stands.
+      loadRecordings().then(() => {
+        const r = mode === 'archive' && newId && recordings.find(x => x.id === newId);
+        if (r) { setPane('map'); flyToEntry(r, Math.max(16, map.getZoom())); }
+      });
     } catch (err) {
       toast(err.message === 'aborted' ? t('up.cancelled') : t('up.failed', { reason: failReason(err) }));
     } finally {
@@ -3119,12 +3466,92 @@
     $('rec-dot').classList.remove('active');
   }
 
-  // ── Archive panel ───────────────────────────────────────────────
-  $('archive-btn').onclick = () => {
-    const open = $('archive-panel').classList.toggle('open');
-    if (open && ![...$('rec-list').querySelectorAll('audio')].some(a => !a.paused)) requestAnimationFrame(updateArchive);
+  // ── Two interfaces ──────────────────────────────────────────────
+  // The door in the header goes between the sound map and the archive; the
+  // archive's bar between its List and its Map. What each does is read
+  // from `mode` and from attributes (data-show), never from their words,
+  // which auto-translate may rewrite.
+  const visibleKey = () => recordings.filter(matchesFilters).map(r => r.id).join();
+  function labelDoor() {
+    $('archive-btn').setAttribute('aria-label', mode === 'sound' ? t('door.toArchive') : t('door.toSound'));
+  }
+  function applyModeAttrs() {
+    document.body.dataset.mode = mode;
+    document.body.dataset.pane = pane;
+    $('archive-bar').querySelectorAll('button[data-show]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.show === pane)));
+    // Under the list sheet, the map's markers stay out of the Tab order.
+    $('map').inert = mode === 'archive' && pane === 'list';
+    labelDoor();
+  }
+  // The list is rebuilt on showing only when the data changed since it was
+  // built, and never under a card that is playing.
+  function showArchiveList() {
+    if (!lastPayload || archiveBuiltFrom === lastPayload) return;
+    if ([...$('rec-list').querySelectorAll('audio')].some(a => !a.paused)) return;
+    updateArchive();
+  }
+  function setPane(p) {
+    if (mode !== 'archive') return;
+    pane = p === 'map' ? 'map' : 'list';
+    applyModeAttrs();
+    if (pane === 'list') showArchiveList();
+  }
+  // history: 'push' (the door: Back returns), 'replace' (in place) or
+  // 'none' (Back already moved the address).
+  function setMode(next, { history: how = 'replace', pane: p = 'list', render = true } = {}) {
+    next = next === 'archive' ? 'archive' : 'sound';
+    const before = visibleKey();
+    mode = next;
+    pane = mode === 'archive' && p === 'map' ? 'map' : 'list';
+    if (mode === 'sound') {
+      activeKind = '';
+      // Leaving the archive stops its cards; a loop keeps sounding (as one
+      // closed in a popup does) and is there again on return.
+      soundingPlayers.forEach(w => { if ($('rec-list').contains(w) && !w._audio.loop) w._audio.pause(); });
+    }
+    if (how !== 'none') {
+      try {
+        const href = Views.withView(location.href, mode);
+        if (how === 'push') history.pushState({ mode, doc: PAGE_LOAD }, '', href);
+        else {
+          // An in-place switch carries neither the viewer's flag nor the
+          // door's entry tag onto the new address.
+          const { viewer, mode: _m, doc: _d, ...rest } = history.state || {};
+          history.replaceState(Object.keys(rest).length ? rest : null, '', href);
+        }
+      } catch {}
+    }
+    applyModeAttrs();
+    buildFilterChips();
+    // Today every entry is a sound, so this is usually skipped and an open
+    // popup survives the door.
+    if (render && map && visibleKey() !== before) renderMarkers();
+    if (mode === 'archive' && pane === 'list') showArchiveList();
+  }
+  // Back to the sound map: through history when the door brought us here,
+  // so the stack never grows; in place after a cold ?view=archive link.
+  function leaveArchive() {
+    const s = history.state;
+    if (s?.mode === 'archive' && s.doc === PAGE_LOAD) history.back();
+    else setMode('sound', { history: 'replace' });
+  }
+  // After Back, the restored address may predate a language or city chosen
+  // since (both are kept in place); write them in again.
+  function stampUrl() {
+    try {
+      const url = new URL(location.href);
+      if (lang === I18N.DEFAULT) url.searchParams.delete('lang'); else url.searchParams.set('lang', lang);
+      if (titleCity === DEFAULT_CITY) url.searchParams.delete('city'); else url.searchParams.set('city', titleCity);
+      if (url.href !== location.href) history.replaceState(history.state, '', url);
+    } catch {}
+  }
+  $('archive-btn').onclick = () => (mode === 'sound' ? setMode('archive', { history: 'push' }) : leaveArchive());
+  $('archive-bar').onclick = e => {
+    const b = e.target.closest('button[data-show]');
+    if (b && $('archive-bar').contains(b)) setPane(b.dataset.show);
   };
-  $('archive-close').onclick = () => $('archive-panel').classList.remove('open');
+
+  // ── Archive list ────────────────────────────────────────────────
   $('kind-filter').onchange  = updateArchive;
   $('cat-filter').onchange   = updateArchive;
   $('archive-search-input').oninput = updateArchive;
@@ -3140,6 +3567,10 @@
   };
 
   function updateArchive() {
+    // Before the first payload the list keeps saying it is loading: a
+    // filter touched meanwhile is read when the data arrives.
+    if (!lastPayload) return;
+    archiveBuiltFrom = lastPayload;
     const groups = archiveLocations.group(recordings);
     const homeCount = groups.find(g => g.key === DEFAULT_CITY)?.recordings.length || 0;
     say($('archive-home-count'), 'archive.homeCount', { n: homeCount });
@@ -3152,6 +3583,12 @@
     $('archive-location').innerHTML = `<option value="">${esc(t('archive.allPlaces'))} · ${recordings.length}</option>` +
       options.map(g => `<option value="${esc(g.key)}">${esc(g.label)} · ${g.count}</option>`).join('');
     $('archive-location').value = archiveLocation;
+    // The kind filter is offered only when two or more kinds have entries,
+    // and lists only those: no choice ever leads to nothing.
+    const present = Views.kindsPresent(recordings.map(kindOf));
+    $('kind-filter-box').hidden = present.length < 2;
+    $('kind-filter').querySelectorAll('option').forEach(o => { if (o.value) o.hidden = o.disabled = !present.includes(o.value); });
+    if ($('kind-filter').value && !present.includes($('kind-filter').value)) $('kind-filter').value = '';
     const kindFilter = $('kind-filter').value;
     const catFilter = $('cat-filter').value;
     const search = $('archive-search-input').value.toLowerCase().trim();
@@ -3171,7 +3608,7 @@
       const { cat } = catInfo(r);
       const sound = kindOf(r) === 'sound';
       return `
-        <li class="rec-item" data-lat="${r.latitude}" data-lng="${r.longitude}">
+        <li class="rec-item" data-id="${esc(r.id)}">
           ${coverHTML(r, 'rec-item-photo', 'rec-photo-link')}
           <h3>${esc(displayTitle(r))}</h3>
           ${authorHTML(r)}
@@ -3217,8 +3654,11 @@
       }
       const el = e.target.closest('.rec-item');
       if (!el || e.target.closest('.apc, .rec-photo-link, .share-btn, .entry-open')) return;
-      map.flyTo({ center: [parseFloat(el.dataset.lng), parseFloat(el.dataset.lat)], zoom: 15 });
-      $('archive-panel').classList.remove('open');
+      // The rest of a card: to the Map side, where its popup opens on arrival.
+      const r = recordings.find(x => x.id === el.dataset.id);
+      if (!r) return;
+      setPane('map');
+      flyToEntry(r, Math.max(16, map.getZoom()));
     };
   }
 
@@ -3228,6 +3668,12 @@
   // text of a story or poem. It covers the map, never the sound: a loop
   // keeps playing underneath while someone looks at the drawings.
   let viewerImgs = [], viewerReturnFocus = null, viewerRec = null;
+  // Whether this page pushed the history entry the open viewer sits on.
+  let viewerPushed = false;
+  // Set right before a history.back() the page itself makes (closing the
+  // viewer, stepping off a dead viewer entry): that popstate is not the
+  // visitor pressing Back, so nothing else over the page is closed.
+  let selfPop = false;
   function viewerIndex() {
     const g = $('viewer-gallery');
     return g.clientWidth ? Math.max(0, Math.min(viewerImgs.length - 1, Math.round(g.scrollLeft / g.clientWidth))) : 0;
@@ -3268,7 +3714,8 @@
     $('viewer-close').focus();
     // Phone back button (and the Android app's) closes the viewer instead
     // of leaving the map.
-    if (!history.state?.viewer) history.pushState({ viewer: true }, '');
+    selfPop = false;
+    if (!viewerPushed) { try { history.pushState({ viewer: PAGE_LOAD }, ''); viewerPushed = true; } catch {} }
   }
   // The viewer's words that depend on the language; also run on a switch.
   function labelViewer() {
@@ -3286,10 +3733,36 @@
     $('viewer').hidden = true;
     $('viewer-gallery').innerHTML = '';
     viewerImgs = []; viewerRec = null;
-    if (!fromHistory && history.state?.viewer) history.back();
+    if (!fromHistory && viewerPushed) { selfPop = true; history.back(); }
+    viewerPushed = false;
     try { if (viewerReturnFocus?.isConnected) viewerReturnFocus.focus({ preventScroll: true }); } catch {}
   }
-  window.addEventListener('popstate', () => closeViewer(true));
+  // Back and Forward: close the viewer, follow the address between the two
+  // interfaces, and keep the language and city chosen meanwhile.
+  window.addEventListener('popstate', () => {
+    const s = history.state;
+    viewerPushed = false;
+    closeViewer(true);
+    if (selfPop) { selfPop = false; stampUrl(); return; }
+    // Back closes whatever is open over the page before it changes side:
+    // the form keeps its draft and a running take is stopped into it —
+    // also when the form was only hidden for "Drop a pin".
+    const pinning = pinMode;
+    pinMode = false;
+    if (pinning || $('form-overlay').classList.contains('open')) closeForm();
+    $('about-overlay').classList.remove('open');
+    $('heritage-overlay').classList.remove('open');
+    // Forward onto a viewer entry whose viewer is gone: step off ours; one
+    // from before a reload becomes a plain entry.
+    if (s?.viewer) {
+      if (s.viewer === PAGE_LOAD) { selfPop = true; history.back(); return; }
+      const { viewer, ...rest } = s;
+      try { history.replaceState(Object.keys(rest).length ? rest : null, ''); } catch {}
+    }
+    const m = Views.pick(location.search);
+    if (m !== mode) setMode(m, { history: 'none' });
+    stampUrl();
+  });
   $('viewer-close').onclick = () => closeViewer();
   $('viewer-prev').onclick = () => stepViewer(-1);
   $('viewer-next').onclick = () => stepViewer(1);
@@ -3341,6 +3814,7 @@
       history.replaceState(history.state, '', url); // keeps the viewer's back-button entry
     } catch {}
     applyStatic();
+    labelDoor();
     said.forEach(el => { if (el._say) el.textContent = t(...el._say); });
     labelStyleToggle();
     setCityTitle(titleCity);
@@ -3350,8 +3824,9 @@
     setKind(formKind, true);
     updateLocStatus();
     if (photos.length) renderPhotos();
-    // Closed or open: a card left playing in it is carried over.
-    updateArchive();
+    // Shown or not: a card left playing in it is carried over. Never built
+    // on the sound map alone.
+    if (archiveBuiltFrom !== null) updateArchive();
     labelViewer();
     relabelMap();
     relabelMarkers();
@@ -3419,6 +3894,7 @@
   document.addEventListener('DOMContentLoaded', () => {
     console.log('Ghé Lại Saigon_Miền Tây v2.0');
     applyStatic();
+    applyModeAttrs();   // the address already says which interface; no history here
     labelStyleToggle();
     updateLocStatus();
     buildCategoryDropdowns();

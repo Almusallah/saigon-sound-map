@@ -15,6 +15,9 @@
 //   cache lookups and the map froze. Tiles must go straight to the network.
 // - Backblaze audio/images are NEVER touched: the audio player relies on
 //   range requests, which a cache-through service worker breaks.
+// Renaming SHELL deletes the cached page at activate, and nothing puts it
+// back until the next navigation: the first offline launch after such an
+// update fails. New helper scripts go in HELPERS; keep the name.
 const SHELL = 'shell-v2';
 
 const isStaticCdn = (url) =>
@@ -27,7 +30,7 @@ const isStaticCdn = (url) =>
 // can ask for a script that worker never cached (i18n.js, new with the
 // language switch), and the next offline launch then has no table to boot
 // from. Each is fetched on its own, so one failure cannot block the update.
-const HELPERS = ['/i18n.js', '/draft-store.js', '/archive-locations.js'];
+const HELPERS = ['/i18n.js', '/draft-store.js', '/archive-locations.js', '/views.js'];
 self.addEventListener('install', (e) => {
   self.skipWaiting();
   e.waitUntil(caches.open(SHELL).then((c) => Promise.all(HELPERS.map((u) =>
