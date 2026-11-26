@@ -446,6 +446,11 @@
     body[data-mode="archive"][data-pane="list"] .archive { visibility: visible; }
     .archive-col { max-width: 680px; margin: 0 auto; }
     .archive-intro { padding: 18px 16px 2px; font-size: 12px; line-height: 1.6; color: rgba(18,18,18,.72); }
+    /* No map in this browser (no WebGL 2, or the map library never came):
+       the archive as a list, and only what works without a map. */
+    .nomap-note { margin: 16px 16px 0; padding: 12px 14px; border: 1px solid var(--primary); font-size: 13px; line-height: 1.55; }
+    body[data-nomap] #map, body[data-nomap] #archive-btn, body[data-nomap] #city-select,
+    body[data-nomap] #upload-btn, body[data-nomap] .archive-switch { display: none !important; }
     .archive .rec-list { padding-bottom: calc(150px + env(safe-area-inset-bottom, 0px)); }
     .archive-search { padding: 12px 16px; }
     .archive-search input {
@@ -1209,6 +1214,7 @@
   <!-- The archive's List side -->
   <div class="archive" id="archive-panel">
     <div class="archive-col">
+      <p class="nomap-note" id="nomap-note" role="status" hidden></p>
       <p class="archive-intro" data-i18n="archive.intro">Kho lưu trữ nhận âm thanh, ảnh chụp, bức vẽ, video và bài viết, mỗi thứ được đặt vào đúng nơi của nó.</p>
       <div class="archive-places">
         <button type="button" class="archive-home" id="archive-home" aria-pressed="true">
@@ -1447,6 +1453,18 @@
 <div class="toast" id="toast"></div>
 
 <!-- Scripts -->
+<script>
+// A browser too old for the page script (it would not even parse) never
+// removes the splash: say so instead of "please wait" for ever. ES5 only.
+window.addEventListener('load', function () {
+  if (window.__mainRan) return;
+  var p = document.querySelector('#initial-loading p');
+  if (!p) return;
+  p.style.animation = 'none';
+  p.innerHTML = 'Trình duyệt này quá cũ để mở trang. Hãy cập nhật trình duyệt, hoặc mở bằng Chrome, Firefox, Safari hay Edge mới.' +
+    '<br><br>This browser is too old for this page. Please update it, or open the link in a current Chrome, Firefox, Safari or Edge.';
+});
+</script>
 <script src="https://api.mapbox.com/mapbox-gl-js/v3.24.0/mapbox-gl.js"></script>
 <script src="/i18n.js"></script>
 <script src="/draft-store.js"></script>
@@ -1455,6 +1473,7 @@
 <script>
 (function () {
   'use strict';
+  window.__mainRan = true; // read by the old-browser note above
 
   // ── Config ──────────────────────────────────────────────────────
   // Port 8906 is the local full-stack convention (node server serving both
@@ -1551,6 +1570,7 @@
 
   // ── State ───────────────────────────────────────────────────────
   let map, recordings = [], markers = [], tempMarker = null;
+  let noMap = ''; // 'webgl' or 'script' when this browser cannot show the map
   let markersById = {};      // recording id -> mapboxgl.Marker, for ?rec= deep links
   // The basemap is Mapbox Standard in monochrome: neutral, so the recordings'
   // colours carry the map (same family as the streets in Phòng nghe).
@@ -1783,6 +1803,19 @@
     deepLinkDone = true; // recordings are loaded by now; one attempt only
     const r = recordings.find(x => x.id.startsWith(ref));
     if (!r) return;
+    if (!map) {
+      // No map to fly to: an image or a text opens in the viewer, as its
+      // card's button would; a sound or a video is brought into the list
+      // (its place is already the one shown) and into view.
+      const k = kindOf(r);
+      if (k === 'image' || k === 'text') return openViewer(r);
+      const list = $('rec-list');
+      let card, more;
+      while (!(card = list.querySelector(`.rec-item[data-id="${CSS.escape(r.id)}"]`)) &&
+             (more = list.querySelector('.archive-more:not(:disabled)'))) more.click();
+      if (card) card.scrollIntoView({ block: 'center' });
+      return;
+    }
     flyToEntry(r, 16);
   }
 
@@ -1791,6 +1824,7 @@
   // cleared first, or there would be no marker to open.
   let flyTok = 0;
   function flyToEntry(r, zoom) {
+    if (!map) return;
     if (!matchesFilters(r)) { activeFilter = ''; activeKind = ''; buildFilterChips(); renderMarkers(); }
     const tok = ++flyTok;
     // One popup at a time: an earlier card's (or the sound map's) closes,
@@ -2107,6 +2141,7 @@
   }
 
   function flyToCity(name, announce) {
+    if (!map) return;
     const c = CITIES[name];
     if (!c) return;
     if (announce) {
@@ -2163,7 +2198,7 @@
     if (!name || name === DEFAULT_CITY) return;
     const sel = $('city-select');
     if (sel) sel.value = name;
-    flyToCity(name, false);
+    if (map) flyToCity(name, false); else setCityTitle(name);
   }
 
   // ── Build filter chips ──────────────────────────────────────────
@@ -2229,9 +2264,68 @@
     glyphs: 'mapbox://fonts/mapbox/{fontstack}/{range}.pbf',
     layers: [{ id: 'bg', type: 'background', paint: { 'background-color': '#f3f3f1' } }],
   };
+  // The data, now and every REFRESH while the tab is on screen. A
+  // forgotten background tab refreshing every 2 min would keep the Render
+  // free instance from ever hitting its 15-min idle timeout — one such tab
+  // burns ~720 instance-hours/month, effectively the whole free budget —
+  // besides waking phone radios for nothing.
+  function startDataRefresh() {
+    const firstLoad = loadRecordings();
+    let refreshTimer = null;
+    const startPolling = () => { refreshTimer = refreshTimer || setInterval(loadRecordings, REFRESH); };
+    const stopPolling  = () => { clearInterval(refreshTimer); refreshTimer = null; };
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) stopPolling();
+      else { loadRecordings(); startPolling(); } // catch up once, then resume
+    });
+    if (!document.hidden) startPolling();
+    return firstLoad;
+  }
+  function hideSplash() {
+    const il = $('initial-loading');
+    if (il) {
+      il.classList.add('gone');
+      setTimeout(() => il.remove(), 600);
+    }
+  }
+  // No map in this browser: say why, and open the archive as a list —
+  // its sounds, images, videos and texts all play and read without one.
+  // Nothing that needs the map is offered (the sound map, the Map side,
+  // the city jump, contributing, which places a pin).
+  function startWithoutMap(reason) {
+    if (noMap) return;
+    noMap = reason;
+    hideSplash();
+    document.body.dataset.nomap = reason;
+    const note = $('nomap-note');
+    say(note, 'nomap.' + reason);
+    note.hidden = false;
+    // Every place at once, as the note says — unless a link names one.
+    const q = new URLSearchParams(location.search);
+    if (!q.get('rec') && !q.get('city')) { archiveLocation = ''; archiveLocationChosen = true; }
+    // The address stays as it was: a reload tries the map again.
+    setMode('archive', { history: 'none', pane: 'list' });
+    openCityLink();
+    startDataRefresh();
+  }
   function initMap() {
+    // Without the map library (a content blocker, the network) or without
+    // WebGL 2 (graphics acceleration off, a blocked GPU) Mapbox cannot
+    // draw, and its constructor throws: the page then stayed on the splash
+    // for good (26 Nov 2026, a laptop browser). The archive works as a list.
+    if (typeof mapboxgl === 'undefined') return startWithoutMap('script');
     mapboxgl.accessToken = MAPBOX_TOKEN;
-    map = new mapboxgl.Map({
+    try {
+      map = createMap();
+    } catch (err) {
+      console.error(err);
+      map = undefined;
+      return startWithoutMap(/webgl/i.test(String(err && err.message)) ? 'webgl' : 'script');
+    }
+    setupMap();
+  }
+  function createMap() {
+    return new mapboxgl.Map({
       container: 'map',
       style: LOCAL_DEV ? BLANK_STYLE : currentStyle,
       ...(LOCAL_DEV ? {} : { config: { basemap: NEUTRAL_CONFIG } }),
@@ -2240,6 +2334,8 @@
       // page's language.
       language: lang, locale: mapLocale(),
     });
+  }
+  function setupMap() {
     if (LOCAL_DEV) window.__map = map; // console access for local debugging
     map.addControl(new mapboxgl.NavigationControl(), 'top-left');
     const geolocate = new mapboxgl.GeolocateControl({
@@ -2279,31 +2375,14 @@
       // fallback the style may not be ready yet — retry on 'load'
       // (setupClusters is idempotent via its getSource guard).
       try { setupClusters(); } catch (e) { map.once('load', () => { try { setupClusters(); } catch {} }); }
-      const firstLoad = loadRecordings();
-      // Poll only while the tab is actually on screen. A forgotten
-      // background tab refreshing every 2 min would keep the Render free
-      // instance from ever hitting its 15-min idle timeout — one such tab
-      // burns ~720 instance-hours/month, effectively the whole free
-      // budget — besides waking phone radios for nothing.
-      let refreshTimer = null;
-      const startPolling = () => { refreshTimer = refreshTimer || setInterval(loadRecordings, REFRESH); };
-      const stopPolling  = () => { clearInterval(refreshTimer); refreshTimer = null; };
-      document.addEventListener('visibilitychange', () => {
-        if (document.hidden) stopPolling();
-        else { loadRecordings(); startPolling(); } // catch up once, then resume
-      });
-      if (!document.hidden) startPolling();
+      const firstLoad = startDataRefresh();
       openCityLink();
       // Heritage marker temporarily hidden — flip HERITAGE_ENABLED below to re-enable.
       if (HERITAGE_ENABLED) addHeritageMarker();
       // Hide the initial loading splash (short delay so users see the map
       // tiles + markers settle in rather than abruptly transitioning).
       setTimeout(() => {
-        const il = $('initial-loading');
-        if (il) {
-          il.classList.add('gone');
-          setTimeout(() => il.remove(), 600);
-        }
+        hideSplash();
         // Show the welcome modal right after the loading splash fades. A
         // shared link may move the page into the archive once the data is
         // in: wait for it (briefly) so the card names the right buttons.
@@ -2380,7 +2459,10 @@
         const params = new URLSearchParams(location.search);
         const linked = params.get('rec') && recordings.find(r => r.id.startsWith(params.get('rec')));
         const city = Object.keys(CITIES).find(c => c.toLowerCase() === (params.get('city') || '').toLowerCase());
-        archiveLocation = linked ? archiveLocations.locate(linked) : city || DEFAULT_CITY;
+        // A city link whose city holds nothing of its own (Milan's few are
+        // grouped under Lombardy) opens on every place, not an empty list.
+        const cityHas = city && recordings.some(r => archiveLocations.locate(r) === city);
+        archiveLocation = linked ? archiveLocations.locate(linked) : city ? (cityHas ? city : '') : DEFAULT_CITY;
         archiveLocationChosen = true;
       }
       // A shared image or text lives in the archive: switch to its Map side
@@ -3547,7 +3629,7 @@
       // In the archive, show the new entry where it now stands.
       loadRecordings().then(() => {
         const r = mode === 'archive' && newId && recordings.find(x => x.id === newId);
-        if (r) { setPane('map'); flyToEntry(r, Math.max(16, map.getZoom())); }
+        if (r && map) { setPane('map'); flyToEntry(r, Math.max(16, map.getZoom())); }
       });
     } catch (err) {
       toast(err.message === 'aborted' ? t('up.cancelled') : t('up.failed', { reason: failReason(err) }));
@@ -3664,17 +3746,17 @@
   }
   function setPane(p) {
     if (mode !== 'archive') return;
-    pane = p === 'map' ? 'map' : 'list';
+    pane = p === 'map' && !noMap ? 'map' : 'list';
     applyModeAttrs();
     if (pane === 'list') showArchiveList();
   }
   // history: 'push' (the door: Back returns), 'replace' (in place) or
   // 'none' (Back already moved the address).
   function setMode(next, { history: how = 'replace', pane: p = 'list', render = true } = {}) {
-    next = next === 'archive' ? 'archive' : 'sound';
+    next = next === 'archive' || noMap ? 'archive' : 'sound';
     const before = visibleKey();
     mode = next;
-    pane = mode === 'archive' && p === 'map' ? 'map' : 'list';
+    pane = mode === 'archive' && p === 'map' && !noMap ? 'map' : 'list';
     if (mode === 'sound') {
       activeKind = '';
       // Leaving the archive stops its cards; a loop keeps sounding (as one
@@ -3841,7 +3923,7 @@
       if (!el || e.target.closest('.apc, .vpc, .rec-photo-link, .share-btn, .entry-open')) return;
       // The rest of a card: to the Map side, where its popup opens on arrival.
       const r = recordings.find(x => x.id === el.dataset.id);
-      if (!r) return;
+      if (!r || !map) return;
       setPane('map');
       flyToEntry(r, Math.max(16, map.getZoom()));
     };
@@ -4084,7 +4166,8 @@
     updateLocStatus();
     buildCategoryDropdowns();
     buildFilterChips();
-    initMap();
+    // Whatever else fails while the map starts, the splash never stays.
+    try { initMap(); } catch (err) { console.error(err); if (!map) startWithoutMap('script'); else hideSplash(); }
     buildCitySelect();
     document.querySelectorAll('.lang-switch [data-lang]').forEach(b => { b.onclick = () => setLang(b.dataset.lang); });
   });

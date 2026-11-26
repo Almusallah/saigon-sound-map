@@ -175,3 +175,35 @@ test('video picks: the latest wins; a dropped sound stays a sound; a failed load
  // A recovered video must be the one the draft names.
  assert.match(script,/v\.size === d\.video\.size/);
 });
+test('a browser that cannot show the map never stays on the splash (26 Nov 2026)',()=>{
+ // Mapbox v3 needs WebGL 2 and throws without it; a blocked library leaves no mapboxgl at all.
+ const im=between(script,'function initMap() {','function createMap()');
+ assert.match(im,/typeof mapboxgl === 'undefined'\) return startWithoutMap\('script'\)/);
+ assert.match(im,/try \{\s*map = createMap\(\);\s*\} catch/);assert.match(im,/startWithoutMap\(\/webgl\/i\.test/);
+ // The splash goes first, before anything that could fail.
+ const sw=between(script,'function startWithoutMap(reason) {','\n  }\n');
+ assert.ok(sw.indexOf('hideSplash()')<sw.indexOf('setMode('),'splash hidden first');
+ assert.match(sw,/say\(note, 'nomap\.' \+ reason\)/);assert.match(sw,/startDataRefresh\(\)/);
+ // Whatever else fails while the map starts.
+ assert.match(script,/try \{ initMap\(\); \} catch \(err\) \{[^}]*startWithoutMap\('script'\)[^}]*hideSplash\(\)/);
+ // Without a map: no sound map, no Map side, nothing that needs one.
+ assert.match(between(script,'function setMode(','const before'),/\|\| noMap \? 'archive' : 'sound'/);
+ assert.match(between(script,'function setPane(','}'),/p === 'map' && !noMap/);
+ for(const id of ['#map','#archive-btn','#city-select','#upload-btn','.archive-switch'])assert.ok(page.includes(`body[data-nomap] ${id}`),id);
+ assert.match(between(script,'function flyToEntry(','\n'),/./);assert.match(script,/function flyToEntry\(r, zoom\) \{\n    if \(!map\) return;/);
+ assert.match(tag('nomap-note'),/role="status"/);assert.match(tag('nomap-note'),/\shidden\b/);
+});
+test('without a map, shared links still lead somewhere; a too-old browser is told so (26 Nov review)',()=>{
+ const dl=between(script,'function openDeepLink() {','\n  }\n');
+ assert.match(dl,/if \(!map\) \{/);assert.match(dl,/return openViewer\(r\)/);assert.match(dl,/archive-more:not\(:disabled\)/);assert.match(dl,/scrollIntoView/);
+ assert.match(between(script,'function openCityLink() {','\n  }\n'),/if \(map\) flyToCity\(name, false\); else setCityTitle\(name\);/);
+ const sw=between(script,'function startWithoutMap(reason) {','\n  }\n');
+ assert.match(sw,/history: 'none'/);assert.match(sw,/archiveLocation = ''; archiveLocationChosen = true;/);assert.match(sw,/openCityLink\(\)/);
+ // A city link whose city holds nothing opens every place.
+ assert.match(script,/city \? \(cityHas \? city : ''\) : DEFAULT_CITY/);
+ // The old-browser note: ES5, before the page script, keyed on a flag the page script sets first.
+ const guard=between(page,"window.addEventListener('load', function () {",'</script>');
+ assert.match(guard,/if \(window\.__mainRan\) return;/);assert.ok(!/=>|\blet\b|\bconst\b/.test(guard),'ES5 only');
+ assert.ok(page.indexOf("window.addEventListener('load', function () {")<page.indexOf('mapbox-gl.js"></script>'));
+ assert.match(script,/'use strict';\n  window\.__mainRan = true;/);
+});
