@@ -33,26 +33,31 @@ test('Vietnamese is NFC, carries its diacritics, and keeps the project name',()=
   assert.equal(s,s.normalize('NFC'),`${k} is not NFC`);
  }
  assert.match(render('vi','welcome.p1'),/[àáảãạăâđêôơưằắẳẵặầấẩẫậèéẻẽẹềếểễệìíỉĩịòóỏõọồốổỗộờớởỡợùúủũụừứửữựỳýỷỹỵ]/i);
- const NAME=/Ghé(?:[ \u00a0]|&nbsp;)Lại Saigon_Miền(?:[ \u00a0]|&nbsp;)Tây/;
- for(const lang of ['vi','en'])for(const k of ['about.title','about.p1','og.image','og.text','og.sound'])assert.match(render(lang,k),NAME,`${lang} ${k}`);
- for(const lang of ['vi','en'])for(const k of ['splash','welcome.title'])assert.match(render(lang,k),/Ghé&nbsp;Lại Saigon_Miền&nbsp;Tây/,`${lang} ${k}`);
+ const NAME=/Saigon_Miền(?:[ \u00a0]|&nbsp;)Tây/;
+ for(const lang of ['vi','en'])for(const k of ['about.title','about.p1','og.image','og.text','og.video','og.sound'])assert.match(render(lang,k),NAME,`${lang} ${k}`);
+ for(const lang of ['vi','en'])for(const k of ['splash','welcome.title'])assert.match(render(lang,k),/Saigon_Miền&nbsp;Tây/,`${lang} ${k}`);
 });
-test('the old name lives on only as the former name, in About',()=>{
- for(const lang of ['vi','en'])for(const [k,v] of Object.entries(I18N.STRINGS[lang]))
-  if(k!=='about.p1'&&typeof v==='string'){
-   // "Sound map" (lower-case m) names the interface; "Sound Map" was the project.
-   assert.doesNotMatch(v,/Sound Map|SOUND MAP/,`${lang} ${k}`);
-   assert.doesNotMatch(v,/Saigon_Miền(?:[ \u00a0]|&nbsp;)Tây Sound|âm thanh \{name\}/i,`${lang} ${k}`);
-  }
+test('the name is Saigon_Miền Tây alone; neither earlier name is left (26 Nov 2026)',()=>{
+ // "Sound map" (lower-case m) names the interface; "Sound Map" and "Ghé Lại" were names of the project.
+ const SEP='(?:[ _\\u00a0-]|&nbsp;|&#160;|&#x0*a0;|\\\\u00a0|\\\\xa0)';
+ const GHE=new RegExp(`(?<![\\p{L}\\p{M}])gh[eé]${SEP}?l[ạa]i(?![\\p{L}\\p{M}])`,'iu'),SM=new RegExp(`Sound${SEP}Map|SOUND${SEP}MAP`,'u');
+ const OLD={test:t=>{t=t.normalize('NFC');return SM.test(t)||GHE.test(t);}};
+ assert.ok(OLD.test('GHÉ&nbsp;LẠI')&&OLD.test('Ghé\\u00a0Lại')&&OLD.test('Saigon_Miền Tây Sound Map')&&OLD.test('Ghe\u0301 La\u0323i'.normalize('NFD')));
+ assert.ok(!OLD.test('Sound map')&&!OLD.test('nghe lại')&&!OLD.test('ghép lại'));
+ for(const lang of ['vi','en'])for(const [k,v] of Object.entries(I18N.STRINGS[lang])){
+  const out=typeof v==='function'?v(SAMPLE):v;
+  assert.ok(!OLD.test(out),`${lang} ${k}: "${out}"`);
+  assert.doesNotMatch(out,/âm thanh \{name\}/i,`${lang} ${k}`);
+ }
+ assert.ok(!('welcome.gloss' in vi)&&!('welcome.gloss' in en),'no gloss: the name needs no explanation');
  assert.equal(en['door.sound'],'Sound map');assert.equal(vi['door.sound'],'Bản đồ âm thanh');
- for(const lang of ['vi','en'])assert.match(render(lang,'about.p1'),/2026.*Saigon_Miền&nbsp;Tây Sound Map/,lang);
- assert.match(page,/<title>Ghé Lại Saigon_Miền Tây<\/title>/);assert.match(page,/<h1 id="site-title">GHÉ&nbsp;LẠI SAIGON_MIỀN&nbsp;TÂY<\/h1>/);
- const m=JSON.parse(fs.readFileSync(MANIFEST,'utf8'));assert.equal(m.name,'Ghé Lại Saigon_Miền Tây');assert.equal(m.short_name,'Ghé Lại');
- assert.doesNotMatch(page+server,/Saigon_Miền Tây Sound Map'|— Saigon_Miền Tây Sound Map/);
-});
-test('the meaning of the name is spelled out in English only',()=>{
- assert.equal(vi['welcome.gloss'],'');assert.match(en['welcome.gloss'],/ghé lại/);
- assert.match(page,/<p class="welcome-gloss" data-i18n="welcome.gloss"><\/p>/);assert.match(page,/\.welcome-gloss:empty \{ display: none; \}/);
+ for(const lang of ['vi','en']){assert.equal(render(lang,'city.title',{name:'BẾN TRE'}),'BẾN TRE');assert.equal(render(lang,'city.docTitle',{name:'Bến Tre'}),'Bến Tre — Saigon_Miền Tây');}
+ assert.match(page,/<title>Saigon_Miền Tây<\/title>/);assert.match(page,/<h1 id="site-title">SAIGON_MIỀN&nbsp;TÂY<\/h1>/);
+ const m=JSON.parse(fs.readFileSync(MANIFEST,'utf8'));assert.equal(m.name,'Saigon_Miền Tây');assert.equal(m.short_name,'Saigon_Miền Tây');
+ const dir=path.join(__dirname,'../client');
+ const walk=(d,re)=>fs.readdirSync(d,{withFileTypes:true}).flatMap(e=>e.isDirectory()?(e.name==='node_modules'?[]:walk(path.join(d,e.name),re)):re.test(e.name)?[path.join(d,e.name)]:[]);
+ const shipped=[...walk(dir,/\.(html|js|css|webmanifest)$/),...walk(path.join(__dirname,'../server'),/\.js$/),path.join(__dirname,'../package.json')].map(f=>[path.relative(path.join(__dirname,'..'),f),fs.readFileSync(f,'utf8')]);
+ for(const [f,txt] of shipped)assert.ok(!OLD.test(txt),f);
 });
 test('markup in a translation is the same markup',()=>{
  const tags=s=>[...s.matchAll(/<[^>]+>|&\w+;/g)].map(m=>m[0]);
@@ -106,7 +111,7 @@ test('the markup already holds the Vietnamese words (no flash of another languag
  const m=JSON.parse(manifest);assert.equal(m.lang,'vi');assert.equal(m.description,vi['meta.description']);
 });
 test('share previews speak the link\'s language',()=>{
- assert.equal(I18N.make('en')('og.sound',{category:'Announcements & Signals'}),'An Announcements & Signals recording from Ghé Lại Saigon_Miền Tây.');
+ assert.equal(I18N.make('en')('og.sound',{category:'Announcements & Signals'}),'An Announcements & Signals recording from the Saigon_Miền Tây archive.');
  const html='<html lang="vi"><meta name="description" content="VI"><meta property="og:title" content="X"><meta property="og:description" content="VI"><meta property="og:url" content="U"><!--og:image--><meta name="twitter:card" content="summary">';
  const rec={id:'abcd1234-0000',title:'',kind:'sound',category:'Vehicles',body:'',description:''};
  let handler;const ctx=vm.createContext({I18N,CLIENT_INDEX:html,cacheIsFresh:()=>true,cache:[rec],refreshCache:async()=>[rec],SITE_URL:'https://x',THUMB_EDGE:720,console,
@@ -118,8 +123,8 @@ test('share previews speak the link\'s language',()=>{
   const viHtml=await run({rec:'abcd1234'}),enHtml=await run({rec:'abcd1234',lang:'en'}),plain=await run({lang:'en'});
   assert.match(viHtml,/<html lang="vi">/);assert.ok(viHtml.includes(I18N.make('vi')('untitled')));
   assert.ok(viHtml.includes(I18N.make('vi')('og.sound',{category:I18N.make('vi')('cat.Vehicles')})));
-  assert.match(enHtml,/<html lang="en">/);assert.match(enHtml,/content="Untitled — Ghé Lại Saigon_Miền Tây"/);
-  assert.match(enHtml,/A Vehicles recording from Ghé Lại Saigon_Miền Tây\./);assert.match(enHtml,/\?rec=abcd1234&amp;lang=en/);
+  assert.match(enHtml,/<html lang="en">/);assert.match(enHtml,/content="Untitled — Saigon_Miền Tây"/);
+  assert.match(enHtml,/A Vehicles recording from the Saigon_Miền Tây archive\./);assert.match(enHtml,/\?rec=abcd1234&amp;lang=en/);
   assert.match(plain,/<html lang="en">/);assert.ok(plain.includes(`content="${en['meta.description'].replace(/&/g,'&amp;')}"`));
   assert.match(plain,/property="og:url" content="https:\/\/x\/\?lang=en"/);
  })();
@@ -136,6 +141,6 @@ test('an English link is English before any script runs',()=>{
   assert.match(enPage,/<html lang="en">/);
   assert.deepEqual(require('../server/utils/i18n-markup').sync(enPage,I18N.make('en')).stale,[]);
   assert.ok(enPage.includes(en.splash));
-  assert.ok(enPage.includes(`<p class="welcome-gloss" data-i18n="welcome.gloss">${en['welcome.gloss']}</p>`));
+  assert.ok(enPage.includes(en['welcome.title']));
  })();
 });
