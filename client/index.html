@@ -1967,15 +1967,22 @@ window.addEventListener('load', function () {
   // phone is a speaker, and an auto-locking screen can end the piece.
   // Browsers drop the lock whenever the page is hidden, so re-request it
   // on return.
+  // Also while recording or uploading: an iPhone that auto-locks can mute
+  // or cut a still take, or stall an upload.
   let wakeLock = null, wakeLockPending = false;
+  const holdAwake = { rec: false, up: false };
+  const wantAwake = () => document.visibilityState === 'visible' &&
+    (holdAwake.rec || holdAwake.up || [...soundingPlayers].some(w => w._audio.loop));
   async function syncWakeLock() {
-    const want = document.visibilityState === 'visible' &&
-      [...soundingPlayers].some(w => w._audio.loop);
+    const want = wantAwake();
     if (want && !wakeLock && !wakeLockPending && 'wakeLock' in navigator) {
       wakeLockPending = true;
       try {
         wakeLock = await navigator.wakeLock.request('screen');
         wakeLock.addEventListener('release', () => { wakeLock = null; });
+        // No longer wanted by the time it arrived (a refused microphone,
+        // a loop stopped): let the screen sleep again.
+        if (!wantAwake()) { wakeLock.release().catch(() => {}); wakeLock = null; }
       } catch {} finally { wakeLockPending = false; }
     } else if (!want && wakeLock) {
       wakeLock.release().catch(() => {});
@@ -2033,9 +2040,13 @@ window.addEventListener('load', function () {
       e.stopPropagation();
       // Pause every other player first — only one plays at a time
       soundingPlayers.forEach(p => { if (p !== wrap) p._audio.pause(); });
-      if (audio.paused) {
+      // WebKit stays "playing" after a failed download: that tap plays.
+      if (audio.paused || audio.error) {
         wrap.classList.add('loading');
         soundingPlayers.add(wrap);
+        // After a failed download (weak signal) every play() would reject
+        // at once: start the download again, still inside the tap.
+        if (audio.error) audio.load();
         audio.play().catch(err => {
           wrap.classList.remove('loading');
           soundingPlayers.delete(wrap);
@@ -2053,6 +2064,14 @@ window.addEventListener('load', function () {
       wrap.classList.toggle('looping', audio.loop);
       loop.setAttribute('aria-pressed', String(audio.loop));
       syncWakeLock();
+    };
+    audio.onerror = () => {
+      // Only a sound someone pressed Play on says so; a popup merely
+      // opened (its duration failing to load) stays quiet.
+      const asked = soundingPlayers.has(wrap);
+      wrap.classList.remove('loading', 'playing'); soundingPlayers.delete(wrap);
+      markSounding(wrap.dataset.rec); undockAudio(wrap); syncWakeLock();
+      if (asked) toast(t('player.loadFail'));
     };
     audio.onplaying = () => { wrap.classList.remove('loading'); wrap.classList.add('playing'); soundingPlayers.add(wrap); markSounding(wrap.dataset.rec); syncWakeLock(); };
     audio.onpause   = () => { wrap.classList.remove('playing'); wrap.classList.remove('loading'); soundingPlayers.delete(wrap); markSounding(wrap.dataset.rec); undockAudio(wrap); syncWakeLock(); };
@@ -2403,7 +2422,13 @@ window.addEventListener('load', function () {
     // first paint, so markers and cluster circles render on top of each other.
     syncClusteredClass();
 
+    // A tap that only closes an open popup is not a place. Mapbox closes the
+    // popup on 'preclick' (registered later, so this runs first), before
+    // 'click' would set the upload location there.
+    let closingTap = false;
+    map.on('preclick', () => { closingTap = !!map.getContainer().querySelector('.mapboxgl-popup'); });
     map.on('click', e => {
+      if (closingTap && !pinMode) { closingTap = false; return; }
       if (e.originalEvent.target.closest('.marker') || e.originalEvent.target.closest('.mapboxgl-popup')) return;
       // Canvas-rendered recordings (clusters / lone points) have their own
       // click handlers — don't also drop an upload pin on top of them.
@@ -2427,10 +2452,11 @@ window.addEventListener('load', function () {
   let lastPayload = null;
   // The kinds the chips were last built for, and the payload the archive's
   // cards were last built from (null: never built, as on the sound map).
-  let kindsShown = '', archiveBuiltFrom = null;
+  let kindsShown = '', archiveBuiltFrom = null, loadRetry = 0;
   async function loadRecordings() {
     try {
-      let res = await fetch(`${API}/entries`);
+      const limit = typeof AbortSignal !== 'undefined' && AbortSignal.timeout ? { signal: AbortSignal.timeout(20000) } : {};
+      let res = await fetch(`${API}/entries`, limit);
       // A server from before the living archive has no /entries yet (and
       // answers unknown paths with the map's HTML, not a 404).
       if (res.status === 404 || (res.ok && !(res.headers.get('content-type') || '').includes('json'))) res = await fetch(`${API}/recordings`);
@@ -2481,6 +2507,9 @@ window.addEventListener('load', function () {
       openDeepLink();
     } catch (err) {
       console.error('Failed to load:', err);
+      // Nothing shown yet (a weak signal at the start): try again soon,
+      // not at the 2-minute refresh.
+      if (!lastPayload && !loadRetry) loadRetry = setTimeout(() => { loadRetry = 0; loadRecordings(); }, 5000);
     }
   }
 
@@ -2696,7 +2725,8 @@ window.addEventListener('load', function () {
     const soundingIds = new Set([...soundingPlayers]
       .filter(w => w.closest('.popup-inner, .popup-video')).map(w => w.dataset.rec));
     const kept = new Map();
-    Object.entries(markersById).forEach(([id, m]) => { if (soundingIds.has(id)) kept.set(id, m); });
+    // An open popup someone is reading (or has paused) stays open too.
+    Object.entries(markersById).forEach(([id, m]) => { if (soundingIds.has(id) || m.getPopup()?.isOpen()) kept.set(id, m); });
     const keptSet = new Set(kept.values());
     markers.forEach(m => { if (!keptSet.has(m)) m.remove(); });
     markers = [...kept.values()];
@@ -3077,6 +3107,7 @@ window.addEventListener('load', function () {
   }
   function closeForm() {
     if (mediaRecorder?.state === 'recording') $('rec-stop').click();
+    stopRecPreview();
     void saveDraft(); $('form-overlay').classList.remove('open');
   }
   // Typing saves once it pauses; saveDraft() itself cancels a pending one.
@@ -3101,7 +3132,7 @@ window.addEventListener('load', function () {
       await new Promise(resolve => { mediaRecorder.addEventListener('stop', resolve, { once: true }); $('rec-stop').click(); });
     }
     resetRecorder(); draftFile = null; clearVideo(); draftKey = newDraftKey();
-    $('upload-form').reset(); clearPhotos(); updateLocStatus();
+    $('upload-form').reset(); $('f-lat').value = ''; $('f-lng').value = ''; clearPhotos(); updateLocStatus();
     await DraftStore.clear().then(() => { say($('draft-status'), 'draft.discarded'); },
       () => { say($('draft-status'), 'draft.discardFailed'); });
   };
@@ -3130,9 +3161,12 @@ window.addEventListener('load', function () {
     say($('kind-formats'), `ks.${kind}.formats`);
     if (!quiet) void saveDraft();
   }
+  // A take being listened back to hides with the Sound tab: stop it.
+  // (Not inside setKind: its first call runs before the preview exists.)
+  const pickKind = kind => { if (kind !== 'sound') stopRecPreview(); setKind(kind); };
   $('kind-pick').onclick = e => {
     const b = e.target.closest('[data-kind]');
-    if (b) setKind(b.dataset.kind);
+    if (b) pickKind(b.dataset.kind);
   };
   // Radio-group keys: arrows move the choice.
   $('kind-pick').onkeydown = e => {
@@ -3141,7 +3175,7 @@ window.addEventListener('load', function () {
     e.preventDefault();
     const from = e.target.closest('[data-kind]')?.dataset.kind || formKind;
     const next = order[(order.indexOf(from) + step + order.length) % order.length];
-    setKind(next);
+    pickKind(next);
     $('kind-pick').querySelector(`[data-kind="${next}"]`).focus();
   };
   // Text set as things happen, in the language the page opens in.
@@ -3575,6 +3609,7 @@ window.addEventListener('load', function () {
       xhr.send(fd);
     });
 
+    holdAwake.up = true; syncWakeLock();   // released in the finally below
     try {
       let lastErr, lastResponse;
       const MAX_ATTEMPTS = 3;
@@ -3617,6 +3652,9 @@ window.addEventListener('load', function () {
       clearTimeout(draftTimer); draftTimer = 0;
       resetRecorder(); draftFile = null; clearVideo();
       $('upload-form').reset();
+      // reset() leaves hidden inputs as they are: without this, the next
+      // take silently reused this one's location (seen on the 14 Jun walk).
+      $('f-lat').value = ''; $('f-lng').value = ''; updateLocStatus();
       clearPhotos();
       say($('draft-status'), null);
       draftKey = newDraftKey();
@@ -3630,6 +3668,7 @@ window.addEventListener('load', function () {
     } catch (err) {
       toast(err.message === 'aborted' ? t('up.cancelled') : t('up.failed', { reason: failReason(err) }));
     } finally {
+      holdAwake.up = false; syncWakeLock();
       $('loading').classList.remove('show');
       say($('loading-text'), 'up.uploading');
       $('form-submit').disabled = false;
@@ -3639,6 +3678,10 @@ window.addEventListener('load', function () {
   // ── Recorder ────────────────────────────────────────────────────
   $('rec-start').onclick = async () => {
     if (recordedBlob && !confirm(t('rec.replace'))) return;
+    stopRecPreview();
+    // A sound or loop still playing from the map would be recorded too.
+    soundingPlayers.forEach(p => p._audio.pause());
+    holdAwake.rec = true; syncWakeLock();   // asked while still inside the tap
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
@@ -3661,6 +3704,7 @@ window.addEventListener('load', function () {
       mediaRecorder.ondataavailable = e => { if (e.data.size > 0) recordedChunks.push(e.data); };
       const rec = mediaRecorder;
       mediaRecorder.onstop = () => {
+        holdAwake.rec = false; syncWakeLock();
         stream.getTracks().forEach(t => t.stop());
         clearTimeout(window._recWarnT); clearTimeout(window._recCapT);
         // Stopped by resetRecorder (published or discarded): keep nothing —
@@ -3692,7 +3736,7 @@ window.addEventListener('load', function () {
       $('rec-dot').classList.add('active');
       $('rec-start').disabled = true;
       $('rec-stop').disabled = false;
-    } catch { toast(t('rec.denied')); }
+    } catch { holdAwake.rec = false; syncWakeLock(); toast(t('rec.denied')); }
   };
 
   $('rec-stop').onclick = () => {
@@ -3702,13 +3746,66 @@ window.addEventListener('load', function () {
     $('rec-stop').disabled = true;
   };
 
-  $('rec-play').onclick = () => {
-    if (recordedBlob) new Audio(URL.createObjectURL(recordedBlob)).play();
+  // One preview player, kept on the page. A new Audio() per tap could be
+  // let go by a phone's browser while it was still loading, and when it
+  // could not play nothing said so: the recording seemed to play once, then
+  // not at all. Play/Stop now toggles; the end rewinds; a refusal retries
+  // once from a fresh load, then says so (the recording still uploads).
+  const recPreview = document.createElement('audio');
+  recPreview.preload = 'auto';
+  recPreview.hidden = true;
+  recPreview.setAttribute('playsinline', '');
+  document.body.appendChild(recPreview);
+  let recPreviewBlob = null, recPreviewUrl = '';
+  function loadRecPreview(force) {
+    if (!force && recPreviewBlob === recordedBlob) return;
+    const old = recPreviewUrl;
+    recPreviewBlob = recordedBlob;
+    recPreviewUrl = recordedBlob ? URL.createObjectURL(recordedBlob) : '';
+    if (recPreviewUrl) recPreview.src = recPreviewUrl; else recPreview.removeAttribute('src');
+    recPreview.load();
+    if (old) URL.revokeObjectURL(old);   // only once the element has let go of it
+  }
+  function labelRecPlay(key) {
+    const b = $('rec-play');
+    b.dataset.i18n = key;          // a language switch keeps the right word
+    b.textContent = t(key);
+  }
+  function stopRecPreview() {         // Stop, not pause: the next Play starts over
+    if (!recPreview.paused) recPreview.pause();
+    if (recPreview.currentTime) recPreview.currentTime = 0;
+  }
+  // The label follows paused/playing from the tap on, so a second tap
+  // while it is still loading reads as Stop and is one.
+  recPreview.onplay = () => labelRecPlay('rec.stop');
+  recPreview.onpause = () => labelRecPlay('rec.play');
+  recPreview.onended = () => { recPreview.currentTime = 0; labelRecPlay('rec.play'); };
+  $('rec-play').onclick = async () => {
+    // WebKit stays "playing" after a take fails to load: that tap is a
+    // new try, not a Stop. (No pause() in onerror: it would turn the real
+    // failure into an AbortError and hide it.)
+    if (!recPreview.paused && !recPreview.error) return stopRecPreview();
+    if (!recordedBlob) return;
+    soundingPlayers.forEach(p => p._audio.pause());   // one sound at a time
+    loadRecPreview(!!recPreview.error);
+    if (recPreview.ended) recPreview.currentTime = 0;
+    try { await recPreview.play(); }
+    catch (err) {
+      // Stopped before it began (Stop, close, Back, Record): that is not a failure.
+      if (err?.name === 'AbortError') return;
+      try { loadRecPreview(true); await recPreview.play(); }
+      catch (err2) {
+        if (err2?.name === 'AbortError') return;
+        console.error('preview:', err, err2); labelRecPlay('rec.play'); toast(t('rec.playFail'));
+      }
+    }
   };
 
   function resetRecorder() {
+    stopRecPreview();
     if (mediaRecorder?.state === 'recording') { mediaRecorder.discarded = true; mediaRecorder.stop(); }
     recordedChunks = []; recordedBlob = null;
+    loadRecPreview();                  // let go of the old recording
     $('rec-start').disabled = false;
     $('rec-stop').disabled = true;
     $('rec-play').disabled = true;
